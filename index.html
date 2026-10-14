@@ -4,63 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Real Estate Capital</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Nunito:wght@400;600;700;800&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div id="setup" class="screen">
-    <div class="setup-wrap">
-      <header class="setup-head">
-        <h1>Real Estate Capital</h1>
-        <p class="tagline">A property game where the economy is real: unequal starts, one open market, taxes, mortgages, global events, and the occasional trip to the emergency room.</p>
-      </header>
-      <div class="setup-grid">
-        <section class="card">
-          <h2>Players</h2>
-          <div id="playerRows"></div>
-          <button id="addPlayer" class="btn small">+ Add player</button>
-          <div class="row-opts">
-            <label>Game length <select id="years"><option value="5">5 years</option><option value="10" selected>10 years</option><option value="15">15 years</option><option value="20">20 years</option><option value="30">30 years</option></select></label>
-            <label>AI speed <select id="aiSpeed"><option value="700">Normal</option><option value="250">Fast</option><option value="0">Instant</option></select></label>
-            <label><input type="checkbox" id="equalStart"> Equal start (everyone begins as a Middle Manager with $100k)</label>
-            <label>Seed (optional) <input id="seed" type="text" placeholder="random" size="10"></label>
-          </div>
-          <div class="row-opts">
-            <button id="startBtn" class="btn primary">Start game</button>
-            <button id="continueBtn" class="btn hidden">Continue saved game</button>
-          </div>
-        </section>
-        <section class="card rules">
-          <h2>How it works</h2>
-          <ul>
-            <li><b>Unequal starts.</b> Each player is dealt a background: a trust-fund heir with inherited towers and estate tax, a nurse with one kid, a graduate with student debt. You play the hand you are dealt.</li>
-            <li><b>One market.</b> Every property has a live value driven by the economy, its district, and its condition. Buy unowned buildings when you land on them (or off-market at a 5% premium), list your own for sale, or make offers on anyone's.</li>
-            <li><b>Months, not laps.</b> One round of turns is one month. Salary, rent, mortgage payments, maintenance, property tax, and premiums settle every month. Income tax is due every December.</li>
-            <li><b>Landing fees.</b> Land on someone's property and you pay a month of rent. Own a whole district and rents jump 25%.</li>
-            <li><b>Manage or decay.</b> Buildings wear out. Repair them, renovate them, insure them, set rents low or high. Neglect costs occupancy, value, and eventually fines.</li>
-            <li><b>Global events.</b> Recessions, rate hikes, pandemics, hurricanes, rent control, tech booms. Read the news.</li>
-            <li><b>Health.</b> Age and stress wear you down. Medical emergencies cost tens of thousands without insurance and can put you out of action for months.</li>
-            <li><b>Debt.</b> Short on cash? Your credit line kicks in at a brutal rate. Run out of credit and your assets get seized. Highest net worth when time runs out wins.</li>
-          </ul>
-        </section>
-      </div>
-    </div>
-  </div>
-
-  <div id="game" class="screen hidden">
-    <div class="topbar" id="topbar"></div>
-    <div class="main">
-      <div class="board-wrap"><div class="board" id="board"></div></div>
-      <aside class="side">
-        <div id="players" class="players"></div>
-        <div class="side-tabs"><button data-side="log" class="active">Log</button><button data-side="news">News</button><button id="saveBtn" title="Save game">Save</button><button id="quitBtn" title="Back to menu">Menu</button></div>
-        <div id="sidePanel" class="side-panel"></div>
-      </aside>
-    </div>
-  </div>
-
-  <div id="modal" class="modal hidden"><div class="modal-box" id="modalBox"></div></div>
-  <div id="toasts" class="toasts"></div>
-
+  <div id="app"></div>
   <script src="js/data.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/ai.js"></script>

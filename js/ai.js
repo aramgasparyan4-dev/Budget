@@ -130,9 +130,9 @@
   class AIController {
     constructor(game, opts) { this.game = game; this.opts = opts || {}; }
     async delay() { if (this.opts.delay) await this.opts.delay(); }
-    async preRoll(p) { manage(this.game, p); this.game.emit('change'); await this.delay(); }
+    async preRoll(p) { manage(this.game, p); this.game.emit('change'); }
     async postRoll(p) { manage(this.game, p); this.game.emit('change'); await this.delay(); }
-    async decide(p, spec) { const r = decide(this.game, p, spec); if (spec.type !== 'notice' && this.opts.onDecision) this.opts.onDecision(p, spec, r); await this.delay(); return r; }
+    async decide(p, spec) { const r = decide(this.game, p, spec); if (spec.type !== 'notice' && this.opts.onDecision) this.opts.onDecision(p, spec, r); if (spec.type === 'buy' || spec.type === 'offer') await this.delay(); return r; }
     async skipped() { await this.delay(); }
   }
 

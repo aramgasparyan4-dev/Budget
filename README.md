@@ -7,8 +7,8 @@ No build step. Open `index.html` in a browser (or serve the folder with any stat
 ## Playing
 
 1. Add 2 to 6 players. Any mix of humans (hot-seat on one device) and computer opponents.
-2. Pick the game length (5 to 30 years), AI speed, and optionally the "Equal start" mode or a seed for a repeatable game.
-3. On your turn: manage your affairs (any tab), **Roll dice**, deal with whatever you land on, do more business, then **End turn**.
+2. Pick the game length (3 to 20 years), computer speed, and optionally the "Everyone starts equal" mode.
+3. On your turn: look around if you want (Overview, My buildings, Market, Bank, News), **Roll the dice**, deal with whatever you land on, do more business, then **End turn**. The right-hand panel always shows the one button you need next and a feed of what happened.
 4. One full round of turns is one month. Every month settles salary, rent, mortgage payments, upkeep, property tax, insurance premiums and interest. Every December the income tax bill is due and an annual report is shown.
 5. The game ends when time runs out or only one player is left solvent. Highest net worth wins.
 
