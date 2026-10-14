@@ -34,7 +34,10 @@
 
   class Game {
     constructor(cfg) {
-      this.cfg = Object.assign({ years: 15, startYear: 2026, seed: null, equalStart: false, players: [] }, cfg);
+      this.cfg = Object.assign({ years: 15, startYear: 2026, seed: null, equalStart: false, players: [], policy: 'balanced', scenario: 'normal', classroom: false }, cfg);
+      this.policy = D.POLICIES[this.cfg.policy] || D.POLICIES.balanced;
+      this.scenario = D.SCENARIOS[this.cfg.scenario] || D.SCENARIOS.normal;
+      if (this.scenario.equalStart) this.cfg.equalStart = true;
       const s = this.cfg.seed;
       this.seed = (s === null || s === undefined || s === '') ? Math.floor(Math.random() * 2147483647) : (Number(s) >>> 0);
       this.rng = mulberry32(this.seed);
@@ -58,10 +61,14 @@
       this.properties = [];
       this.winner = null;
       D.BOARD.forEach((sp, i) => { if (sp.kind === 'property') this.properties.push(this.makeProperty(sp, i)); });
+      if (this.scenario.interestRate) this.eco.interestRate = this.scenario.interestRate;
+      if (this.scenario.startCycle) this.eco.cycle = this.scenario.startCycle;
+      if (this.scenario.marketShock) this.eco.marketIndex *= 1 + this.scenario.marketShock;
       this.players = this.cfg.players.map((pc, i) => this.makePlayer(pc, i));
       this.assignBackgrounds();
       this.recordHistory();
-      this.addNews('Game begins', `${this.players.length} players. ${this.cfg.years} years. Market index 100, rates ${this.eco.interestRate.toFixed(2)}%.`);
+      this.addNews('Game begins', `${this.players.length} players. ${this.cfg.years} years. Policy: ${this.policy.name}. Scenario: ${this.scenario.name}.`);
+      (this.scenario.startEvents || []).forEach(id => { const def = D.GLOBAL_EVENTS.find(e => e.id === id); if (def) this.startEvent(def); });
     }
 
     /* ---------- randomness ---------- */
@@ -99,11 +106,11 @@
         position: 0, cash: 0, salary: 0, job: '', age: 30, health: 75, healthInsurance: false, living: 3000, creditScore: 700,
         debt: 0, loans: [], stocks: 0, stockBasis: 0, skipTurns: 0, skipReason: '', laidOff: 0, unemploymentLeft: 0, prevSalary: 0,
         sickMonths: 0, retired: false, children: 0, sideIncome: 0, bankrupt: false, dead: false, inDefault: false, freeTrade: false,
-        bankPromo: false, lastTaxable: 0, year: this.freshYear(), stats: { taxes: 0, medical: 0, rentCollected: 0, rentPaid: 0, interestPaid: 0 },
+        bankPromo: false, lastTaxable: 0, year: this.freshYear(), stats: { taxes: 0, medical: 0, rentCollected: 0, rentPaid: 0, interestPaid: 0, wages: 0, dividends: 0, gains: 0, propertyExpenses: 0 },
         background: null, bgTitle: '', startNetWorth: 0 };
     }
     assignBackgrounds() {
-      const pool = this.shuffle(D.BACKGROUNDS.filter(b => !b.equalOnly));
+      const pool = this.scenario.backgrounds ? this.scenario.backgrounds.map(id => D.BACKGROUNDS.find(b => b.id === id)) : this.shuffle(D.BACKGROUNDS.filter(b => !b.equalOnly));
       this.players.forEach((p, i) => {
         const bg = this.cfg.equalStart ? D.BACKGROUNDS.find(b => b.id === 'manager') : pool[i % pool.length];
         this.applyBackground(p, bg);
@@ -114,7 +121,7 @@
       p.background = bg.id; p.bgTitle = bg.title; p.job = bg.job;
       p.cash = this.cfg.equalStart ? round((bg.cash[0] + bg.cash[1]) / 2) : round(this.randRange(bg.cash[0], bg.cash[1]) / 100) * 100;
       p.salary = bg.salary; p.age = bg.age; p.health = bg.health; p.healthInsurance = !!bg.insurance; p.living = bg.living;
-      p.creditScore = bg.credit; p.retired = !!bg.retired; p.children = bg.children || 0; p.debt = bg.debt || 0;
+      p.creditScore = bg.credit; p.retired = !!bg.retired; if (this.policy.universalHealth) p.healthInsurance = true; p.children = bg.children || 0; p.debt = bg.debt || 0;
       if (bg.studentLoan) p.loans.push({ name: 'Student loan', balance: bg.studentLoan, rate: 5.5, payment: round(mortgagePayment(bg.studentLoan, 5.5, 120)), monthsLeft: 120 });
       if (bg.stocks) { p.stocks = bg.stocks / this.eco.stockIndex; p.stockBasis = bg.stocks; }
       let inherited = 0;
@@ -129,8 +136,8 @@
         this.logp(p, `${p.name} starts owning ${prop.name} (${fmtMoney(v, true)}${spec.ltv ? `, mortgage ${fmtMoney(prop.mortgage.balance, true)}` : ''}).`);
       });
       if (inherited > 0) {
-        const tax = round(Math.max(0, inherited - D.TAX.estateExemption) * D.TAX.estateRate);
-        if (tax > 0) { p.cash -= tax; p.stats.taxes += tax; this.logp(p, `${p.name} pays ${fmtMoney(tax)} estate tax on inherited property.`); }
+        const tax = round(Math.max(0, inherited - D.TAX.estateExemption) * this.policy.estateRate);
+        if (tax > 0) { p.cash -= tax; p.stats.taxes += tax; p.stats.estateTax = (p.stats.estateTax || 0) + tax; this.logp(p, `${p.name} pays ${fmtMoney(tax)} estate tax on inherited property.`); }
       }
       if (p.cash < 0) { p.debt += -p.cash; p.cash = 0; }
       this.logp(p, `${p.name}: ${bg.title}. ${bg.desc}`);
@@ -149,8 +156,8 @@
       this.emit('log', entry);
     }
     logp(p, text, type) { this.addLog(text, { player: p.id, type: type || 'info' }); }
-    addNews(headline, desc, kind) {
-      const n = { month: this.month, headline, desc, kind: kind || 'info' };
+    addNews(headline, desc, kind, real) {
+      const n = { month: this.month, headline, desc, kind: kind || 'info', real: real || null };
       this.news.unshift(n); if (this.news.length > 200) this.news.pop();
       this.addLog(`NEWS: ${headline}`, { type: 'news' });
       this.emit('news', n);
@@ -158,8 +165,8 @@
 
     /* ---------- economy helpers ---------- */
     eventSum(key) { return this.activeEvents.reduce((s, e) => s + (e.effects[key] || 0), 0); }
-    taxMult() { return clamp(1 + this.eventSum('taxMult'), 0.5, 2); }
-    insuranceMult() { return 1 + this.eventSum('insuranceMult'); }
+    taxMult() { return clamp((1 + this.eventSum('taxMult')) * this.policy.taxMult, 0.3, 2.5); }
+    insuranceMult() { return (1 + this.eventSum('insuranceMult')) * this.policy.premiumMult; }
     rentCap(type) { let f = 1; this.activeEvents.forEach(e => { const rc = e.effects.rentCap; if (rc && rc.type === type) f = Math.min(f, rc.factor); }); return f; }
     districtMult(d) {
       let m = 1 + (this.districtShift[d] || 0);
@@ -169,7 +176,7 @@
     creditRate() { return this.eco.interestRate + 17; }
     mortgageRate(p) { return this.eco.interestRate + 1.5 + Math.max(0, (700 - (p ? p.creditScore : 700)) / 100) - (p && p.bankPromo ? 0.5 : 0); }
     loanRate(p) { return this.eco.interestRate + 4 + Math.max(0, (720 - p.creditScore) / 40); }
-    healthPremium(p) { return round((D.COSTS.healthPremiumBase + Math.max(0, p.age - 30) * 9 + p.children * 120) * this.insuranceMult()); }
+    healthPremium(p) { return this.policy.universalHealth ? 0 : round((D.COSTS.healthPremiumBase + Math.max(0, p.age - 30) * 9 + p.children * 120) * this.insuranceMult()); }
 
     /* ---------- property math ---------- */
     ownsDistrict(ownerId, district) {
@@ -236,10 +243,15 @@
       return round(o);
     }
     monthlyIncome(p) {
-      let inc = (p.laidOff > 0 ? (p.unemploymentLeft > 0 ? p.prevSalary * 0.4 : 0) : p.salary) + p.sideIncome;
+      let inc = (p.laidOff > 0 ? (p.unemploymentLeft > 0 ? p.prevSalary * this.policy.unemploymentRate : 0) : p.salary) + p.sideIncome;
       this.playerProperties(p).forEach(pr => { inc += this.monthlyRentCollected(pr); });
       inc += this.stocksValue(p) * D.COSTS.stockDividend / 12;
       return round(inc);
+    }
+    unrealizedGains(p) { let g = this.stocksValue(p) - p.stockBasis; this.playerProperties(p).forEach(pr => { g += this.propertyValue(pr) - pr.costBasis - pr.improvements; }); return round(g); }
+    incomeSources(p) {
+      const st = p.stats;
+      return { wages: round(st.wages), rent: round(st.rentCollected - st.propertyExpenses - st.interestPaid), investing: round(st.gains + st.dividends + this.unrealizedGains(p)), taxes: round(st.taxes), estateTax: round(st.estateTax || 0), medical: round(st.medical) };
     }
     isActive(p) { return !p.bankrupt && !p.dead; }
     activePlayers() { return this.players.filter(p => this.isActive(p)); }
@@ -349,7 +361,7 @@
         case 'tax': return this.landTax(p);
         case 'bank': return this.landBank(p);
         case 'job': return this.landJob(p);
-        case 'casino': return this.landCasino(p);
+        case 'casino': return this.cfg.classroom ? this.landFundraiser(p) : this.landCasino(p);
         case 'airport': return this.landAirport(p);
         case 'life': return this.lifeEvent(p, true);
       }
@@ -429,11 +441,11 @@
       }
       if (ev.salaryPct) { p.salary = round(p.salary * (1 + ev.salaryPct)); return this.notify(p, 'Job Center', `${ev.text} Now ${fmtMoney(p.salary)}/month.`, 'gain'); }
       if (ev.cash) { this.addCash(p, ev.cash, 'from contract work'); return this.notify(p, 'Job Center', ev.text, 'gain'); }
-      if (ev.layoff) { this.layoff(p); return this.notify(p, 'Job Center', `${ev.text} Unemployment pays 40% for up to 6 months. Visit the Job Center or wait it out.`, 'loss'); }
+      if (ev.layoff) { this.layoff(p); return this.notify(p, 'Job Center', `${ev.text} ${this.policy.unemploymentRate > 0 ? `Unemployment pays ${Math.round(this.policy.unemploymentRate * 100)}% for up to ${this.policy.unemploymentMonths} months.` : 'There is no unemployment benefit.'} Visit the Job Center or wait it out.`, 'loss'); }
     }
     layoff(p) {
       if (p.retired || p.laidOff > 0) return;
-      p.prevSalary = p.salary; p.laidOff = this.randInt(3, 7); p.unemploymentLeft = Math.min(6, p.laidOff); p.salary = 0;
+      p.prevSalary = p.salary; p.laidOff = this.randInt(3, 7); p.unemploymentLeft = Math.min(this.policy.unemploymentMonths, p.laidOff); p.salary = 0;
       this.logp(p, `${p.name} is laid off.`, 'loss');
     }
     async landCasino(p) {
@@ -444,6 +456,12 @@
         if (this.chance(0.47)) { this.addCash(p, r, 'won at the casino'); await this.notify(p, 'Casino', `You win ${fmtMoney(r)}.`, 'gain'); }
         else { this.addCash(p, -r, 'lost at the casino'); await this.notify(p, 'Casino', `You lose ${fmtMoney(r)}.`, 'loss'); }
       }
+    }
+    async landFundraiser(p) {
+      const r = await this.prompt(p, { type: 'casino', title: 'Community fundraiser', text: 'The neighbourhood is raising money for the youth centre.', options: [
+        { id: 'give', label: 'Donate $2,000', desc: 'Tax-deductible. Health +3: it feels good.', disabled: p.cash < 2000 }, { id: 'volunteer', label: 'Volunteer a weekend', desc: 'Health +2, meet people.' }, { id: 'skip', label: 'Walk past' }] });
+      if (r === 'give') { this.addCash(p, -2000, 'donated to the youth centre'); p.year.other -= 2000; p.health = clamp(p.health + 3, 0, 100); }
+      else if (r === 'volunteer') { p.health = clamp(p.health + 2, 0, 100); this.logp(p, `${p.name} volunteers at the fundraiser.`); }
     }
     async landAirport(p) {
       const r = await this.prompt(p, { type: 'airport', title: 'Airport', text: 'Where to?', options: [
@@ -456,7 +474,7 @@
 
     /* ---------- life events ---------- */
     async lifeEvent(p, allowChoice, silent) {
-      const pool = D.LIFE_EVENTS.filter(e => (allowChoice || !e.choice) && (!e.minAge || p.age >= e.minAge) && (!e.maxAge || p.age <= e.maxAge) && (!e.needsJob || (!p.retired && p.laidOff === 0)));
+      const pool = D.LIFE_EVENTS.filter(e => !(this.cfg.classroom && D.CLASSROOM.hideLifeEvents.includes(e.id)) && (allowChoice || !e.choice) && (!e.minAge || p.age >= e.minAge) && (!e.maxAge || p.age <= e.maxAge) && (!e.needsJob || (!p.retired && p.laidOff === 0)));
       const ev = this.weightedPick(pool, e => e.weight);
       if (!ev) return;
       let text = ev.text;
@@ -564,7 +582,7 @@
       if (dur) this.activeEvents.push(ev);
       this.eventCooldown[def.id] = 36;
       if (def.effects.permanent) this.firedOnce[def.id] = true;
-      this.addNews(def.headline, def.desc + (dur ? ` (expected to last about ${dur} months)` : ''), 'event');
+      this.addNews(def.headline, def.desc + (dur ? ` (expected to last about ${dur} months)` : ''), 'event', def.real);
       this.emit('globalEvent', ev);
     }
     endEvent(ev) {
@@ -600,14 +618,14 @@
       let salary = 0;
       if (p.laidOff > 0) {
         p.laidOff--;
-        if (p.unemploymentLeft > 0) { salary = round(p.prevSalary * 0.4); p.unemploymentLeft--; s.notes.push(`Unemployment benefit ${fmtMoney(salary)}`); }
+        if (p.unemploymentLeft > 0) { salary = round(p.prevSalary * this.policy.unemploymentRate); p.unemploymentLeft--; s.notes.push(`Unemployment benefit ${fmtMoney(salary)}`); }
         if (p.laidOff === 0) { p.salary = round(p.prevSalary * this.randRange(0.85, 1.05)); this.logp(p, `${p.name} finds a new job: ${fmtMoney(p.salary)}/month.`, 'gain'); }
       } else if (p.sickMonths > 0) {
         p.sickMonths--; salary = p.healthInsurance ? round(p.salary * 0.6) : 0;
         s.notes.push(p.healthInsurance ? 'Sick leave: 60% pay' : 'Sick leave: unpaid');
       } else salary = p.salary;
       salary += p.sideIncome;
-      p.cash += salary; p.year.salary += salary; s.income += salary;
+      p.cash += salary; p.year.salary += salary; p.stats.wages += salary; s.income += salary;
       // --- living
       const living = p.living + p.children * 700;
       const premium = p.healthInsurance ? this.healthPremium(p) : 0;
@@ -619,7 +637,7 @@
         const rent = this.monthlyRentCollected(pr);
         p.cash += rent; p.year.rent += rent; p.stats.rentCollected += rent; s.rent += rent; s.income += rent;
         const c = this.monthlyPropertyCosts(pr);
-        p.cash -= c.maint + c.tax + c.ins; p.year.propExpenses += c.maint + c.tax + c.ins; s.propCosts += c.maint + c.tax + c.ins; s.expenses += c.maint + c.tax + c.ins;
+        p.cash -= c.maint + c.tax + c.ins; p.year.propExpenses += c.maint + c.tax + c.ins; p.stats.propertyExpenses += c.maint + c.tax + c.ins; s.propCosts += c.maint + c.tax + c.ins; s.expenses += c.maint + c.tax + c.ins;
         if (pr.mortgage) {
           const m = pr.mortgage;
           const interest = m.balance * m.rate / 100 / 12;
@@ -634,7 +652,7 @@
       });
       // --- stocks
       const div = round(this.stocksValue(p) * D.COSTS.stockDividend / 12);
-      if (div) { p.cash += div; p.year.dividends += div; s.income += div; }
+      if (div) { p.cash += div; p.year.dividends += div; p.stats.dividends += div; s.income += div; }
       // --- debts
       if (p.debt > 0) {
         const interest = round(p.debt * this.creditRate() / 100 / 12);
@@ -766,6 +784,7 @@
       if (pr.mortgage) { proceeds -= pr.mortgage.balance; pr.mortgage = null; }
       const gain = price - fee - pr.costBasis - pr.improvements;
       let tax = 0;
+      seller.stats.gains += gain;
       if (gain > 0) { tax = round(gain * D.TAX.capitalGains * this.taxMult()); seller.stats.taxes += tax; seller.year.gains += gain; }
       seller.cash += proceeds - tax;
       pr.listedPrice = null; pr.renovation = pr.renovation; pr.owner = null; pr.costBasis = 0; pr.improvements = 0;
@@ -926,7 +945,7 @@
       const basis = p.stockBasis * frac;
       const gain = dollars - basis;
       const fee = p.freeTrade || forced ? 0 : round(dollars * D.COSTS.stockFee);
-      let tax = 0;
+      let tax = 0; p.stats.gains += gain;
       if (gain > 0) { tax = round(gain * D.TAX.capitalGains * this.taxMult()); p.stats.taxes += tax; p.year.gains += gain; }
       p.stocks -= p.stocks * frac; if (p.stocks < 1e-9) p.stocks = 0;
       p.stockBasis -= basis; p.cash += dollars - fee - tax;
@@ -934,6 +953,7 @@
       return this.ok('Sold');
     }
     setHealthInsurance(p, on) {
+      if (this.policy.universalHealth) return this.fail('Everyone is covered by public health insurance');
       if (on && p.cash < this.healthPremium(p)) return this.fail('Not enough cash for the first premium');
       p.healthInsurance = !!on;
       this.logp(p, `${p.name} ${on ? 'enrolls in' : 'drops'} health insurance (${fmtMoney(this.healthPremium(p))}/month).`);

@@ -27,7 +27,12 @@
           <div class="opts">
             <label>Game length <select id="years"><option value="3">3 years (quick)</option><option value="5" selected>5 years</option><option value="10">10 years</option><option value="20">20 years</option></select></label>
             <label>Computer speed <select id="speed"><option value="350">Normal</option><option value="120">Fast</option><option value="0">Instant</option></select></label>
-            <label>Everyone starts equal <input type="checkbox" id="equal"></label>
+            <label>Scenario <select id="scenario">${Object.entries(D.SCENARIOS).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('')}</select></label>
+            <div class="muted" id="scenarioDesc" style="font-size:13px;margin-top:-4px"></div>
+            <label>Government policy <select id="policy">${Object.entries(D.POLICIES).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('')}</select></label>
+            <div class="muted" id="policyDesc" style="font-size:13px;margin-top:-4px"></div>
+            <label>Classroom mode <input type="checkbox" id="classroom"></label>
+            <div class="muted" style="font-size:13px;margin-top:-4px">No casino or gambling events, no divorce. Everything else stays real.</div>
           </div>
           <div class="start"><button class="btn primary big" id="start" style="width:auto">Start game</button>${saved ? '<button class="btn big" id="cont" style="width:auto">Continue saved game</button>' : ''}</div>
         </div>
@@ -42,11 +47,13 @@
     const rows = $('#rows');
     const addRow = (name, ai) => { const i = rows.children.length; const r = document.createElement('div'); r.className = 'prow'; r.innerHTML = `<span class="avatar" style="background:${D.COLORS[i]}">${esc(name[0])}</span><input type="text" value="${esc(name)}" maxlength="14"><select><option value="h"${ai ? '' : ' selected'}>Human</option><option value="ai"${ai ? ' selected' : ''}>Computer</option></select><button class="btn small ghost danger">✕</button>`; r.lastElementChild.onclick = () => { if (rows.children.length > 2) { r.remove(); [...rows.children].forEach((x, k) => { x.firstElementChild.style.background = D.COLORS[k]; }); } }; r.querySelector('input').oninput = e => { r.firstElementChild.textContent = (e.target.value || '?')[0]; }; rows.appendChild(r); };
     addRow('You', false); addRow('Dana', true); addRow('Marcus', true);
+    const descs = () => { $('#scenarioDesc').textContent = D.SCENARIOS[$('#scenario').value].desc; $('#policyDesc').textContent = D.POLICIES[$('#policy').value].desc; };
+    $('#scenario').onchange = descs; $('#policy').onchange = descs; descs();
     $('#add').onclick = () => { if (rows.children.length < 6) addRow(['Priya', 'Leo', 'Sofia'][rows.children.length - 3] || 'Player', true); };
     $('#start').onclick = () => {
       const players = [...rows.children].map(r => ({ name: r.querySelector('input').value.trim() || 'Player', isAI: r.querySelector('select').value === 'ai' }));
       ui.aiSpeed = Number($('#speed').value);
-      startGame(new Game({ players, years: Number($('#years').value), equalStart: $('#equal').checked }));
+      startGame(new Game({ players, years: Number($('#years').value), scenario: $('#scenario').value, policy: $('#policy').value, classroom: $('#classroom').checked }));
     };
     if (saved) $('#cont').onclick = () => { try { ui.aiSpeed = Number($('#speed').value); startGame(Game.fromJSON(JSON.parse(saved))); } catch (e) { console.error(e); toast('Saved game could not be loaded', 'bad'); } };
   }
@@ -68,7 +75,7 @@
   let chain = Promise.resolve();
   function modal(spec) {
     const run = () => new Promise(resolve => {
-      const box = $('#mbox'); $('#modal').hidden = false;
+      const box = $('#mbox'); $('#modal').hidden = false; box.classList.toggle('wide', !!spec.wide);
       let h = '';
       if (spec.icon) h += `<div class="ic">${spec.icon}</div>`;
       if (spec.playerName) h += `<div class="for">${esc(spec.playerName)}</div>`;
@@ -79,6 +86,7 @@
       h += '<div class="opts">' + (spec.options || [{ id: 'ok', label: 'OK' }]).map(o => `<button class="opt" data-id="${esc(o.id)}" ${o.disabled ? 'disabled' : ''}>${esc(o.label)}${o.desc ? `<span class="desc">${esc(o.desc)}</span>` : ''}</button>`).join('') + '</div>';
       box.innerHTML = h;
       if (spec.amount) $('#amtMax').onclick = () => { $('#amt').value = Math.round(spec.amount.max); };
+      if (spec.onRender) { try { spec.onRender(box); } catch (e) { console.error(e); } }
       box.querySelectorAll('.opt').forEach(b => { b.onclick = () => { $('#modal').hidden = true; resolve(spec.amount ? { id: b.dataset.id, amount: Number($('#amt').value) } : b.dataset.id); }; });
       const f = box.querySelector('.opt:not(:disabled)'); if (f) f.focus();
     });
@@ -134,7 +142,7 @@
     const place = () => { const target = mq.matches ? $('#centreSlot') : $('#board'); if (target && centre.parentElement !== target) target.appendChild(centre); };
     place(); if (mq.addEventListener) mq.addEventListener('change', place); else mq.addListener(place);
   }
-  const SPACE_HELP = { home: 'Home: a quiet month. Health +2.', hospital: 'Hospital: a check-up, and treatment if you need it.', exchange: 'Stock Exchange: trading fees and closing costs waived this turn.', court: 'Courthouse: lawsuits, fines, jury duty.', tax: 'Tax Office: audits and refunds.', bank: 'Bank: consolidate debt, mortgage promo.', job: 'Job Center: promotions, offers, layoffs.', casino: 'Casino: bet if you dare.', airport: 'Airport: a vacation or a business trip.', life: 'Life: something happens.' };
+  const SPACE_HELP = { home: 'Home: a quiet month. Health +2.', hospital: 'Hospital: a check-up, and treatment if you need it.', exchange: 'Stock Exchange: trading fees and closing costs waived this turn.', court: 'Courthouse: lawsuits, fines, jury duty.', tax: 'Tax Office: audits and refunds.', bank: 'Bank: consolidate debt, mortgage promo.', job: 'Job Center: promotions, offers, layoffs.', casino: 'Casino: bet if you dare. (Classroom mode: a community fundraiser instead.)', airport: 'Airport: a vacation or a business trip.', life: 'Life: something happens.' };
 
   /* ---------------- render ---------------- */
   function render() {
@@ -150,7 +158,7 @@
     const cyc = { expansion: ['Growing', 'good'], peak: ['Overheating', 'warn'], recession: ['Recession', 'bad'], recovery: ['Recovering', 'good'] }[e.cycle];
     const h = e.history; const prev = h.length > 12 ? h[h.length - 13].market : h[0].market; const yoy = (e.marketIndex / prev - 1) * 100;
     $('#top').innerHTML = `<div><div class="date">${esc(g.dateLabel())}</div><div class="sub">Year ${Math.floor(g.month / 12) + 1} of ${g.cfg.years}</div></div>
-      <div class="stats"><span>Economy <span class="chip ${cyc[1]}">${cyc[0]}</span></span><span>Property prices <b>${yoy >= 0 ? '+' : ''}${yoy.toFixed(1)}%</b> this year</span><span>Interest rate <b>${e.interestRate.toFixed(1)}%</b></span><span>Stocks <b>${Math.round(e.stockIndex)}</b></span>
+      <div class="stats"><span>Economy <span class="chip ${cyc[1]}">${cyc[0]}</span></span><span>Property prices <b>${yoy >= 0 ? '+' : ''}${yoy.toFixed(1)}%</b> this year</span><span>Interest rate <b>${e.interestRate.toFixed(1)}%</b></span><span>Stocks <b>${Math.round(e.stockIndex)}</b></span><span title="${esc(g.policy.desc)}">Policy <b>${esc(g.policy.name)}</b></span>
       ${g.activeEvents.map(ev => `<span class="chip warn" title="${esc(ev.desc)}">${esc(ev.name)}</span>`).join('')}</div>
       <span class="spacer"></span><button class="btn small" id="helpBtn">Help</button><button class="btn small" id="menuBtn">Save &amp; menu</button>`;
     $('#helpBtn').onclick = showHelp;
@@ -162,7 +170,7 @@
       const i = Number(c.dataset.i), sp = D.BOARD[i];
       const toks = g.players.filter(p => g.isActive(p) && p.position === i).map(p => `<span class="tok" style="background:${p.color}">${esc(p.name[0])}</span>`).join('');
       c.classList.toggle('here', !!(g.current && g.current.position === i));
-      if (sp.kind !== 'property') { c.innerHTML = `<div class="ic">${sp.icon}</div><div class="name">${esc(sp.name)}</div><div class="toks">${toks}</div>`; return; }
+      if (sp.kind !== 'property') { const cl = sp.kind === 'casino' && g.cfg.classroom ? D.CLASSROOM.casino : sp; c.innerHTML = `<div class="ic">${cl.icon}</div><div class="name">${esc(cl.name)}</div><div class="toks">${toks}</div>`; return; }
       const pr = g.prop(i), d = D.DISTRICTS[pr.district], owner = pr.owner === null ? null : g.players[pr.owner];
       c.innerHTML = `<div class="stripe" style="background:${d.color}"></div>${pr.listedPrice !== null ? '<span class="tag">SALE</span>' : ''}<div class="body"><div class="name">${esc(pr.name)}</div><div class="val">${money(g.propertyValue(pr))}</div><div class="toks">${toks}</div></div><div class="own" style="background:${owner ? owner.color : 'transparent'}"></div>`;
       c.title = owner ? `${pr.name} — owned by ${owner.name}` : `${pr.name} — for sale`;
@@ -362,10 +370,46 @@
     ctx.strokeStyle = cs.getPropertyValue('--line').trim(); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, y(100)); ctx.lineTo(W, y(100)); ctx.stroke(); ctx.setLineDash([]);
     [['market', cs.getPropertyValue('--accent').trim()], ['stock', cs.getPropertyValue('--good').trim()]].forEach(([k, color]) => { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); hist.forEach((h, i) => { if (i === 0) ctx.moveTo(x(i), y(h[k])); else ctx.lineTo(x(i), y(h[k])); }); ctx.stroke(); });
   }
+  function drawWealth(cv, g) {
+    const hist = g.eco.history; if (!cv || hist.length < 2) return;
+    const ctx = cv.getContext('2d'), W = cv.width, H = cv.height; ctx.clearRect(0, 0, W, H);
+    const all = hist.flatMap(h => h.netWorth); const max = Math.max(1, ...all), min = Math.min(0, ...all);
+    const x = i => i / (hist.length - 1) * (W - 20) + 10, y = v => H - 10 - (v - min) / (max - min) * (H - 20);
+    const cs = getComputedStyle(document.documentElement);
+    ctx.strokeStyle = cs.getPropertyValue('--line').trim(); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, y(0)); ctx.lineTo(W, y(0)); ctx.stroke(); ctx.setLineDash([]);
+    g.players.forEach(p => { ctx.strokeStyle = p.color; ctx.lineWidth = 2.5; ctx.beginPath(); hist.forEach((h, i) => { const v = h.netWorth[p.id]; if (i === 0) ctx.moveTo(x(i), y(v)); else ctx.lineTo(x(i), y(v)); }); ctx.stroke(); });
+    ctx.fillStyle = cs.getPropertyValue('--muted').trim(); ctx.font = '11px sans-serif'; ctx.fillText(money(max), 12, 12); ctx.fillText(money(min), 12, H - 12);
+  }
+  function lessonsHtml(g) {
+    const ps = g.players.slice().sort((a, b) => g.netWorth(b) - g.netWorth(a));
+    const src = ps.map(p => Object.assign({ p }, g.incomeSources(p)));
+    const maxSrc = Math.max(1, ...src.flatMap(x => [Math.abs(x.wages), Math.abs(x.rent), Math.abs(x.investing)]));
+    const bar = (v, col) => `<div class="hb"><span style="width:${Math.round(Math.abs(v) / maxSrc * 100)}%;background:${col}"></span><em>${v < 0 ? '-' : ''}${money(Math.abs(v))}</em></div>`;
+    const top = ps[0], bottom = ps[ps.length - 1];
+    const startGap = Math.max(...ps.map(p => p.startNetWorth)) - Math.min(...ps.map(p => p.startNetWorth));
+    const endGap = g.netWorth(top) - (g.isActive(bottom) ? g.netWorth(bottom) : 0);
+    const richestStart = ps.slice().sort((a, b) => b.startNetWorth - a.startNetWorth)[0];
+    const facts = [];
+    facts.push(`The gap between richest and poorest was ${money(startGap)} at the start and ${money(endGap)} at the end.`);
+    facts.push(richestStart.id === top.id ? `${richestStart.name} started richest and finished richest.` : `${richestStart.name} started richest but ${top.name} finished first.`);
+    const assetHeavy = src.filter(x => x.rent + x.investing > x.wages);
+    if (assetHeavy.length) facts.push(`${assetHeavy.map(x => x.p.name).join(', ')} made more from owning things than from working.`);
+    const taxShare = src.map(x => ({ n: x.p.name, inc: x.wages + Math.max(0, x.rent) + Math.max(0, x.investing), r: (x.taxes - x.estateTax) / Math.max(1, x.wages + Math.max(0, x.rent) + Math.max(0, x.investing)) })).filter(x => x.inc > 20000 && x.r < 0.8);
+    const hi = taxShare.sort((a, b) => b.r - a.r)[0], lo = taxShare[taxShare.length - 1];
+    if (hi && lo && hi.n !== lo.n) facts.push(`${hi.n} paid about ${Math.round(hi.r * 100)}% of their income in tax; ${lo.n} paid about ${Math.round(lo.r * 100)}%.`);
+    const est = src.filter(x => x.estateTax > 0);
+    est.forEach(x => facts.push(`${x.p.name} paid ${money(x.estateTax)} in estate tax on what they inherited${g.policy.estateRate === 0 ? '' : ` (${Math.round(g.policy.estateRate * 100)}% above $1M)`}.`));
+    const med = src.filter(x => x.medical > 0).sort((a, b) => b.medical - a.medical)[0];
+    if (med) facts.push(`${med.p.name} paid ${money(med.medical)} in medical bills${med.p.healthInsurance ? ' even with insurance' : ', uninsured'}.`);
+    return `<h3 style="font-size:17px;margin:14px 0 6px">Wealth over time</h3><canvas class="chart" id="wealthChart" width="700" height="170"></canvas><div class="muted" style="font-size:12px;margin-bottom:10px">${ps.map(p => `<span style="color:${p.color}">■</span> ${esc(p.name)} `).join(' ')}</div>
+      <h3 style="font-size:17px;margin:14px 0 6px">Where the money came from</h3><div class="twrap"><table class="t srcs"><thead><tr><th>Player</th><th>Working</th><th>Owning buildings</th><th>Investing &amp; price rises</th><th class="r">Taxes</th><th class="r">Medical</th></tr></thead><tbody>${src.map(x => `<tr><td><b style="color:${x.p.color}">${esc(x.p.name)}</b><br><span class="muted">${esc(x.p.bgTitle)}</span></td><td>${bar(x.wages, 'var(--accent)')}</td><td>${bar(x.rent, 'var(--good)')}</td><td>${bar(x.investing, 'var(--gold)')}</td><td class="r">${money(x.taxes)}</td><td class="r">${x.medical ? money(x.medical) : '–'}</td></tr>`).join('')}</tbody></table></div>
+      <h3 style="font-size:17px;margin:14px 0 6px">What this game showed</h3><ul class="facts">${facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+      <h3 style="font-size:17px;margin:14px 0 6px">Talk about it</h3><ul class="facts"><li>Who worked hardest? Who ended richest? Are those the same people?</li><li>What would have happened to the poorest player with a different government policy?</li><li>Which events hurt everyone, and which hurt only some people?</li><li>If you played again from the same start, what would you do differently? What could you not change?</li></ul>`;
+  }
   function renderNews(pane) {
     const g = ui.game;
-    pane.innerHTML = `<div class="section"><h3>Right now</h3>${g.activeEvents.length ? g.activeEvents.map(ev => `<div class="news-item event"><div class="h">${esc(ev.headline)} <span class="muted">· about ${ev.monthsLeft} months left</span></div><div class="d">${esc(ev.desc)}</div></div>`).join('') : `<span class="muted">No shocks in progress. The economy is in ${esc(g.eco.cycle)}.</span>`}${g.rentCap('residential') < 1 ? '<div class="warn" style="font-size:13px;margin-top:6px">Rent control is in force: residential rents capped at 80% of market.</div>' : ''}</div>
-      <div class="section"><h3>Headlines</h3>${g.news.map(n => `<div class="news-item ${n.kind}"><div class="h"><span class="muted">${esc(g.dateLabel(n.month))}</span> · ${esc(n.headline)}</div><div class="d">${esc(n.desc)}</div></div>`).join('')}</div>`;
+    pane.innerHTML = `<div class="section"><h3>Right now</h3>${g.activeEvents.length ? g.activeEvents.map(ev => `<div class="news-item event"><div class="h">${esc(ev.headline)} <span class="muted">· about ${ev.monthsLeft} months left</span></div><div class="d">${esc(ev.desc)}</div>${ev.real ? `<div class="real">🌍 In the real world: ${esc(ev.real)}</div>` : ''}</div>`).join('') : `<span class="muted">No shocks in progress. The economy is in ${esc(g.eco.cycle)}.</span>`}${g.rentCap('residential') < 1 ? '<div class="warn" style="font-size:13px;margin-top:6px">Rent control is in force: residential rents capped at 80% of market.</div>' : ''}</div>
+      <div class="section"><h3>Headlines</h3>${g.news.map(n => `<div class="news-item ${n.kind}"><div class="h"><span class="muted">${esc(g.dateLabel(n.month))}</span> · ${esc(n.headline)}</div><div class="d">${esc(n.desc)}</div>${n.real ? `<div class="real">🌍 In the real world: ${esc(n.real)}</div>` : ''}</div>`).join('')}</div>`;
   }
 
   /* ---------------- reports ---------------- */
@@ -373,12 +417,15 @@
     const g = ui.game;
     if (ui.humans === 0 && ui.aiSpeed === 0) return Promise.resolve();
     const rows = report.rows.map((r, i) => `<tr><td>${i + 1}</td><td><span class="avatar" style="background:${r.player.color};width:20px;height:20px;font-size:10px">${esc(r.player.name[0])}</span> ${esc(r.player.name)}</td><td class="r">${money(r.salary + r.rent + r.dividends)}</td><td class="r bad">${money(r.tax + r.wealthTax)}</td><td class="r">${r.oop ? money(r.oop) : '–'}</td><td class="r"><b>${money(r.netWorth)}</b></td></tr>${r.note ? `<tr><td></td><td colspan="5" class="muted">${esc(r.note)}</td></tr>` : ''}`).join('');
-    return modal({ icon: '🧾', title: `${report.year} in review`, text: `Income taxes are paid. Prices ${g.eco.marketIndex >= 100 ? 'up' : 'down'} to ${Math.round(g.eco.marketIndex)} (from 100 at the start). Everyone is a year older.`, html: `<div class="twrap"><table class="t"><thead><tr><th>#</th><th>Player</th><th class="r">Income</th><th class="r">Tax</th><th class="r">Medical</th><th class="r">Net worth</th></tr></thead><tbody>${rows}</tbody></table></div>`, options: [{ id: 'ok', label: 'Continue' }] });
+    return modal({ icon: '🧾', title: `${report.year} in review`, text: `Income taxes are paid. Prices ${g.eco.marketIndex >= 100 ? 'up' : 'down'} to ${Math.round(g.eco.marketIndex)} (from 100 at the start). Everyone is a year older.`, html: `<div class="twrap"><table class="t"><thead><tr><th>#</th><th>Player</th><th class="r">Income</th><th class="r">Tax</th><th class="r">Medical</th><th class="r">Net worth</th></tr></thead><tbody>${rows}</tbody></table></div><canvas class="chart" id="wealthChart" width="700" height="130" style="margin-top:10px"></canvas><div class="muted" style="font-size:12px">Net worth of every player since the start.</div>`, options: [{ id: 'ok', label: 'Continue' }], onRender: box => drawWealth(box.querySelector('#wealthChart'), g) });
   }
   function showGameOver(ranking) {
     const g = ui.game; try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
     const rows = ranking.map((p, i) => `<tr><td>${i === 0 && g.isActive(p) ? '🏆' : i + 1}</td><td>${esc(p.name)}</td><td class="muted">${esc(p.bgTitle)}</td><td class="r">${money(p.startNetWorth)}</td><td class="r"><b>${g.isActive(p) ? money(g.netWorth(p)) : (p.bankrupt ? 'bankrupt' : 'deceased')}</b></td></tr>`).join('');
-    modal({ icon: '🏆', title: g.winner ? `${g.winner.name} wins` : 'Game over', text: g.winner ? `Final net worth ${money(g.netWorth(g.winner), false)}.` : 'Nobody made it.', html: `<div class="twrap"><table class="t"><thead><tr><th>#</th><th>Player</th><th>Started as</th><th class="r">Started with</th><th class="r">Finished with</th></tr></thead><tbody>${rows}</tbody></table></div>`, options: [{ id: 'menu', label: 'New game' }, { id: 'stay', label: 'Look at the board' }] }).then(r => { if (r === 'menu') location.reload(); else render(); });
+    modal({ icon: '🏆', title: g.winner ? `${g.winner.name} wins` : 'Game over', text: g.winner ? `Final net worth ${money(g.netWorth(g.winner), false)}. Policy: ${g.policy.name}. Scenario: ${g.scenario.name}.` : 'Nobody made it.', wide: true, html: `<div class="twrap"><table class="t"><thead><tr><th>#</th><th>Player</th><th>Started as</th><th class="r">Started with</th><th class="r">Finished with</th></tr></thead><tbody>${rows}</tbody></table></div>${lessonsHtml(g)}`, options: [{ id: 'menu', label: 'New game' }, { id: 'stay', label: 'Look at the board' }], onRender: box => drawWealth(box.querySelector('#wealthChart'), g) }).then(r => { if (r === 'menu') location.reload(); else render(); });
+  }
+  function showGlossary() {
+    modal({ icon: '📚', title: 'Words to know', html: `<div class="gloss">${D.GLOSSARY.map(([t, d]) => `<div><b>${esc(t)}</b><span>${esc(d)}</span></div>`).join('')}</div>`, options: [{ id: 'ok', label: 'Close' }] });
   }
   function showHelp() {
     modal({ icon: '📖', title: 'How to play', html: `<div class="howto" style="margin-bottom:14px">
@@ -387,7 +434,7 @@
       <div><span class="ic">🏢</span><div><b>Look after buildings.</b> Condition drops monthly. Below 70 tenants leave; below 45 you get fined. Repair, renovate, insure. Own a whole district for +25% rent.</div></div>
       <div><span class="ic">🤝</span><div><b>One market.</b> Buy any empty building off-market (5% extra), list yours at any price, or make offers on anyone's.</div></div>
       <div><span class="ic">🏥</span><div><b>Stay healthy.</b> Health falls with age and stress. Without insurance a hospital stay can cost more than a house.</div></div>
-      <div><span class="ic">💳</span><div><b>Do not run dry.</b> Negative cash uses an expensive credit line. When that runs out, your assets are seized.</div></div></div>`, options: [{ id: 'ok', label: 'Got it' }] });
+      <div><span class="ic">💳</span><div><b>Do not run dry.</b> Negative cash uses an expensive credit line. When that runs out, your assets are seized.</div></div></div>`, options: [{ id: 'ok', label: 'Got it' }, { id: 'gloss', label: 'Words to know', desc: 'Net worth, equity, leverage, inflation and the rest.' }] }).then(r => { if (r === 'gloss') showGlossary(); });
   }
 
   renderSetup();

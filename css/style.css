@@ -166,6 +166,15 @@ table.t .r { text-align: right; }
 /* modal */
 .modal { position: fixed; inset: 0; background: rgba(10, 14, 20, .55); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
 .mbox { background: var(--surface); color: var(--ink); border-radius: 16px; padding: 22px 24px; width: min(560px, 100%); max-height: 90vh; overflow: auto; box-shadow: 0 24px 70px rgba(0, 0, 0, .45); }
+.mbox.wide { width: min(820px, 100%); }
+.real { margin-top: 4px; font-size: 13px; color: var(--felt-ink); background: var(--felt); border-radius: 6px; padding: 6px 8px; }
+.gloss { display: grid; gap: 8px; margin-bottom: 12px; }
+.gloss div { display: grid; grid-template-columns: 120px 1fr; gap: 10px; font-size: 14px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.gloss span { color: var(--muted); }
+.hb { position: relative; height: 18px; background: var(--surface2); border-radius: 4px; min-width: 110px; }
+.hb span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+.hb em { position: absolute; left: 6px; top: 0; line-height: 18px; font-style: normal; font-size: 12px; font-weight: 700; }
+.facts { padding-left: 18px; margin: 0 0 8px; } .facts li { margin-bottom: 6px; }
 .mbox .for { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 .mbox h2 { font-size: 24px; margin: 4px 0 8px; }
 .mbox .ic { font-size: 36px; line-height: 1; margin-bottom: 6px; }

@@ -2,12 +2,16 @@
 
 A browser board game in the Monopoly family, built to feel like the real world instead of a fair race. Players start with wildly different hands, trade in one open market, pay taxes, carry mortgages, get hit by recessions and hurricanes, and occasionally end up in the hospital.
 
-No build step. Open `index.html` in a browser (or serve the folder with any static server).
+No build step. Open `index.html` in a browser, or serve the folder with any static server.
+
+**Hosting it for a class or the public (GitHub Pages).** The repository includes a workflow that publishes the game on every push to `main`. One-time setup: in the GitHub repository go to *Settings → Pages* and set *Source* to *GitHub Actions*. After the next push to `main`, the game is at `https://<your-username>.github.io/<repository-name>/`. Anyone with the link can play it in Chrome, Safari, Firefox or Edge, on a laptop, tablet or phone.
+
+**For teachers:** see [docs/TEACHER_GUIDE.md](docs/TEACHER_GUIDE.md) for scenarios, policy comparisons, the lessons screen, discussion questions and a map from game mechanics to real-world ideas.
 
 ## Playing
 
 1. Add 2 to 6 players. Any mix of humans (hot-seat on one device) and computer opponents.
-2. Pick the game length (3 to 20 years), computer speed, and optionally the "Everyone starts equal" mode.
+2. Pick the game length (3 to 20 years), computer speed, a **scenario** (normal times, everyone equal, born lucky/born unlucky, crash on day one, high inflation), a **government policy** (balanced, strong safety net, low tax and no net) and, for schools, **classroom mode** (no casino, gambling or divorce).
 3. On your turn: look around if you want (Overview, My buildings, Market, Bank, News), **Roll the dice**, deal with whatever you land on, do more business, then **End turn**. The right-hand panel always shows the one button you need next and a feed of what happened.
 4. One full round of turns is one month. Every month settles salary, rent, mortgage payments, upkeep, property tax, insurance premiums and interest. Every December the income tax bill is due and an annual report is shown.
 5. The game ends when time runs out or only one player is left solvent. Highest net worth wins.
@@ -29,6 +33,8 @@ The game autosaves at the start of each human turn (browser local storage). Use 
 **Economy.** A business cycle (expansion, peak, recession, recovery) with a property index, a stock index fund you can invest in, a central bank rate that follows inflation, and inflation that raises salaries and living costs each year.
 
 **Global events.** Recession, boom, rate hikes and cuts, pandemic, hurricane, earthquake, tech boom, factory closures, university expansion, rent control, tax hikes and cuts, inflation surge, housing bubble (and the crash after it), stock crash, infrastructure bill, crime wave, insurance crisis, oil shock, wealth tax, new transit line, flood zone remap, population boom.
+
+**Learning.** Every global event carries an "In the real world" note with a historical parallel. A glossary explains the vocabulary. The end-of-game screen charts everyone's net worth over time, breaks down where each player's money came from (working, owning, investing), what they paid in tax and medical bills, states a few facts the game noticed, and asks discussion questions.
 
 **Life.** Health declines with age and stress and recovers with insurance, check-ups and vacations. Medical emergencies range from a flu to cancer treatment; without insurance you pay the whole bill, with insurance you pay a deductible and coinsurance up to an annual cap. Serious cases put you in hospital for months with reduced or no pay. Layoffs, promotions, job offers, children, divorce, friends asking for loans, a stock tip, a food truck partnership. Retirement at 67 on a 45% pension. Health at zero is the end.
 
