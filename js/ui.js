@@ -128,6 +128,7 @@
       c.onclick = () => { if (sp.kind === 'property') { ui.selectedProp = i; ui.tab = 'properties'; render(); } else toast(SPACE_HELP[sp.kind]); };
       board.appendChild(c);
     });
+    const fill = document.createElement('div'); fill.className = 'fill'; board.appendChild(fill);
     const centre = document.createElement('div'); centre.className = 'centre'; centre.id = 'centre'; board.appendChild(centre);
     const mq = window.matchMedia('(max-width: 900px)');
     const place = () => { const target = mq.matches ? $('#centreSlot') : $('#board'); if (target && centre.parentElement !== target) target.appendChild(centre); };
