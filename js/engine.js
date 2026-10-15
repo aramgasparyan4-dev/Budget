@@ -102,7 +102,7 @@
     }
     freshYear() { return { salary: 0, rent: 0, dividends: 0, propExpenses: 0, mortgageInterest: 0, gains: 0, oop: 0, other: 0 }; }
     makePlayer(pc, i) {
-      return { id: i, name: pc.name || `Player ${i + 1}`, isAI: !!pc.isAI, persona: { risk: this.randRange(0.3, 0.9) }, color: D.COLORS[i % D.COLORS.length],
+      return { id: i, name: pc.name || `Player ${i + 1}`, isAI: !!pc.isAI, token: pc.token || D.TOKENS[i % D.TOKENS.length], persona: { risk: this.randRange(0.3, 0.9) }, color: D.COLORS[i % D.COLORS.length],
         position: 0, cash: 0, salary: 0, job: '', age: 30, health: 75, healthInsurance: false, living: 3000, creditScore: 700,
         debt: 0, loans: [], stocks: 0, stockBasis: 0, skipTurns: 0, skipReason: '', laidOff: 0, unemploymentLeft: 0, prevSalary: 0,
         sickMonths: 0, retired: false, children: 0, sideIncome: 0, bankrupt: false, dead: false, inDefault: false, freeTrade: false,
@@ -331,15 +331,30 @@
       const c = this.ctrl(p);
       if (c && c.preRoll) await c.preRoll(p);
       if (!this.isActive(p) || this.over) return;
-      const d1 = this.randInt(1, 6), d2 = this.randInt(1, 6);
-      this.lastRoll = [d1, d2];
-      const from = p.position;
-      p.position = (p.position + d1 + d2) % BOARD_SIZE;
-      this.turnPhase = 'moving';
-      this.logp(p, `${p.name} rolls ${d1}+${d2} and lands on ${D.BOARD[p.position].name}.`);
-      this.emit('moved', { player: p, from, to: p.position, dice: [d1, d2] });
-      this.emit('change');
-      await this.resolveLanding(p);
+      let doubles = 0;
+      while (true) {
+        const d1 = this.randInt(1, 6), d2 = this.randInt(1, 6);
+        this.lastRoll = [d1, d2];
+        const from = p.position;
+        if (d1 === d2) doubles++;
+        if (doubles === 3) {
+          p.position = 10; p.skipTurns += 1; p.skipReason = 'in hospital with burnout';
+          this.logp(p, `${p.name} rolls doubles three times in a row, collapses from exhaustion and is taken to Hospital.`, 'warn');
+          this.emit('moved', { player: p, from, to: p.position, dice: [d1, d2] });
+          if (this.hooks.moved) await this.hooks.moved({ player: p, from, to: p.position, dice: [d1, d2] });
+          await this.notify(p, 'Three doubles!', 'Too much running around. You collapse from exhaustion and spend next month in Hospital.', 'warn');
+          break;
+        }
+        p.position = (p.position + d1 + d2) % BOARD_SIZE;
+        this.turnPhase = 'moving';
+        this.logp(p, `${p.name} rolls ${d1}+${d2}${d1 === d2 ? ' (doubles!)' : ''} and lands on ${D.BOARD[p.position].name}.`);
+        this.emit('moved', { player: p, from, to: p.position, dice: [d1, d2] });
+        this.emit('change');
+        if (this.hooks.moved) await this.hooks.moved({ player: p, from, to: p.position, dice: [d1, d2] });
+        await this.resolveLanding(p);
+        if (d1 !== d2 || !this.isActive(p) || this.over || p.skipTurns > 0) break;
+        await this.notify(p, 'Doubles!', 'You rolled doubles, so you roll again.', 'gain');
+      }
       this.turnPhase = 'post';
       this.emit('change');
       if (!this.isActive(p) || this.over) return;
@@ -686,7 +701,7 @@
       if (p.health <= 0) { this.die(p); return s; }
       // --- insolvency (credit only; forced sales happen at end of their next turn)
       this.resolveInsolvency(p, false);
-      s.cash = p.cash; s.net = s.income - s.expenses;
+      s.cash = p.cash; s.net = s.income - s.expenses; p.lastMonth = { income: s.income, expenses: s.expenses, net: s.net, rent: s.rent, notes: s.notes.slice() };
       this.logp(p, `Statement ${this.dateLabel()}: income ${fmtMoney(s.income)}, expenses ${fmtMoney(s.expenses)}, net ${s.net >= 0 ? '+' : '-'}${fmtMoney(Math.abs(s.net))}. Cash ${fmtMoney(p.cash)}.${s.notes.length ? ' ' + s.notes.join('; ') + '.' : ''}`, 'statement');
       return s;
     }

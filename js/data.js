@@ -300,7 +300,9 @@
     ['Safety net', 'Government programs (unemployment benefit, public health care) that catch people when things go wrong.'],
   ];
 
+  const TOKENS = ['🎩', '🚗', '🐕', '🚢', '👢', '🐈', '🚲', '🎸'];
+
   const COLORS = ['#ff6b6b', '#4dabf7', '#ffd43b', '#69db7c', '#da77f2', '#ff922b'];
 
-  g.GAME_DATA = { DISTRICTS, BOARD, BACKGROUNDS, GLOBAL_EVENTS, LIFE_EVENTS, MEDICAL, JOB_EVENTS, COURT_EVENTS, TAX, COSTS, COLORS, CLASSROOM, POLICIES, SCENARIOS, GLOSSARY };
+  g.GAME_DATA = { DISTRICTS, BOARD, BACKGROUNDS, GLOBAL_EVENTS, LIFE_EVENTS, MEDICAL, JOB_EVENTS, COURT_EVENTS, TAX, COSTS, COLORS, TOKENS, CLASSROOM, POLICIES, SCENARIOS, GLOSSARY };
 })(typeof window !== 'undefined' ? window : globalThis);

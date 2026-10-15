@@ -19,7 +19,7 @@
   --good: #5fcf85; --bad: #ff7b6b; --warn: #f0c060; --gold: #f0c040; --shadow: 0 2px 10px rgba(0, 0, 0, .35); color-scheme: dark; }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
+html, body, #app { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--body); padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
 button { font: inherit; cursor: pointer; }
 button:disabled { opacity: .45; cursor: not-allowed; }
@@ -40,7 +40,17 @@ h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; text-wrap
 .chip.warn { background: color-mix(in srgb, var(--warn) 18%, var(--surface)); border-color: var(--warn); }
 .bar { height: 8px; background: var(--surface2); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .bar > div { height: 100%; border-radius: 6px; }
-.avatar { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 13px; text-shadow: 0 1px 2px rgba(0,0,0,.4); flex: none; }
+.avatar { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1; flex: none; border: 0; padding: 0; }
+.tokpick { cursor: pointer; }
+.teacher { margin-top: 12px; } .teacher summary { cursor: pointer; color: var(--accent); font-weight: 700; } .teacher .opts { margin-top: 8px; }
+.deed { border: 2px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+.deed-top { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.5); padding: 10px 14px; display: grid; text-align: center; }
+.deed-top span { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; } .deed-top b { font-family: var(--display); font-size: 20px; }
+.deed-body { padding: 8px 14px; display: grid; gap: 4px; }
+.deed-body div { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; border-bottom: 1px dotted var(--line); padding: 3px 0; }
+.deed-body b { font-variant-numeric: tabular-nums; text-align: right; }
+.lastm { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; background: var(--surface2); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.lastm span:first-child { color: var(--muted); font-weight: 700; }
 
 /* ---------- setup ---------- */
 .setup { max-width: 960px; margin: 0 auto; padding: 40px 16px 60px; }
@@ -85,7 +95,8 @@ h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; text-wrap
 .cell .name { font-weight: 800; font-size: 10px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .cell .val { color: var(--muted); font-size: 9.5px; font-variant-numeric: tabular-nums; }
 .cell .toks { display: flex; gap: 2px; flex-wrap: wrap; margin-top: auto; }
-.cell .tok { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 1px 2px rgba(0,0,0,.5); color: #fff; font-size: 8px; font-weight: 800; display: flex; align-items: center; justify-content: center; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
+.cell .tok { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.4); font-size: 11px; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.cell .houses { font-size: 8px; letter-spacing: -1px; }
 .cell .own { height: 5px; width: 100%; }
 .cell.sp { align-items: center; justify-content: center; text-align: center; gap: 2px; padding: 2px; }
 .cell.sp .ic { font-size: 20px; line-height: 1; }
@@ -164,6 +175,7 @@ table.t .r { text-align: right; }
 .prow2 .hb { width: 44px; }
 
 /* modal */
+.modal[hidden] { display: none; }
 .modal { position: fixed; inset: 0; background: rgba(10, 14, 20, .55); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
 .mbox { background: var(--surface); color: var(--ink); border-radius: 16px; padding: 22px 24px; width: min(560px, 100%); max-height: 90vh; overflow: auto; box-shadow: 0 24px 70px rgba(0, 0, 0, .45); }
 .mbox.wide { width: min(820px, 100%); }

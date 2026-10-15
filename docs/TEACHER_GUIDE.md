@@ -35,6 +35,7 @@ Suggested comparison: play "Born lucky, born unlucky" under "Low tax, no net", t
 | In the game | In the world |
 |---|---|
 | Backgrounds with different cash, property, debt, insurance | Inherited wealth and inequality of starting points |
+| Houses on a property (up to three) | Investing in an asset to raise its income |
 | Estate tax on inherited buildings | Inheritance tax debates |
 | One live price for every building | Asset markets, appreciation, bubbles |
 | Mortgages at 80% loan-to-value | Leverage: borrowed money multiplies gains and losses |

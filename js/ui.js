@@ -25,15 +25,18 @@
       <div class="setup-grid">
         <div class="card"><h2>Who is playing?</h2><div id="rows"></div><button class="btn small" id="add">+ Add player</button>
           <div class="opts">
+            <div class="muted" style="font-size:13px">Click a token to change it. Everyone is dealt a different start in life.</div>
             <label>Game length <select id="years"><option value="3">3 years (quick)</option><option value="5" selected>5 years</option><option value="10">10 years</option><option value="20">20 years</option></select></label>
             <label>Computer speed <select id="speed"><option value="350">Normal</option><option value="120">Fast</option><option value="0">Instant</option></select></label>
+          </div>
+          <details class="teacher"><summary>Teacher options: scenario, government policy, classroom mode</summary><div class="opts">
             <label>Scenario <select id="scenario">${Object.entries(D.SCENARIOS).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('')}</select></label>
             <div class="muted" id="scenarioDesc" style="font-size:13px;margin-top:-4px"></div>
             <label>Government policy <select id="policy">${Object.entries(D.POLICIES).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('')}</select></label>
             <div class="muted" id="policyDesc" style="font-size:13px;margin-top:-4px"></div>
             <label>Classroom mode <input type="checkbox" id="classroom"></label>
             <div class="muted" style="font-size:13px;margin-top:-4px">No casino or gambling events, no divorce. Everything else stays real.</div>
-          </div>
+          </div></details>
           <div class="start"><button class="btn primary big" id="start" style="width:auto">Start game</button>${saved ? '<button class="btn big" id="cont" style="width:auto">Continue saved game</button>' : ''}</div>
         </div>
         <div class="card"><h2>How to play</h2><div class="howto">
@@ -43,15 +46,16 @@
           <div><span class="ic">📰</span><div><b>The world happens to you.</b> Recessions, rate hikes, hurricanes, rent control, a broken leg. Keep some cash aside.</div></div>
           <div><span class="ic">🏆</span><div><b>Highest net worth wins</b> when time runs out. Run out of money and credit, and the bank takes everything.</div></div>
         </div></div>
-      </div></div><div id="modal" hidden><div class="mbox" id="mbox"></div></div><div class="toasts" id="toasts"></div>`;
+      </div></div><div id="modal" class="modal" hidden><div class="mbox" id="mbox"></div></div><div class="toasts" id="toasts"></div>`;
     const rows = $('#rows');
-    const addRow = (name, ai) => { const i = rows.children.length; const r = document.createElement('div'); r.className = 'prow'; r.innerHTML = `<span class="avatar" style="background:${D.COLORS[i]}">${esc(name[0])}</span><input type="text" value="${esc(name)}" maxlength="14"><select><option value="h"${ai ? '' : ' selected'}>Human</option><option value="ai"${ai ? ' selected' : ''}>Computer</option></select><button class="btn small ghost danger">✕</button>`; r.lastElementChild.onclick = () => { if (rows.children.length > 2) { r.remove(); [...rows.children].forEach((x, k) => { x.firstElementChild.style.background = D.COLORS[k]; }); } }; r.querySelector('input').oninput = e => { r.firstElementChild.textContent = (e.target.value || '?')[0]; }; rows.appendChild(r); };
+    const addRow = (name, ai) => { const i = rows.children.length; const r = document.createElement('div'); r.className = 'prow'; r.innerHTML = `<button type="button" class="avatar tokpick" title="Click to change your token" style="background:${D.COLORS[i]}" data-t="${i % D.TOKENS.length}">${D.TOKENS[i % D.TOKENS.length]}</button><input type="text" value="${esc(name)}" maxlength="14"><select><option value="h"${ai ? '' : ' selected'}>Human</option><option value="ai"${ai ? ' selected' : ''}>Computer</option></select><button class="btn small ghost danger">✕</button>`; r.lastElementChild.onclick = () => { if (rows.children.length > 2) { r.remove(); [...rows.children].forEach((x, k) => { x.firstElementChild.style.background = D.COLORS[k]; }); } }; const tp = r.querySelector('.tokpick'); tp.onclick = () => { const n = (Number(tp.dataset.t) + 1) % D.TOKENS.length; tp.dataset.t = n; tp.textContent = D.TOKENS[n]; }; rows.appendChild(r); };
     addRow('You', false); addRow('Dana', true); addRow('Marcus', true);
     const descs = () => { $('#scenarioDesc').textContent = D.SCENARIOS[$('#scenario').value].desc; $('#policyDesc').textContent = D.POLICIES[$('#policy').value].desc; };
     $('#scenario').onchange = descs; $('#policy').onchange = descs; descs();
     $('#add').onclick = () => { if (rows.children.length < 6) addRow(['Priya', 'Leo', 'Sofia'][rows.children.length - 3] || 'Player', true); };
     $('#start').onclick = () => {
-      const players = [...rows.children].map(r => ({ name: r.querySelector('input').value.trim() || 'Player', isAI: r.querySelector('select').value === 'ai' }));
+      const used = new Set();
+      const players = [...rows.children].map(r => { let t = D.TOKENS[Number(r.querySelector('.tokpick').dataset.t)]; if (used.has(t)) t = D.TOKENS.find(x => !used.has(x)) || t; used.add(t); return { name: r.querySelector('input').value.trim() || 'Player', isAI: r.querySelector('select').value === 'ai', token: t }; });
       ui.aiSpeed = Number($('#speed').value);
       startGame(new Game({ players, years: Number($('#years').value), scenario: $('#scenario').value, policy: $('#policy').value, classroom: $('#classroom').checked }));
     };
@@ -62,12 +66,44 @@
   class HumanController {
     async preRoll(p) {
       if (ui.humans > 1) await modal({ playerName: p.name, icon: '👋', title: `${p.name}, your turn`, text: `Pass the device to ${p.name}.`, options: [{ id: 'ok', label: "I'm ready" }] });
-      ui.view = p.id; await waitFor('roll');
+      ui.view = p.id;
+      if (!ui.tipsShown) { ui.tipsShown = true; await showTips(p); }
+      await waitFor('roll');
     }
     async postRoll(p) { ui.view = p.id; await waitFor('end'); }
-    async decide(p, spec) { return modal(Object.assign({ playerName: p.name, icon: ICONS[spec.type] || 'ℹ️' }, spec)); }
+    async decide(p, spec) {
+      if (spec.type === 'buy') { const pr = ui.game.prop(spec.propertyId); const closing = p.freeTrade ? 0 : Math.round(ui.game.marketPrice(pr) * D.COSTS.closingCost); return modal(Object.assign({ playerName: p.name }, spec, { title: `You landed on ${pr.name}`, text: '', html: deedHtml(pr, p) + `<p class="muted" style="font-size:13px">Nobody owns it. Buying adds ${money(closing, false)} in closing costs.</p>` })); }
+      return modal(Object.assign({ playerName: p.name, icon: ICONS[spec.type] || 'ℹ️' }, spec));
+    }
     async skipped(p) { await modal({ playerName: p.name, icon: '🛏️', title: 'Turn skipped', text: `${p.name} is ${p.skipReason} this month.`, options: [{ id: 'ok', label: 'OK' }] }); }
   }
+  function deedHtml(pr, p) {
+    const g = ui.game, d = D.DISTRICTS[pr.district];
+    const asOwner = Object.assign({}, pr, { owner: p ? p.id : -1 });
+    const visit = g.grossRent(asOwner), month = Math.round(visit * g.targetOccupancy(pr));
+    const up = Math.round(g.renovateCost(pr));
+    return `<div class="deed"><div class="deed-top" style="background:${d.color}"><span>Title deed</span><b>${esc(pr.name)}</b><span>${esc(d.name)}</span></div><div class="deed-body">
+      <div><span>Price</span><b>${money(g.marketPrice(pr), false)}</b></div>
+      <div><span>Rent when someone lands here</span><b>${money(visit, false)}</b></div>
+      <div><span>Rent from tenants each month</span><b>about ${money(month, false)}</b></div>
+      <div><span>Each house you add</span><b>+12% rent, costs ${money(up)}</b></div>
+      <div><span>Own all of ${esc(d.name)}</span><b>+25% rent</b></div>
+      <div><span>Condition</span><b>${Math.round(pr.condition)} / 100</b></div></div></div>`;
+  }
+  function showTips(p) {
+    return modal({ playerName: p.name, icon: '🎲', title: 'Quick start', html: `<div class="howto" style="margin-bottom:14px">
+      <div><span class="ic">1️⃣</span><div><b>Roll.</b> Your ${p.token} moves. Land on an empty property and you can buy it. Land on someone else's and you pay rent.</div></div>
+      <div><span class="ic">2️⃣</span><div><b>Every round is a month.</b> You get paid and pay your bills automatically. Check "Last month" on the right.</div></div>
+      <div><span class="ic">3️⃣</span><div><b>Build up.</b> Add houses to your properties for more rent. Keep some cash for surprises.</div></div>
+      <div><span class="ic">⌨️</span><div><b>Tip:</b> press Enter or Space to roll and to end your turn.</div></div></div>`, options: [{ id: 'ok', label: "Let's play" }] });
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target && ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
+    const m = $('#modal'); if (m && !m.hidden) return;
+    if (ui.game && e.key === ' ') e.preventDefault();
+    if ($('#rollBtn')) { e.preventDefault(); done('roll'); } else if ($('#endBtn')) { e.preventDefault(); done('end'); }
+  });
   function waitFor(kind) { return new Promise(resolve => { ui.waiting = { kind, resolve }; render(); }); }
   function done(kind) { if (ui.waiting && ui.waiting.kind === kind) { const r = ui.waiting.resolve; ui.waiting = null; r(); render(); } }
 
@@ -103,7 +139,7 @@
 
   /* ---------------- start ---------------- */
   function startGame(game) {
-    ui.game = game; ui.tab = 'home'; ui.selectedProp = null; ui.waiting = null;
+    ui.game = game; ui.tab = 'home'; ui.selectedProp = null; ui.waiting = null; ui.tipsShown = game.players.every(p => p.isAI) || game.month > 0; ui.animPos = {};
     ui.humans = game.players.filter(p => !p.isAI).length;
     game.players.forEach(p => {
       if (p.isAI) game.setController(p.id, new AIController(game, { delay: () => sleep(ui.aiSpeed), onDecision: (pl, spec, r) => { const o = spec.options.find(x => x.id === r); if (o && spec.type === 'buy' && r !== 'pass') toast(`${pl.name} buys ${game.prop(spec.propertyId).name}`); } }));
@@ -118,6 +154,13 @@
     game.on('turnEnd', () => { ui.waiting = null; });
     game.on('gameover', showGameOver);
     game.hooks.yearEnd = showYearReport;
+    game.hooks.moved = async ({ player, from, to }) => {
+      const stepMs = player.isAI ? (ui.aiSpeed === 0 ? 0 : 70) : 90;
+      if (!stepMs) return;
+      let pos = from; const steps = (to - from + 40) % 40;
+      for (let i = 0; i < steps; i++) { pos = (pos + 1) % 40; ui.animPos[player.id] = pos; renderBoard(); await sleep(stepMs); }
+      delete ui.animPos[player.id]; renderBoard();
+    };
     const h = game.players.find(p => !p.isAI); ui.view = h ? h.id : 0;
     buildGame(); render(); renderFeed();
     if (!game.over) game.run().catch(e => { console.error(e); toast('Error: ' + e.message, 'bad'); });
@@ -127,7 +170,7 @@
 
   function cellPos(i) { if (i <= 10) return [11, 11 - i]; if (i <= 20) return [11 - (i - 10), 1]; if (i <= 30) return [1, 1 + (i - 20)]; return [1 + (i - 30), 11]; }
   function buildGame() {
-    $('#app').innerHTML = `<div class="game"><div class="top" id="top"></div><div class="main"><div class="board" id="board"></div><div id="centreSlot"></div><div class="rail"><div class="turn" id="turn"></div><div class="feed" id="feed"></div><div class="players" id="players"></div></div></div></div><div id="modal" hidden><div class="mbox" id="mbox"></div></div><div class="toasts" id="toasts"></div>`;
+    $('#app').innerHTML = `<div class="game"><div class="top" id="top"></div><div class="main"><div class="board" id="board"></div><div id="centreSlot"></div><div class="rail"><div class="turn" id="turn"></div><div class="feed" id="feed"></div><div class="players" id="players"></div></div></div></div><div id="modal" class="modal" hidden><div class="mbox" id="mbox"></div></div><div class="toasts" id="toasts"></div>`;
     const board = $('#board');
     D.BOARD.forEach((sp, i) => {
       const c = document.createElement('div'); const corner = i % 10 === 0;
@@ -168,11 +211,12 @@
     const g = ui.game;
     document.querySelectorAll('.cell').forEach(c => {
       const i = Number(c.dataset.i), sp = D.BOARD[i];
-      const toks = g.players.filter(p => g.isActive(p) && p.position === i).map(p => `<span class="tok" style="background:${p.color}">${esc(p.name[0])}</span>`).join('');
-      c.classList.toggle('here', !!(g.current && g.current.position === i));
+      const posOf = p => (ui.animPos[p.id] !== undefined ? ui.animPos[p.id] : p.position);
+      const toks = g.players.filter(p => g.isActive(p) && posOf(p) === i).map(p => `<span class="tok" style="border-color:${p.color}" title="${esc(p.name)}">${p.token}</span>`).join('');
+      c.classList.toggle('here', !!(g.current && posOf(g.current) === i));
       if (sp.kind !== 'property') { const cl = sp.kind === 'casino' && g.cfg.classroom ? D.CLASSROOM.casino : sp; c.innerHTML = `<div class="ic">${cl.icon}</div><div class="name">${esc(cl.name)}</div><div class="toks">${toks}</div>`; return; }
       const pr = g.prop(i), d = D.DISTRICTS[pr.district], owner = pr.owner === null ? null : g.players[pr.owner];
-      c.innerHTML = `<div class="stripe" style="background:${d.color}"></div>${pr.listedPrice !== null ? '<span class="tag">SALE</span>' : ''}<div class="body"><div class="name">${esc(pr.name)}</div><div class="val">${money(g.propertyValue(pr))}</div><div class="toks">${toks}</div></div><div class="own" style="background:${owner ? owner.color : 'transparent'}"></div>`;
+      c.innerHTML = `<div class="stripe" style="background:${d.color}"></div>${pr.listedPrice !== null ? '<span class="tag">SALE</span>' : ''}<div class="body"><div class="name">${esc(pr.name)}</div><div class="val">${money(g.propertyValue(pr))}${pr.renovation ? ` <span class="houses">${'🏠'.repeat(pr.renovation)}</span>` : ''}</div><div class="toks">${toks}</div></div><div class="own" style="background:${owner ? owner.color : 'transparent'}"></div>`;
       c.title = owner ? `${pr.name} — owned by ${owner.name}` : `${pr.name} — for sale`;
     });
   }
@@ -186,8 +230,10 @@
     else if (a) { hint = 'Buy, sell or borrow if you want to. Then end your turn.'; button = '<button class="btn primary big" id="endBtn">End turn ➜</button>'; }
     else if (cur) hint = cur.isAI ? `${cur.name} is playing…` : `${cur.name} is deciding…`;
     else hint = 'Closing the month…';
-    $('#turn').innerHTML = `<div class="who"><span class="avatar" style="background:${p.color}">${esc(p.name[0])}</span><div><b>${a ? 'Your turn, ' : ''}${esc(p.name)}</b><div class="muted">${esc(p.bgTitle)} · age ${p.age}${p.laidOff > 0 ? ' · <span class="bad">laid off</span>' : ''}${p.inDefault ? ' · <span class="bad">IN DEFAULT</span>' : ''}</div></div></div>
+    const lm = p.lastMonth;
+    $('#turn').innerHTML = `<div class="who"><span class="avatar" style="background:${p.color}">${p.token}</span><div><b>${a ? 'Your turn, ' : ''}${esc(p.name)}</b><div class="muted">${esc(p.bgTitle)} · age ${p.age}${p.laidOff > 0 ? ' · <span class="bad">laid off</span>' : ''}${p.inDefault ? ' · <span class="bad">IN DEFAULT</span>' : ''}</div></div></div>
       <div class="nums"><div><div class="l">Cash</div><div class="v ${p.cash < 0 ? 'bad' : ''}">${money(p.cash, false)}</div></div><div><div class="l">Net worth</div><div class="v">${money(nw)}</div></div><div><div class="l">Monthly</div><div class="v ${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${money(net)}</div></div><div><div class="l">Health</div><div class="v ${p.health < 40 ? 'bad' : p.health < 65 ? 'warn' : 'good'}">${Math.round(p.health)}</div></div></div>
+      ${lm ? `<div class="lastm"><span>Last month</span><span>+${money(lm.income, false)} in · -${money(lm.expenses, false)} out · <b class="${lm.net >= 0 ? 'good' : 'bad'}">${lm.net >= 0 ? '+' : '-'}${money(Math.abs(lm.net), false)}</b></span></div>` : ''}
       ${g.lastRoll && cur ? `<div class="dice">${DICE[g.lastRoll[0] - 1]}${DICE[g.lastRoll[1] - 1]}</div>` : ''}${button}<div class="hint">${esc(hint)}</div>`;
     const rb = $('#rollBtn'); if (rb) rb.onclick = () => done('roll');
     const eb = $('#endBtn'); if (eb) eb.onclick = () => done('end');
@@ -200,13 +246,13 @@
   }
   function renderPlayers() {
     const g = ui.game;
-    $('#players').innerHTML = g.players.map(p => { const out = !g.isActive(p); return `<div class="prow2 ${g.current && g.current.id === p.id ? 'turn' : ''} ${out ? 'out' : ''}" data-p="${p.id}"><span class="avatar" style="background:${p.color}">${esc(p.name[0])}</span><div class="n"><b>${esc(p.name)}${p.isAI ? ' <span>(computer)</span>' : ''}</b><span>${esc(p.bgTitle)} · ${g.playerProperties(p).length} building${g.playerProperties(p).length === 1 ? '' : 's'}</span></div><div class="bar hb" title="Health ${Math.round(p.health)}"><div style="width:${p.health}%;background:${p.health < 40 ? 'var(--bad)' : p.health < 65 ? 'var(--warn)' : 'var(--good)'}"></div></div><span class="nw">${out ? `<span class="bad">${p.bankrupt ? 'Bankrupt' : 'Deceased'}</span>` : money(g.netWorth(p))}</span></div>`; }).join('');
+    $('#players').innerHTML = g.players.map(p => { const out = !g.isActive(p); return `<div class="prow2 ${g.current && g.current.id === p.id ? 'turn' : ''} ${out ? 'out' : ''}" data-p="${p.id}"><span class="avatar" style="background:${p.color}">${p.token}</span><div class="n"><b>${esc(p.name)}${p.isAI ? ' <span>(computer)</span>' : ''}</b><span>${esc(p.bgTitle)} · ${g.playerProperties(p).length} propert${g.playerProperties(p).length === 1 ? 'y' : 'ies'}</span></div><div class="bar hb" title="Health ${Math.round(p.health)}"><div style="width:${p.health}%;background:${p.health < 40 ? 'var(--bad)' : p.health < 65 ? 'var(--warn)' : 'var(--good)'}"></div></div><span class="nw">${out ? `<span class="bad">${p.bankrupt ? 'Bankrupt' : 'Deceased'}</span>` : money(g.netWorth(p))}</span></div>`; }).join('');
     $('#players').querySelectorAll('.prow2').forEach(c => { c.onclick = () => { ui.view = Number(c.dataset.p); ui.tab = 'home'; render(); }; });
   }
 
   function renderCentre() {
     const p = viewP(); const me = canAct(p);
-    const tabs = [['home', 'Overview'], ['properties', 'My buildings'], ['market', 'Market'], ['bank', 'Bank'], ['news', 'News']];
+    const tabs = [['home', 'Overview'], ['properties', 'My properties'], ['market', 'Buy & sell'], ['bank', 'Bank'], ['news', 'News']];
     $('#centre').innerHTML = `<div class="tabs">${tabs.map(([id, l]) => `<button data-t="${id}" class="${ui.tab === id ? 'on' : ''}">${l}</button>`).join('')}<span style="flex:1"></span><span style="padding:7px 10px;font-size:13px;opacity:.8">${me ? 'Managing' : 'Viewing'}: <b>${esc(p.name)}</b></span></div><div class="pane" id="pane"></div>`;
     $('#centre').querySelectorAll('[data-t]').forEach(b => { b.onclick = () => { ui.tab = b.dataset.t; render(); }; });
     ({ home: renderHome, properties: renderProperties, market: renderMarket, bank: renderBank, news: renderNews })[ui.tab]($('#pane'), p, me);
@@ -217,7 +263,7 @@
     const g = ui.game; const inc = g.monthlyIncome(p), obl = g.monthlyObligations(p);
     const rent = g.playerProperties(p).reduce((s, pr) => s + g.monthlyRentCollected(pr), 0), pcost = g.playerProperties(p).reduce((s, pr) => s + g.monthlyPropertyCosts(pr).total, 0);
     const loans = p.loans.reduce((s, l) => s + l.payment, 0), prem = p.healthInsurance ? g.healthPremium(p) : 0;
-    pane.innerHTML = `<div class="tiles"><div class="tile"><div class="l">Cash</div><div class="v ${p.cash < 0 ? 'bad' : ''}">${money(p.cash, false)}</div></div><div class="tile"><div class="l">Net worth</div><div class="v">${money(g.netWorth(p))}</div></div><div class="tile"><div class="l">Buildings</div><div class="v">${g.playerProperties(p).length}</div></div><div class="tile"><div class="l">Credit score</div><div class="v">${Math.round(p.creditScore)}</div></div></div>
+    pane.innerHTML = `<div class="tiles"><div class="tile"><div class="l">Cash</div><div class="v ${p.cash < 0 ? 'bad' : ''}">${money(p.cash, false)}</div></div><div class="tile"><div class="l">Net worth</div><div class="v">${money(g.netWorth(p))}</div></div><div class="tile"><div class="l">Properties</div><div class="v">${g.playerProperties(p).length}</div></div><div class="tile"><div class="l">Credit score</div><div class="v">${Math.round(p.creditScore)}</div></div></div>
       <div class="section"><h3>A typical month</h3><div class="kv">
         <span>${esc(p.job)}${p.laidOff > 0 ? ' (laid off: unemployment benefit)' : ''}</span><span class="v good">+${money(p.laidOff > 0 ? (p.unemploymentLeft > 0 ? p.prevSalary * 0.4 : 0) : p.salary, false)}</span>
         ${p.sideIncome ? `<span>Side income</span><span class="v good">+${money(p.sideIncome, false)}</span>` : ''}
@@ -225,7 +271,7 @@
         ${g.stocksValue(p) ? `<span>Dividends</span><span class="v good">+${money(g.stocksValue(p) * 0.02 / 12, false)}</span>` : ''}
         <span>Living costs${p.children ? ` (${p.children} child${p.children > 1 ? 'ren' : ''})` : ''}</span><span class="v bad">-${money(p.living + p.children * 700, false)}</span>
         ${prem ? `<span>Health insurance</span><span class="v bad">-${money(prem, false)}</span>` : ''}
-        ${pcost ? `<span>Building costs (tax, upkeep, mortgages)</span><span class="v bad">-${money(pcost, false)}</span>` : ''}
+        ${pcost ? `<span>Property costs (tax, upkeep, mortgages)</span><span class="v bad">-${money(pcost, false)}</span>` : ''}
         ${loans ? `<span>Loan payments</span><span class="v bad">-${money(loans, false)}</span>` : ''}
         ${p.debt ? `<span>Credit line (${money(p.debt)} at ${g.creditRate().toFixed(0)}%)</span><span class="v bad">-${money(p.debt * g.creditRate() / 1200, false)}</span>` : ''}
         <span><b>Left over</b></span><span class="v ${inc - obl >= 0 ? 'good' : 'bad'}">${inc - obl >= 0 ? '+' : ''}${money(inc - obl, false)}</span></div></div>
@@ -243,13 +289,13 @@
     const card = document.createElement('div'); card.className = 'pcard'; card.style.borderLeftColor = d.color;
     const condCls = pr.condition < 45 ? 'bad' : pr.condition < 70 ? 'warn' : 'good';
     card.innerHTML = `<div class="h"><b>${esc(pr.name)}</b><span class="muted">${esc(d.name)}${g.ownsDistrict(pr.owner, pr.district) ? ' · ★ whole district' : ''}</span></div>
-      <div class="facts"><span>Worth <b>${money(value)}</b></span><span>Earns <b class="${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${money(net, false)}/mo</b> after costs</span><span>${pct(pr.occupancy)} occupied</span>${pr.mortgage ? `<span>Mortgage <b>${money(pr.mortgage.balance)}</b> at ${pr.mortgage.rate}%</span>` : ''}${pr.insured ? '<span class="chip good">Insured</span>' : '<span class="chip warn">Not insured</span>'}${pr.listedPrice !== null ? `<span class="chip warn">Listed ${money(pr.listedPrice)}</span>` : ''}${pr.renovation ? `<span>Renovated ${pr.renovation}/3</span>` : ''}</div>
+      <div class="facts"><span>Worth <b>${money(value)}</b></span><span>Earns <b class="${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${money(net, false)}/mo</b></span><span>Visitors pay <b>${money(g.landingFee(pr), false)}</b></span><span>${'🏠'.repeat(pr.renovation) || 'no houses'}</span>${pr.mortgage ? `<span class="chip">Mortgage ${money(pr.mortgage.balance)}</span>` : ''}${pr.insured ? '<span class="chip good">Insured</span>' : '<span class="chip warn">Not insured</span>'}${pr.listedPrice !== null ? `<span class="chip warn">For sale ${money(pr.listedPrice)}</span>` : ''}</div>
       <div class="cond">Condition <div class="bar"><div style="width:${pr.condition}%;background:var(--${condCls})"></div></div><b class="${condCls}">${Math.round(pr.condition)}</b>${pr.condition < 70 ? '<span class="muted">· losing tenants</span>' : ''}</div>`;
     if (!me) return card;
     const a = document.createElement('div'); a.className = 'actions';
     const rc = g.repairCost(pr), rn = g.renovateCost(pr);
     a.appendChild(btn(`Repair · ${money(rc)}`, () => act(() => g.repair(p, pr.id)), { disabled: rc <= 0 || p.cash < rc, title: 'Back to perfect condition' }));
-    a.appendChild(btn(`Renovate · ${money(rn)}`, () => act(() => g.renovate(p, pr.id)), { disabled: pr.renovation >= 3 || p.cash < rn, title: '+10% value, +12% rent' }));
+    a.appendChild(btn(`Add a house · ${money(rn)}`, () => act(() => g.renovate(p, pr.id)), { disabled: pr.renovation >= 3 || p.cash < rn, title: '+12% rent, +10% value. Up to 3 houses.' }));
     a.appendChild(btn(pr.insured ? 'Cancel insurance' : `Insure · ${money(value * D.COSTS.propertyInsuranceRate / 12 * g.insuranceMult(), false)}/mo`, () => act(() => g.setInsured(p, pr.id, !pr.insured)), { title: 'Covers storms, earthquakes and half of lawsuits' }));
     a.appendChild(btn('Sell…', () => sellFlow(p, pr)));
     card.appendChild(a);
@@ -269,8 +315,8 @@
   async function sellFlow(p, pr) {
     const g = ui.game, value = g.propertyValue(pr), qs = Math.round(value * D.COSTS.quickSaleFactor);
     const r = await modal({ icon: '🏷️', title: `Sell ${pr.name}`, text: `Market value ${money(value, false)}.${pr.mortgage ? ` The ${money(pr.mortgage.balance)} mortgage is paid off from the proceeds.` : ''} Profit is taxed at 20%.`, options: [
-      pr.listedPrice === null ? { id: 'list', label: 'Put it on the market', desc: 'Name your price. Other players can buy it on their turn. 5% agent fee.' } : { id: 'unlist', label: 'Take it off the market', desc: `Currently listed at ${money(pr.listedPrice, false)}.` },
-      { id: 'quick', label: `Sell now for ${money(qs, false)}`, desc: '80% of value, cash today, 2% fee.' }, { id: 'cancel', label: 'Cancel' }] });
+      pr.listedPrice === null ? { id: 'list', label: 'Offer it to the other players', desc: 'Name your price. They can buy it on their turn. 5% agent fee.' } : { id: 'unlist', label: 'Withdraw the offer', desc: `Currently offered at ${money(pr.listedPrice, false)}.` },
+      { id: 'quick', label: `Sell to the bank for ${money(qs, false)}`, desc: '80% of value, cash today, 2% fee.' }, { id: 'cancel', label: 'Keep it' }] });
     if (r === 'list') { const amt = await askAmount('Your asking price', `Market value ${money(value, false)}. Computer players rarely pay more than about 5% over value.`, Math.round(value * 1.5), Math.round(value * 1.05), 1000); if (amt) act(() => g.listProperty(p, pr.id, amt)); }
     else if (r === 'unlist') act(() => g.unlistProperty(p, pr.id));
     else if (r === 'quick') act(() => g.quickSale(p, pr.id));
@@ -291,7 +337,7 @@
     const mine = g.playerProperties(p);
     const h = document.createElement('div'); h.className = 'section';
     const tn = mine.reduce((s, pr) => s + g.netMonthlyCashflow(pr), 0);
-    h.innerHTML = `<h3>${esc(p.name)}'s buildings</h3><p class="muted" style="margin:0 0 8px;font-size:13px">${mine.length ? `${mine.length} building${mine.length > 1 ? 's' : ''}, earning <b class="${tn >= 0 ? 'good' : 'bad'}">${tn >= 0 ? '+' : ''}${money(tn, false)}/month</b> after costs. Buildings wear out every month: keep condition above 70 to keep tenants.` : 'Nothing yet. Land on an empty building, or buy one from the Market tab.'}</p>`;
+    h.innerHTML = `<h3>${me ? 'Your properties' : esc(p.name) + "'s properties"}</h3><p class="muted" style="margin:0 0 8px;font-size:13px">${mine.length ? `${mine.length} propert${mine.length > 1 ? 'ies' : 'y'}, earning <b class="${tn >= 0 ? 'good' : 'bad'}">${tn >= 0 ? '+' : ''}${money(tn, false)}/month</b> after costs. Buildings wear out every month: keep condition above 70 to keep tenants.` : 'Nothing yet. Land on an empty property, or buy one from the Buy & sell tab.'}</p>`;
     pane.appendChild(h);
     mine.forEach(pr => pane.appendChild(propCard(pr, p, me)));
   }
@@ -302,7 +348,7 @@
     const closing = p.freeTrade ? 0 : Math.round(price * D.COSTS.closingCost);
     const loan = Math.round(Math.min(price, g.propertyValue(pr)) * 0.8);
     const rent = Math.round(g.grossRent(Object.assign({}, pr, { owner: p.id })) * g.targetOccupancy(pr));
-    const r = await modal({ icon: '🏢', title: `Buy ${pr.name}?`, text: `${listed ? `${g.players[pr.owner].name} is asking` : 'Price'} ${money(price, false)} plus ${money(closing, false)} closing costs. Expected rent about ${money(rent, false)}/month before costs.`, options: [
+    const r = await modal({ title: `Buy ${pr.name}?`, html: deedHtml(pr, p) + `<p class="muted" style="font-size:13px">${listed ? `${esc(g.players[pr.owner].name)} is asking ${money(price, false)}` : `Off-market price ${money(price, false)} (5% above value)`}, plus ${money(closing, false)} closing costs.</p>`, options: [
       { id: 'cash', label: `Pay cash · ${money(price + closing, false)}`, disabled: p.cash < price + closing },
       { id: 'mortgage', label: `Mortgage · ${money(price - loan + closing, false)} down`, desc: `Borrow ${money(loan)} at ${g.mortgageRate(p).toFixed(1)}%: about ${money(mortgagePayment(loan, g.mortgageRate(p), 360), false)}/month for 30 years.`, disabled: p.creditScore < 580 || p.cash < price - loan + closing },
       { id: 'cancel', label: 'Not now' }] });
@@ -431,7 +477,7 @@
     modal({ icon: '📖', title: 'How to play', html: `<div class="howto" style="margin-bottom:14px">
       <div><span class="ic">🎲</span><div><b>Roll, land, decide.</b> Empty building: buy it with cash or a mortgage. Someone else's: pay a month of rent. Corners and special squares bring events.</div></div>
       <div><span class="ic">📅</span><div><b>One round is one month.</b> Salary in, living costs, mortgages, upkeep and property tax out. December: income tax on everything you earned.</div></div>
-      <div><span class="ic">🏢</span><div><b>Look after buildings.</b> Condition drops monthly. Below 70 tenants leave; below 45 you get fined. Repair, renovate, insure. Own a whole district for +25% rent.</div></div>
+      <div><span class="ic">🏠</span><div><b>Build houses.</b> Each house adds 12% rent (up to 3). Own a whole colour group for +25% rent. Repair worn-out buildings or tenants leave and you get fined.</div></div>
       <div><span class="ic">🤝</span><div><b>One market.</b> Buy any empty building off-market (5% extra), list yours at any price, or make offers on anyone's.</div></div>
       <div><span class="ic">🏥</span><div><b>Stay healthy.</b> Health falls with age and stress. Without insurance a hospital stay can cost more than a house.</div></div>
       <div><span class="ic">💳</span><div><b>Do not run dry.</b> Negative cash uses an expensive credit line. When that runs out, your assets are seized.</div></div></div>`, options: [{ id: 'ok', label: 'Got it' }, { id: 'gloss', label: 'Words to know', desc: 'Net worth, equity, leverage, inflation and the rest.' }] }).then(r => { if (r === 'gloss') showGlossary(); });
