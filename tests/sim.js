@@ -1,34 +1,24 @@
-/* Headless all-AI simulation. Usage: node tests/sim.js [games] [years] [seed] */
+/* Headless all-AI games. node tests/sim.js [games] [rounds] [seed] [-v] */
 const path = require('path');
-require(path.join(__dirname, '..', 'js', 'data.js'));
-require(path.join(__dirname, '..', 'js', 'engine.js'));
-require(path.join(__dirname, '..', 'js', 'ai.js'));
-const { Game, fmtMoney } = globalThis.GameEngine;
-const { AIController } = globalThis.GameAI;
-
-async function play(seed, years, verbose) {
-  const game = new Game({ years, seed, players: [1, 2, 3, 4, 5].map(i => ({ name: 'AI ' + i, isAI: true })) });
-  game.players.forEach(p => game.setController(p.id, new AIController(game)));
-  let maxLog = 0;
-  game.on('log', e => { if (verbose) console.log(game.dateLabel(e.month), '|', e.text); maxLog++; });
-  await game.run();
-  const rank = game.finalRanking();
-  return { game, rank, logs: maxLog };
-}
-(async () => {
-  const games = Number(process.argv[2] || 3), years = Number(process.argv[3] || 15), seed0 = Number(process.argv[4] || 1);
-  const verbose = process.argv.includes('-v');
-  const bgWins = {}; const bgRank = {};
-  for (let i = 0; i < games; i++) {
-    const { game, rank } = await play(seed0 + i, years, verbose);
-    const bankrupt = game.players.filter(p => p.bankrupt).length, dead = game.players.filter(p => p.dead).length;
-    console.log(`seed ${seed0 + i}: ${game.dateLabel()} market ${Math.round(game.eco.marketIndex)} stock ${Math.round(game.eco.stockIndex)} rate ${game.eco.interestRate.toFixed(2)} bankrupt ${bankrupt} dead ${dead} events ${game.news.filter(n => n.kind === 'event').length}`);
-    rank.forEach((p, i) => {
-      console.log(`   ${i + 1}. ${p.name.padEnd(6)} ${p.bgTitle.padEnd(22)} start ${fmtMoney(p.startNetWorth, true).padStart(8)} end ${fmtMoney(game.netWorth(p), true).padStart(8)} cash ${fmtMoney(p.cash, true).padStart(7)} props ${game.playerProperties(p).length} debt ${fmtMoney(p.debt, true)} health ${Math.round(p.health)} age ${p.age} taxes ${fmtMoney(p.stats.taxes, true)} medical ${fmtMoney(p.stats.medical, true)}${p.bankrupt ? ' BANKRUPT' : ''}${p.dead ? ' DEAD' : ''}`);
-      bgRank[p.bgTitle] = (bgRank[p.bgTitle] || []); bgRank[p.bgTitle].push(i + 1);
-    });
-    bgWins[rank[0].bgTitle] = (bgWins[rank[0].bgTitle] || 0) + 1;
+require(path.join(__dirname, '..', 'js', 'data.js')); require(path.join(__dirname, '..', 'js', 'engine.js')); require(path.join(__dirname, '..', 'js', 'ai.js'));
+const { Game, fmt } = globalThis.GameEngine; const { decide } = globalThis.GameAI;
+const games = Number(process.argv[2] || 5), rounds = Number(process.argv[3] || 24), seed0 = Number(process.argv[4] || 1), verbose = process.argv.includes('-v');
+const wins = {}, ranks = {};
+for (let gi = 0; gi < games; gi++) {
+  const game = new Game({ rounds, seed: seed0 + gi, players: [1, 2, 3, 4, 5].map(i => ({ name: 'P' + i, isAI: true })) });
+  let steps = 0, logged = 0;
+  while (!game.state.over && steps < 20000) {
+    const q = game.pending; if (!q) throw new Error('no pending');
+    const a = decide(game, q); if (!a) throw new Error('no action for ' + JSON.stringify(q));
+    const r = game.dispatch(a); if (!r.ok) throw new Error('action failed: ' + JSON.stringify(a) + ' ' + r.msg + ' pending=' + JSON.stringify(q));
+    steps++;
+    if (verbose) { const l = game.state.log; for (; logged < l.length; logged++) console.log(`R${l[logged].round} | ${l[logged].text}`); }
   }
-  console.log('wins by background:', bgWins);
-  console.log('avg rank by background:', Object.fromEntries(Object.entries(bgRank).map(([k, v]) => [k, (v.reduce((a, b) => a + b, 0) / v.length).toFixed(2)])));
-})().catch(e => { console.error(e); process.exit(1); });
+  if (!game.state.over) throw new Error('did not finish');
+  const st = game.state, rank = game.ranking();
+  console.log(`seed ${seed0 + gi}: ${st.round - 1} rounds, ${steps} actions, prices ${Math.round(st.priceMult * 100)}%, bankrupt ${st.players.filter(p => p.bankrupt).length}, houses ${Object.values(st.props).reduce((s, p) => s + p.houses, 0)}, owned ${Object.values(st.props).filter(p => p.owner !== null).length}/26`);
+  rank.forEach((p, i) => { const bg = D().BACKGROUNDS.find(b => b.id === p.bg); console.log(`   ${i + 1}. ${p.name} ${bg.title.padEnd(20)} start ${fmt(p.startNW, true).padStart(7)} end ${fmt(game.netWorth(p), true).padStart(7)} cash ${fmt(p.cash, true).padStart(6)} props ${game.propsOf(p.id).length} laps ${p.laps} tax ${fmt(p.stats.tax, true)} rentGot ${fmt(p.stats.rentGot, true)} medical ${fmt(p.stats.medical, true)}${p.bankrupt ? ' BANKRUPT' : ''}`); ranks[bg.title] = (ranks[bg.title] || []).concat(i + 1); });
+  wins[D().BACKGROUNDS.find(b => b.id === rank[0].bg).title] = (wins[D().BACKGROUNDS.find(b => b.id === rank[0].bg).title] || 0) + 1;
+}
+function D() { return globalThis.GAME_DATA; }
+console.log('wins', wins); console.log('avg rank', Object.fromEntries(Object.entries(ranks).map(([k, v]) => [k, (v.reduce((a, b) => a + b, 0) / v.length).toFixed(2)])));

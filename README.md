@@ -1,48 +1,28 @@
 # Real Estate Capital
 
-A browser board game in the Monopoly family, built to feel like the real world instead of a fair race. Players start with wildly different hands, trade in one open market, pay taxes, carry mortgages, get hit by recessions and hurricanes, and occasionally end up in the hospital.
+Monopoly, except nobody starts equal. A browser board game for classrooms: spin a wheel to find out who you are (an heir, a nurse, a graduate with debt), then play a familiar Monopoly loop with the real world bolted on: income tax at payday, property and wealth tax squares, health insurance, a Hospital instead of jail, Life cards that hit one player and World cards that hit everyone. The game explains each thing the first time it happens and ends with a screen showing who earned what from working, who earned from owning, and who paid what in tax.
 
-No build step. Open `index.html` in a browser, or serve the folder with any static server.
+No build step. Open `index.html` in any browser. Play on one device (pass it around) with any mix of people and computer players.
 
-**Hosting it for a class or the public (GitHub Pages).** The repository includes a workflow that publishes the game on every push to `main`. One-time setup: in the GitHub repository go to *Settings → Pages* and set *Source* to *GitHub Actions*. After the next push to `main`, the game is at `https://<your-username>.github.io/<repository-name>/`. Anyone with the link can play it in Chrome, Safari, Firefox or Edge, on a laptop, tablet or phone.
+**Hosting for a class (GitHub Pages).** The repository has a workflow that publishes the game on every push to `main`. One-time setup: Settings → Pages → Source: "GitHub Actions". The game then lives at `https://<user>.github.io/<repo>/`.
 
-**For teachers:** see [docs/TEACHER_GUIDE.md](docs/TEACHER_GUIDE.md) for scenarios, policy comparisons, the lessons screen, discussion questions and a map from game mechanics to real-world ideas.
+## How it plays
 
-## Playing
+1. **Spin the wheel.** Eight starts in life, dealt at random: Heir, Business Owner, Software Engineer, Nurse, Construction Worker, Graduate, Retiree, Small Landlord. Each has its own cash, salary, insurance, inherited property or debt, and an "in the real world" note.
+2. **Monopoly.** Roll, buy, pay rent, complete colour groups, build houses and hotels, mortgage, trade. Doubles roll again; three doubles sends you to Hospital.
+3. **One lap is a year.** Pass Payday to collect your salary, minus progressive income tax (10% to 40%), minus health insurance if you have it, minus student loan repayments.
+4. **Squares with a lesson.** Property Tax (1% of what you own), Wealth Tax (2% of net worth above $1M), Hospital (pay the bill or roll doubles; $40,000 uninsured, $4,000 insured), Accident (go to Hospital).
+5. **Life cards** (medical emergency, layoff, promotion, baby, lawsuit, repairs) and **World cards** (recession, boom, rate hike, pandemic, hurricane, housing boom or crash, tax cut or rise, rent control, stock crash, minimum wage, wealth tax).
+6. **Win** with the highest net worth when the rounds run out. Run out of cash and assets and you are bankrupt.
 
-1. Add 2 to 6 players. Any mix of humans (hot-seat on one device) and computer opponents.
-2. Pick the game length (3 to 20 years), computer speed, a **scenario** (normal times, everyone equal, born lucky/born unlucky, crash on day one, high inflation), a **government policy** (balanced, strong safety net, low tax and no net) and, for schools, **classroom mode** (no casino, gambling or divorce).
-3. On your turn: look around if you want (Overview, My buildings, Market, Bank, News), **Roll the dice**, deal with whatever you land on, do more business, then **End turn**. The right-hand panel always shows the one button you need next and a feed of what happened.
-4. One full round of turns is one month. Every month settles salary, rent, mortgage payments, upkeep, property tax, insurance premiums and interest. Every December the income tax bill is due and an annual report is shown.
-5. The game ends when time runs out or only one player is left solvent. Highest net worth wins.
-
-The game autosaves at the start of each human turn (browser local storage). Use **Save** / **Menu** to leave and **Continue saved game** to come back.
-
-## What is in the simulation
-
-**Unequal starts.** Each player is dealt a background: Trust-Fund Heir (inherits a downtown tower and a waterfront building, both mortgaged, and owes estate tax), Family Business Owner, Software Engineer (student loan), Nurse, Construction Worker (no health insurance), Recent Graduate, Retiree (pension, 66 years old), Small Landlord (two leveraged rentals). Cash, salary, age, health, credit score, children and debts all differ.
-
-**One market.** 28 properties in 7 districts, each with a live value driven by the property index, district modifiers, condition, renovations and whether one owner holds the whole district. Unowned buildings can be bought when landed on (market value) or at any time off-market (5% premium). Owners can list buildings at any price, and anyone can make an offer on anything; computer players accept or decline based on their situation. A quick sale to a cash buyer at 80% of value is always available.
-
-**Financing.** Mortgages up to 80% loan-to-value, 30-year fixed, rate depends on the central bank rate and your credit score. Cash-out refinancing, rate refinancing, prepayment. Personal loans. An automatic credit line at a painful rate when cash goes negative. Exhaust the credit line and your stocks and then your buildings are seized.
-
-**Property management.** Buildings lose condition every month (faster in student housing and Old Town). Low condition cuts occupancy and value and brings code violation fines. Repair, renovate (three levels), insure against disasters, and set rent policy (low rent for occupancy, high rent for yield). Landing on someone's building costs a month of rent. Owning a whole district gives +25% rent and +10% value.
-
-**Taxes.** Progressive income tax (10/20/32/40% brackets, standard deduction, rental expenses and mortgage interest deductible), 1.1% annual property tax, 20% capital gains tax on sales profits, estate tax on inheritances over $1M, random audits, occasional wealth tax legislation.
-
-**Economy.** A business cycle (expansion, peak, recession, recovery) with a property index, a stock index fund you can invest in, a central bank rate that follows inflation, and inflation that raises salaries and living costs each year.
-
-**Global events.** Recession, boom, rate hikes and cuts, pandemic, hurricane, earthquake, tech boom, factory closures, university expansion, rent control, tax hikes and cuts, inflation surge, housing bubble (and the crash after it), stock crash, infrastructure bill, crime wave, insurance crisis, oil shock, wealth tax, new transit line, flood zone remap, population boom.
-
-**Learning.** Every global event carries an "In the real world" note with a historical parallel. A glossary explains the vocabulary. The end-of-game screen charts everyone's net worth over time, breaks down where each player's money came from (working, owning, investing), what they paid in tax and medical bills, states a few facts the game noticed, and asks discussion questions.
-
-**Life.** Health declines with age and stress and recovers with insurance, check-ups and vacations. Medical emergencies range from a flu to cancer treatment; without insurance you pay the whole bill, with insurance you pay a deductible and coinsurance up to an annual cap. Serious cases put you in hospital for months with reduced or no pay. Layoffs, promotions, job offers, children, divorce, friends asking for loans, a stock tip, a food truck partnership. Retirement at 67 on a 45% pension. Health at zero is the end.
+Every mechanic that is new compared with Monopoly is explained in a box the first time it happens to a human player (toggle on the setup screen). The end-of-game screen shows the ranking, a net-worth chart, income from working versus rent, taxes and medical bills, a few facts the game noticed, and discussion questions.
 
 ## Files
 
 - `index.html`, `css/style.css`: the page.
-- `js/data.js`: board, districts, backgrounds, events, tax and cost constants. Tune the game here.
-- `js/engine.js`: the simulation. No DOM; usable from Node.
-- `js/ai.js`: heuristic computer players.
-- `js/ui.js`: board rendering, tabs, modals, human controller.
-- `tests/sim.js`: headless all-AI simulation. `node tests/sim.js [games] [years] [seed] [-v]`.
+- `js/data.js`: board, wheel backgrounds, cards, tax rules, explanations. All tuning lives here.
+- `js/engine.js`: the game as a state machine (`state` + `dispatch(action)`), no DOM, deterministic by seed. Ready for online play by room code: a host can run it and relay actions.
+- `js/ai.js`: computer players.
+- `js/ui.js`: board, wheel, action card, trades, results.
+- `tests/sim.js`: headless all-computer games for balance. `node tests/sim.js [games] [rounds] [seed] [-v]`.
+- `docs/TEACHER_GUIDE.md`: using it in a lesson.
