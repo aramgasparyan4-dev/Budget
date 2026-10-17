@@ -71,13 +71,20 @@
           continue;
         }
         // human: auto-dismiss passive notices once explained
-        if (q.type === 'notice' && q.passive && seen(p.id, q.explain)) { toast(`${p.name}: ${q.text}`, 'good'); g.dispatch({ type: 'ack', playerId: p.id }); continue; }
+        if (q.type === 'notice' && ((q.passive && seen(p.id, q.explain)) || q.trivial)) { toast(`${p.name}: ${q.text}`, q.passive ? 'good' : ''); g.dispatch({ type: 'ack', playerId: p.id }); continue; }
         break;
       }
     } finally { ui.busy = false; if (ui.driveAgain) { ui.driveAgain = false; drive(); } }
   }
-  function act(a) { const g = ui.game; const q = g.pending; const r = g.dispatch(a); if (!r.ok) { toast(r.msg, 'bad'); return; } if (q && q.explain && a.playerId !== undefined) markSeen(a.playerId, q.explain); if (r.msg === 'explain:mortgage' && !seen(a.playerId, 'mortgage')) { markSeen(a.playerId, 'mortgage'); showExplain('mortgage'); } save(); render(); drive(); }
+  function act(a) { const g = ui.game; const q = g.pending; const r = g.dispatch(a); if (!r.ok) { toast(r.msg, 'bad'); return; } if (q && q.explain && a.playerId !== undefined) markSeen(a.playerId, q.explain); if (r.msg && r.msg.startsWith('explain:')) { const k = r.msg.slice(8); if (!seen(a.playerId, k)) { markSeen(a.playerId, k); showExplain(k); } } save(); render(); drive(); }
+  async function tumble() {
+    const el = document.querySelector('.centre .dice'); if (!el) return;
+    const ms = ui.speed === 0 ? 0 : 55; if (!ms) return;
+    for (let i = 0; i < 9; i++) { el.textContent = DICE[Math.floor(Math.random() * 6)] + DICE[Math.floor(Math.random() * 6)]; await sleep(ms); }
+    const d = ui.game.state.dice; if (d) el.textContent = DICE[d[0] - 1] + DICE[d[1] - 1];
+  }
   async function animateMove(lm) {
+    await tumble();
     const steps = (lm.to - lm.from + 40) % 40; if (!steps || steps > 12) { renderBoard(); return; }
     let pos = lm.from; const ms = ui.speed === 0 ? 60 : 110;
     for (let i = 0; i < steps; i++) { pos = (pos + 1) % 40; ui.animPos[lm.playerId] = pos; renderBoard(); await sleep(ms); }
@@ -216,9 +223,16 @@
       case 'buy': {
         const i = q.square;
         card.innerHTML = who(p, label) + `<h2>${esc(g.sq(i).name)} is for sale</h2>` + deedHtml(i) + explainBox(pid, 'buy');
-        btns.appendChild(btn(`Buy for ${fmt(q.price)}`, () => act({ type: 'buy', playerId: pid }), { cls: 'primary big', disabled: p.cash < q.price }));
-        btns.appendChild(btn('Pass', () => act({ type: 'pass', playerId: pid }), { cls: 'big' }));
-        card.insertAdjacentHTML('beforeend', `<div class="hint">You have ${fmt(p.cash)}.</div>`);
+        btns.appendChild(btn(q.needsLoan ? `Buy for ${fmt(q.price)} (borrow ${fmt(Math.ceil(q.needsLoan / D.COSTS.loanStep) * D.COSTS.loanStep)})` : `Buy for ${fmt(q.price)}`, () => act({ type: 'buy', playerId: pid }), { cls: 'primary big' }));
+        btns.appendChild(btn('Pass (it goes to auction)', () => act({ type: 'pass', playerId: pid }), { cls: 'big' }));
+        card.insertAdjacentHTML('beforeend', `<div class="hint">You have ${fmt(p.cash)}${p.credit - p.loan > 0 ? ` and can borrow ${fmt(p.credit - p.loan)}` : ''}.</div>`);
+        break;
+      }
+      case 'bid': {
+        const i = q.square, maxBid = Math.floor((p.cash + Math.max(0, p.credit - p.loan)) / D.COSTS.auctionStep) * D.COSTS.auctionStep;
+        card.innerHTML = who(p, label) + `<h2>Auction: ${esc(g.sq(i).name)}</h2><div class="text">List price ${fmt(g.price(i))}. Everyone bids once, in secret. Highest bid wins.</div>` + deedHtml(i) + explainBox(pid, 'auction') + `<div class="amt"><label>Your bid <input type="number" id="bidAmt" min="0" max="${maxBid}" step="${D.COSTS.auctionStep}" value="${Math.min(maxBid, Math.round(g.price(i) * 0.8 / D.COSTS.auctionStep) * D.COSTS.auctionStep)}" style="width:150px"></label><span class="muted" style="font-size:12px">up to ${fmt(maxBid)}</span></div>`;
+        btns.appendChild(btn('Place bid', () => act({ type: 'bid', playerId: pid, amount: Number(card.querySelector('#bidAmt').value) || 0 }), { cls: 'primary big', disabled: maxBid < D.COSTS.auctionStep }));
+        btns.appendChild(btn('No bid', () => act({ type: 'bid', playerId: pid, amount: 0 }), { cls: 'big' }));
         break;
       }
       case 'turn':
@@ -238,10 +252,18 @@
         break;
       case 'debt': {
         const canRaise = g.liquid(p) >= 0;
-        card.innerHTML = who(p, label) + `<h2>You are ${fmt(Math.max(0, -p.cash))} short</h2><div class="text">${q.creditorId !== null ? `You owe ${esc(g.player(q.creditorId).name)}.` : 'You owe the bank.'} Sell houses or mortgage properties below to raise the money.</div>${explainBox(pid, 'debt')}`;
+        card.innerHTML = who(p, label) + `<h2>You are ${fmt(Math.max(0, -p.cash))} short</h2><div class="text">${q.creditorId !== null ? `You owe ${esc(g.player(q.creditorId).name)}.` : 'You owe the bank.'} Borrow from the bank, sell houses or mortgage properties below to raise the money.</div>${explainBox(pid, 'debt')}`;
         if (p.cash >= 0) btns.appendChild(btn('Pay and continue', () => act({ type: 'payDebt', playerId: pid }), { cls: 'primary big' }));
         else if (!canRaise) btns.appendChild(btn('Declare bankruptcy', () => act({ type: 'bankrupt', playerId: pid }), { cls: 'big danger' }));
-        else card.insertAdjacentHTML('beforeend', `<div class="hint">You can still raise ${fmt(g.liquid(p) - p.cash)} from your properties.</div>`);
+        else {
+          const need = -p.cash, credit = p.credit - p.loan;
+          if (credit >= D.COSTS.loanStep) { const amt = Math.min(credit, Math.ceil(need / D.COSTS.loanStep) * D.COSTS.loanStep); btns.appendChild(btn(`Borrow ${fmt(amt)} from the bank`, () => act({ type: 'loan', playerId: pid, amount: amt }), { cls: 'primary big' })); }
+          const withHouses = g.propsOf(pid).filter(i => g.prop(i).houses > 0).sort((a, b) => g.houseCost(b) - g.houseCost(a));
+          if (withHouses.length) btns.appendChild(btn(`Sell a house on ${g.sq(withHouses[0]).name} (+${fmt(g.houseCost(withHouses[0]) / 2)})`, () => act({ type: 'sellHouse', playerId: pid, square: withHouses[0] }), { cls: 'big' }));
+          const canMort = g.propsOf(pid).filter(i => !g.prop(i).mortgaged && g.prop(i).houses === 0 && !(g.sq(i).group !== 'transport' && g.groupSquares(g.sq(i).group).some(j => g.prop(j).owner === pid && g.prop(j).houses > 0))).sort((a, b) => g.price(a) - g.price(b));
+          if (canMort.length) btns.appendChild(btn(`Mortgage ${g.sq(canMort[0]).name} (+${fmt(g.price(canMort[0]) / 2)})`, () => act({ type: 'mortgage', playerId: pid, square: canMort[0] }), { cls: 'big' }));
+          card.insertAdjacentHTML('beforeend', `<div class="hint">Or use the buttons on your properties below. You can raise up to ${fmt(g.liquid(p) - p.cash)}.</div>`);
+        }
         break;
       }
       case 'trade': {
@@ -270,7 +292,7 @@
     const el = document.createElement('div'); el.className = 'me';
     const mine = g.propsOf(p.id);
     el.innerHTML = `<div class="nums"><div><div class="l">Cash</div><div class="v ${p.cash < 0 ? 'bad' : ''}">${fmt(p.cash, true)}</div></div><div><div class="l">Net worth</div><div class="v">${fmt(g.netWorth(p), true)}</div></div><div><div class="l">Salary</div><div class="v">${fmt(p.salary, true)}</div></div></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px">${p.insured ? '<span class="chip good">Insured</span>' : '<span class="chip bad">No health insurance</span>'}${p.debt ? `<span class="chip warn">Student loan ${fmt(p.debt, true)}</span>` : ''}${p.laidOff ? '<span class="chip bad">Laid off</span>' : ''}<span class="muted">Laps ${p.laps}</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px">${p.insured ? '<span class="chip good">Insured</span>' : '<span class="chip bad">No health insurance</span>'}${p.debt ? `<span class="chip warn">Student loan ${fmt(p.debt, true)}</span>` : ''}${p.loan ? `<span class="chip warn">Bank loan ${fmt(p.loan, true)}</span>` : ''}${p.laidOff ? '<span class="chip bad">Laid off</span>' : ''}<span class="muted">Credit left ${fmt(Math.max(0, p.credit - p.loan), true)} · Laps ${p.laps}</span></div>
       <div class="section"><h3>${esc(poss(p.name))} properties</h3><div class="plist" id="plist"></div></div><div id="mactions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>`;
     const list = el.querySelector('#plist');
     if (!mine.length) list.innerHTML = '<span class="muted" style="font-size:13px">None yet.</span>';
@@ -288,6 +310,11 @@
       }
       list.appendChild(row);
     });
+    if (manage) {
+      const ma = el.querySelector('#mactions');
+      if (p.credit - p.loan >= D.COSTS.loanStep) ma.appendChild(btn(`Borrow from the bank`, () => loanModal(p), { cls: 'small' }));
+      if (p.loan > 0 && !debtOnly && p.cash >= D.COSTS.loanStep) ma.appendChild(btn(`Repay loan`, () => act({ type: 'repayLoan', playerId: p.id, amount: Math.min(p.loan, Math.floor(p.cash / D.COSTS.loanStep) * D.COSTS.loanStep) }), { cls: 'small' }));
+    }
     if (manage && !debtOnly) {
       const ma = el.querySelector('#mactions');
       ma.appendChild(btn(p.insured ? 'Cancel health insurance' : `Get health insurance (${fmt(D.COSTS.premium, true)}/year)`, () => act({ type: 'insurance', playerId: p.id, on: !p.insured }), { cls: 'small' }));
@@ -313,6 +340,10 @@
     });
     const p = chain.then(run, run); chain = p.catch(() => {}); return p;
   }
+  function loanModal(p) {
+    const g = ui.game, max = p.credit - p.loan;
+    modal({ title: 'Borrow from the bank', text: `The bank will lend you up to ${fmt(max)} more, at 10% interest a year, paid at every Payday.`, html: `<div class="amt"><label>Amount <input type="number" id="loanAmt" min="${D.COSTS.loanStep}" max="${max}" step="${D.COSTS.loanStep}" value="${Math.min(max, 50000)}" style="width:150px"></label></div>`, options: [{ id: 'ok', label: 'Borrow' }, { id: 'cancel', label: 'Cancel' }], onRender: box => { box.querySelector('[data-id=ok]').onclick = () => { const amt = Number(box.querySelector('#loanAmt').value) || 0; $('#modal').hidden = true; act({ type: 'loan', playerId: p.id, amount: amt }); }; } });
+  }
   function showDeed(i) { const g = ui.game; ui.selected = i; modal({ title: '', html: deedHtml(i), options: [{ id: 'ok', label: 'Close' }] }); }
   function showExplain(key) { const e = D.EXPLAIN[key]; modal({ title: e[0], text: e[1], options: [{ id: 'ok', label: 'Got it' }] }); }
   function showHelp() {
@@ -321,7 +352,9 @@
       <div><span class="ic">💵</span><div><b>Pass Payday for a year's salary</b> minus income tax (10% to 40%, higher earners pay more) and your health insurance if you have it.</div></div>
       <div><span class="ic">🏠</span><div><b>Own a whole colour group</b> and rents there double. Then build houses (up to 4) and a hotel. Each one multiplies the rent.</div></div>
       <div><span class="ic">🏦</span><div><b>Short of cash?</b> Sell houses for half price or mortgage a property for half its price (pay 55% to get it back). No assets left means bankruptcy.</div></div>
-      <div><span class="ic">🤝</span><div><b>Trade.</b> On your turn, propose a swap of properties and cash to any player.</div></div>
+      <div><span class="ic">🔨</span><div><b>Pass on a property and it goes to auction.</b> Everyone bids once in secret; the highest bid wins, even below list price.</div></div>
+      <div><span class="ic">🏛️</span><div><b>Bank loans.</b> Borrow up to your credit limit at 10% a year, paid at Payday. Your limit depends on who you are.</div></div>
+      <div><span class="ic">🤝</span><div><b>Trade.</b> On your turn, propose a swap of properties and cash to any player. Computer players will propose trades too.</div></div>
       <div><span class="ic">🧾</span><div><b>Taxes.</b> Property Tax: 1% of what you own. Wealth Tax: 2% of net worth, only above $1,000,000.</div></div>
       <div><span class="ic">🎴</span><div><b>Life cards</b> happen to you. <b>World cards</b> happen to everyone. Each tells you what it would mean in the real world.</div></div>
       <div><span class="ic">🏆</span><div><b>Win</b> by having the highest net worth (cash plus property) when the last round ends.</div></div></div>`, options: [{ id: 'ok', label: 'Close' }], wide: true });
@@ -351,6 +384,7 @@
     const owners = src.filter(x => x.rent > x.wages); if (owners.length) facts.push(`${owners.map(x => x.p.name).join(', ')} made more from rent than from working.`);
     src.forEach(x => { const inc = x.wages + Math.max(0, x.rent); if (inc > 0 && x.p.stats.tax < inc) facts.push(`${x.p.name} paid ${Math.round(x.p.stats.tax / inc * 100)}% of their income in tax.`); });
     const bust = rank.filter(p => p.bankrupt); if (bust.length) facts.push(`${bust.map(p => p.name).join(', ')} went bankrupt.`);
+    const borrowers = rank.filter(p => p.stats.interest > 0); if (borrowers.length) facts.push(`${borrowers.map(p => `${p.name} paid ${fmt(p.stats.interest, true)} in loan interest`).join('; ')}.`);
     const rows = rank.map((p, i) => { const bg = D.BACKGROUNDS.find(b => b.id === p.bg); return `<tr><td>${i === 0 && !p.bankrupt ? '🏆' : i + 1}</td><td><b style="color:${p.color}">${esc(p.name)}</b><br><span class="muted">${bg ? bg.icon + ' ' + esc(bg.title) : ''}</span></td><td class="r">${fmt(p.startNW, true)}</td><td class="r"><b>${p.bankrupt ? 'bankrupt' : fmt(g.netWorth(p), true)}</b></td><td>${bar(p.stats.wages, 'var(--accent)')}</td><td>${bar(p.stats.rentGot - p.stats.rentPaid, 'var(--good)')}</td><td class="r">${fmt(p.stats.tax, true)}</td><td class="r">${p.stats.medical ? fmt(p.stats.medical, true) : '–'}</td></tr>`; }).join('');
     modal({ title: st.winner !== null ? `${g.player(st.winner).name} wins` : 'Game over', wide: true, html: `<div class="twrap"><table class="t"><thead><tr><th>#</th><th>Player</th><th class="r">Started</th><th class="r">Finished</th><th>From working</th><th>From rent (net)</th><th class="r">Tax paid</th><th class="r">Medical</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h3 style="font-size:16px;margin:14px 0 6px">Net worth, round by round</h3><canvas class="chart" id="chart" width="800" height="160"></canvas><div class="muted" style="font-size:12px">${rank.map(p => `<span style="color:${p.color}">■</span> ${esc(p.name)}`).join(' &nbsp; ')}</div>

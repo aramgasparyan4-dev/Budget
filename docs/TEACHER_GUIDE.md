@@ -14,6 +14,8 @@
 - The Graduate and the Construction Worker have no insurance. Watch what a Life card does to them compared with the Nurse.
 - Payday: the Engineer earns the most and pays the highest rate. The Heir earns little salary but most of their income is rent, which this game does not tax. Ask whether that is fair, and whether it is true in your country.
 - World cards: a recession lowers everyone's rent, but only hurts those who depend on it. A stock crash costs the rich real money and the poor nothing.
+- Bank loans: the Heir can borrow $400,000 at the same 10% as the Graduate's $20,000. Watch who borrows their way out of trouble and who has to mortgage or sell. Ask who gets cheap credit in the real world.
+- Auctions: when someone passes, the property goes to the highest bidder. Who wins auctions? Who can afford to bid at all?
 - Wealth Tax square: most players pay nothing. Ask whether a tax that only the rich pay is fair, and why so few countries have one.
 
 **Changing the numbers.** Everything is in `js/data.js`: starting backgrounds, tax bands, card effects, prices. Change a country's rates and play again.

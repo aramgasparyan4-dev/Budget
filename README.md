@@ -9,7 +9,8 @@ No build step. Open `index.html` in any browser. Play on one device (pass it aro
 ## How it plays
 
 1. **Spin the wheel.** Eight starts in life, dealt at random: Heir, Business Owner, Software Engineer, Nurse, Construction Worker, Graduate, Retiree, Small Landlord. Each has its own cash, salary, insurance, inherited property or debt, and an "in the real world" note.
-2. **Monopoly.** Roll, buy, pay rent, complete colour groups, build houses and hotels, mortgage, trade. Doubles roll again; three doubles sends you to Hospital.
+2. **Monopoly.** Roll, buy, pay rent, complete colour groups, build houses and hotels, mortgage, trade. Pass on a property and it goes to a sealed-bid auction. Doubles roll again; three doubles sends you to Hospital.
+   **Bank loans.** Borrow at 10% a year (paid at Payday) up to a credit limit that depends on who you are: the Heir can borrow $400,000, the Graduate $20,000. Computer players borrow before they sell, propose trades to complete colour groups, and build houses.
 3. **One lap is a year.** Pass Payday to collect your salary, minus progressive income tax (10% to 40%), minus health insurance if you have it, minus student loan repayments.
 4. **Squares with a lesson.** Property Tax (1% of what you own), Wealth Tax (2% of net worth above $1M), Hospital (pay the bill or roll doubles; $40,000 uninsured, $4,000 insured), Accident (go to Hospital).
 5. **Life cards** (medical emergency, layoff, promotion, baby, lawsuit, repairs) and **World cards** (recession, boom, rate hike, pandemic, hurricane, housing boom or crash, tax cut or rise, rent control, stock crash, minimum wage, wealth tax).

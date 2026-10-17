@@ -16,7 +16,7 @@
   };
 
   // Monopoly ratios, realistic magnitudes (x1000). rents: [base, 1 house, 2, 3, 4, hotel]
-  const P = (name, group, price, rents, house) => ({ kind: 'property', name, group, price: price * K, rents: rents.map(r => r * K / 2), house: house * K });
+  const P = (name, group, price, rents, house) => ({ kind: 'property', name, group, price: price * K, rents: rents.map(r => r * K / 2), house: house * K / 2 });
   const T = (name) => ({ kind: 'property', name, group: 'transport', price: 200 * K, rents: [12 * K, 25 * K, 50 * K, 100 * K], house: 0 });
   const S = (kind, name, icon) => ({ kind, name, icon });
 
@@ -65,28 +65,28 @@
 
   /* The wheel. One spin decides where you start in life. */
   const BACKGROUNDS = [
-    { id: 'heir', short: 'Heir', title: 'Heir', icon: '👑', cash: 700 * K, salary: 80 * K, insured: true, inherit: ['downtown', 'midtown'],
+    { id: 'heir', credit: 400 * K, short: 'Heir', title: 'Heir', icon: '👑', cash: 600 * K, salary: 80 * K, insured: true, inherit: ['downtown', 'midtown'],
       desc: 'Born rich. You inherit a Downtown tower, a Midtown building and a fat bank account. You pay estate tax, then never worry again.',
       real: 'In the US about 60% of the wealth of the richest families is inherited. Inheritance is the biggest single predictor of ending up wealthy.' },
-    { id: 'business', short: 'Business', title: 'Business Owner', icon: '🏭', cash: 350 * K, salary: 150 * K, insured: true, inherit: ['transport'],
+    { id: 'business', credit: 250 * K, short: 'Business', title: 'Business Owner', icon: '🏭', cash: 350 * K, salary: 150 * K, insured: true, inherit: ['transport'],
       desc: 'You run the family firm and own the Rail Depot. Good income, and assets that work while you sleep.',
       real: 'Owning a business or property means income that does not depend on your hours worked.' },
-    { id: 'engineer', short: 'Engineer', title: 'Software Engineer', icon: '💻', cash: 250 * K, salary: 180 * K, insured: true, debt: 40 * K,
+    { id: 'engineer', credit: 150 * K, short: 'Engineer', title: 'Software Engineer', icon: '💻', cash: 250 * K, salary: 180 * K, insured: true, debt: 40 * K,
       desc: 'High salary, no property, a student loan that is taken from your first payday.',
       real: 'High earners with no assets still pay the top income tax rates. Wealth and income are different things.' },
-    { id: 'nurse', short: 'Nurse', title: 'Nurse', icon: '🩺', cash: 150 * K, salary: 90 * K, insured: true,
+    { id: 'nurse', credit: 60 * K, short: 'Nurse', title: 'Nurse', icon: '🩺', cash: 150 * K, salary: 90 * K, insured: true,
       desc: 'Steady job, health insurance from work, a little saved.',
       real: 'Most people in rich countries live like this: one paycheck at a time, one accident from trouble.' },
-    { id: 'worker', short: 'Builder', title: 'Construction Worker', icon: '🔧', cash: 80 * K, salary: 60 * K, insured: false, inherit: ['oldtown'],
+    { id: 'worker', credit: 30 * K, short: 'Builder', title: 'Construction Worker', icon: '🔧', cash: 80 * K, salary: 60 * K, insured: false, inherit: ['oldtown'],
       desc: 'Your parents left you the old rowhouse. No health insurance. One bad fall and it is gone.',
       real: 'In 2022 about 26 million Americans had no health insurance. Medical bills are the top cause of personal bankruptcy there.' },
-    { id: 'student', short: 'Graduate', title: 'Graduate', icon: '🎓', cash: 30 * K, salary: 55 * K, insured: false, debt: 40 * K,
+    { id: 'student', credit: 20 * K, short: 'Graduate', title: 'Graduate', icon: '🎓', cash: 30 * K, salary: 55 * K, insured: false, debt: 40 * K,
       desc: 'Young, broke, uninsured, and the student loan comes out of your first payday.',
       real: 'US student debt is over $1.7 trillion. Graduates start their working lives in the red.' },
-    { id: 'retiree', short: 'Retiree', title: 'Retiree', icon: '🧓', cash: 450 * K, salary: 50 * K, insured: true, inherit: ['suburbs'],
+    { id: 'retiree', credit: 120 * K, short: 'Retiree', title: 'Retiree', icon: '🧓', cash: 450 * K, salary: 50 * K, insured: true, inherit: ['suburbs'],
       desc: 'A paid-off house in the Suburbs, savings, and a pension. Your income will not grow.',
       real: 'Pensioners own most of the housing in many countries but have fixed incomes. Inflation hurts them most.' },
-    { id: 'landlord', short: 'Landlord', title: 'Small Landlord', icon: '🔑', cash: 150 * K, salary: 70 * K, insured: true, inherit: ['riverside', 'riverside'], mortgaged: true,
+    { id: 'landlord', credit: 100 * K, short: 'Landlord', title: 'Small Landlord', icon: '🔑', cash: 150 * K, salary: 70 * K, insured: true, inherit: ['riverside', 'riverside'], mortgaged: true,
       desc: 'Two Riverside rentals, both mortgaged to the bank. Rent comes in, but you owe a lot.',
       real: 'Leverage: borrowed money makes gains bigger and losses bigger. Landlords did very well in 2010 to 2021 and badly in 2008.' },
   ];
@@ -97,7 +97,7 @@
     wealthTaxRate: 0.02, wealthTaxThreshold: 1000 * K,
     estateExemption: 500 * K, estateRate: 0.20,
   };
-  const COSTS = { premium: 8 * K, hospitalBill: 40 * K, hospitalBillInsured: 4 * K, unemployment: 20 * K };
+  const COSTS = { premium: 8 * K, hospitalBill: 40 * K, hospitalBillInsured: 4 * K, unemployment: 20 * K, loanStep: 10 * K, loanRate: 0.10, auctionStep: 10 * K };
 
   /* Life cards: happen to one player. */
   const LIFE = [
@@ -154,6 +154,8 @@
     wealth: ['Wealth tax', 'A tax on net worth above $1,000,000. Only the rich pay it. Almost no country has one; this square is here so you can argue about it.'],
     mortgage: ['Mortgage', 'Mortgaging gives you half the property\'s price in cash now. It earns no rent until you pay the bank back with 10% interest. It is how owners survive a cash crunch that would bankrupt a renter.'],
     debt: ['Out of cash', 'You owe more than you have. Sell houses or mortgage properties to raise the money. If you cannot, you are bankrupt and out. Players with assets can borrow against them; players without have nothing to sell.'],
+    loan: ['Bank loans', 'The bank lends you money at 10% interest a year, paid at every Payday. How much it lends depends on who you are: the Heir can borrow $400,000, the Graduate $20,000. Cheap credit for the rich and none for the poor is one of the quiet engines of inequality.'],
+    auction: ['Auction', 'When a player passes on a property, it goes to auction: everyone bids once, in secret, and the highest bid wins. Auctions are how the player with the most cash picks up bargains nobody else can afford.'],
     trade: ['Trading', 'Players can trade properties and cash. Deals are how colour groups get completed. Whoever has more to offer usually gets the better deal.'],
   };
 

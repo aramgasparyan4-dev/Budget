@@ -108,6 +108,7 @@ h1, h2, h3 { margin: 0; font-family: var(--title); font-weight: 700; text-wrap: 
 .act .explain { border-left: 5px solid var(--blue); background: #eef5fb; border-radius: 0 8px 8px 0; padding: 8px 10px; font-size: 13px; margin-bottom: 10px; }
 .act .explain b { display: block; margin-bottom: 2px; }
 .act .btns { display: grid; gap: 8px; }
+.amt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; } .amt label { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .act .hint { color: var(--muted); font-size: 13px; text-align: center; margin-top: 6px; }
 .deed { border: 2px solid var(--rule); border-radius: 6px; overflow: hidden; margin-bottom: 10px; background: #fff; box-shadow: 3px 3px 0 var(--rule); }
 .deed-top { padding: 8px 12px; display: grid; text-align: center; border-bottom: 2px solid var(--rule); color: #fff; }
