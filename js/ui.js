@@ -13,7 +13,7 @@
   /* ---------------- setup ---------------- */
   function renderSetup() {
     let saved = null; try { saved = localStorage.getItem(SAVE); } catch (e) { /* ignore */ }
-    $('#app').innerHTML = `<div class="setup"><h1>Real Estate Capital</h1>
+    $('#app').innerHTML = `<div class="setup"><div class="logo">Real Estate Capital</div>
       <p class="tag">Monopoly, except nobody starts equal. Spin the wheel to find out who you are, then buy, build, pay rent, pay tax, and survive whatever the world throws at you.</p>
       <div class="setup-grid"><div class="card"><h2>Who is playing?</h2><div id="rows"></div><button class="btn small" id="add">+ Add player</button>
         <div class="opts"><div class="muted" style="font-size:13px">Click a token to change it.</div>
@@ -30,7 +30,7 @@
         <div><span class="ic">🏆</span><div><b>Highest net worth wins</b> when the rounds run out. Run out of money and assets and you are out.</div></div></div></div></div></div>
       <div id="modal" class="modal" hidden><div class="mbox" id="mbox"></div></div><div class="toasts" id="toasts"></div>`;
     const rows = $('#rows');
-    const addRow = (name, ai) => { const i = rows.children.length; const r = document.createElement('div'); r.className = 'prow'; r.innerHTML = `<button type="button" class="avatar tokpick" style="background:${D.COLORS[i]}" data-t="${i}">${D.TOKENS[i]}</button><input type="text" value="${esc(name)}" maxlength="14"><select><option value="h"${ai ? '' : ' selected'}>Human</option><option value="ai"${ai ? ' selected' : ''}>Computer</option></select><button class="btn small ghost danger">✕</button>`; r.lastElementChild.onclick = () => { if (rows.children.length > 2) { r.remove(); [...rows.children].forEach((x, k) => { x.firstElementChild.style.background = D.COLORS[k]; }); } }; const tp = r.querySelector('.tokpick'); tp.onclick = () => { const n = (Number(tp.dataset.t) + 1) % D.TOKENS.length; tp.dataset.t = n; tp.textContent = D.TOKENS[n]; }; rows.appendChild(r); };
+    const addRow = (name, ai) => { const i = rows.children.length; const r = document.createElement('div'); r.className = 'prow'; r.innerHTML = `<button type="button" class="avatar tokpick" style="border-color:${D.COLORS[i]}" data-t="${i}">${D.TOKENS[i]}</button><input type="text" value="${esc(name)}" maxlength="14"><select><option value="h"${ai ? '' : ' selected'}>Human</option><option value="ai"${ai ? ' selected' : ''}>Computer</option></select><button class="btn small ghost danger">✕</button>`; r.lastElementChild.onclick = () => { if (rows.children.length > 2) { r.remove(); [...rows.children].forEach((x, k) => { x.firstElementChild.style.borderColor = D.COLORS[k]; }); } }; const tp = r.querySelector('.tokpick'); tp.onclick = () => { const n = (Number(tp.dataset.t) + 1) % D.TOKENS.length; tp.dataset.t = n; tp.textContent = D.TOKENS[n]; }; rows.appendChild(r); };
     addRow('Player 1', false); addRow('Dana', true); addRow('Marcus', true);
     $('#add').onclick = () => { if (rows.children.length < 8) addRow(['Priya', 'Leo', 'Sofia', 'Omar', 'Mia'][rows.children.length - 3] || 'Player', true); };
     $('#start').onclick = () => {
@@ -89,13 +89,13 @@
     const ctx = cv.getContext('2d'), W = cv.width, H = cv.height, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 14;
     ctx.clearRect(0, 0, W, H);
     const n = D.BACKGROUNDS.length, seg = Math.PI * 2 / n;
-    const cols = ['#f0b429', '#4dabf7', '#51cf66', '#ff6b6b', '#da77f2', '#ff922b', '#38d9a9', '#f783ac'];
+    const cols = ['#fef200', '#aae0fa', '#1fb25a', '#ed1b24', '#d93a96', '#f7941d', '#0072bb', '#955436'];
     for (let i = 0; i < n; i++) {
       const a0 = angle + i * seg, a1 = a0 + seg;
       ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a0, a1); ctx.closePath();
       ctx.fillStyle = cols[i % cols.length]; ctx.globalAlpha = highlight === i ? 1 : 0.85; ctx.fill(); ctx.globalAlpha = 1;
       ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.save(); ctx.translate(cx, cy); const mid = a0 + seg / 2, flip = Math.cos(mid) < 0; ctx.rotate(flip ? mid + Math.PI : mid); ctx.textAlign = flip ? 'left' : 'right'; ctx.fillStyle = '#111'; ctx.font = `bold ${Math.round(R / 9)}px sans-serif`; ctx.fillText(D.BACKGROUNDS[i].icon + ' ' + D.BACKGROUNDS[i].title, flip ? -R + 12 : R - 12, 5); ctx.restore();
+      ctx.save(); ctx.translate(cx, cy); const mid = a0 + seg / 2, flip = Math.cos(mid) < 0; ctx.rotate(flip ? mid + Math.PI : mid); ctx.textAlign = flip ? 'left' : 'right'; ctx.fillStyle = [3, 6, 7].includes(i) ? '#fff' : '#111'; ctx.font = `600 ${Math.round(R / 9)}px Oswald, sans-serif`; ctx.fillText(D.BACKGROUNDS[i].icon + ' ' + D.BACKGROUNDS[i].short, flip ? -R + 12 : R - 12, 5); ctx.restore();
     }
     ctx.beginPath(); ctx.arc(cx, cy, R * 0.12, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#333'; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx + R + 12, cy); ctx.lineTo(cx + R - 14, cy - 12); ctx.lineTo(cx + R - 14, cy + 12); ctx.closePath(); ctx.fillStyle = '#1b2430'; ctx.fill();
@@ -149,15 +149,21 @@
       const i = Number(c.dataset.i), sq = D.BOARD[i];
       const toks = st.players.filter(p => !p.bankrupt && p.bg && posOf(p) === i).map(p => `<span class="tok" style="border-color:${p.color}" title="${esc(p.name)}">${p.token}</span>`).join('');
       c.classList.toggle('here', !!(cur && cur.bg && posOf(cur) === i && !st.over));
-      if (sq.kind !== 'property') { c.innerHTML = `<div class="ic">${sq.icon}</div><div class="name">${esc(sq.name)}</div><div class="toks">${toks}</div>`; return; }
+      c.className = c.className.replace(/ k-\w+/g, '') + ' k-' + sq.kind;
+      if (sq.kind !== 'property') {
+        const subs = { go: 'Collect salary as you pass', hospital: 'Just visiting', dayoff: 'Nothing happens', accident: 'Go to Hospital', tax: 'Pay 1% of what you own', wealth: '2% above $1M', life: 'Chance', world: 'Everyone' };
+        const icon = sq.kind === 'life' ? '?' : sq.kind === 'go' ? '<span class="arrow">➜</span>' : sq.icon;
+        c.innerHTML = `<div class="body"><div class="ic">${icon}</div><div class="name">${esc(sq.name)}</div>${subs[sq.kind] && i % 10 === 0 ? `<div class="sub">${esc(subs[sq.kind])}</div>` : ''}</div><div class="toks">${toks}</div>`; return;
+      }
       const pr = st.props[i], grp = D.GROUPS[sq.group], owner = pr.owner === null ? null : st.players[pr.owner];
       const houses = pr.houses === 5 ? '🏨' : '🏠'.repeat(pr.houses);
-      c.innerHTML = `<div class="stripe" style="background:${grp.color}">${houses}</div><div class="body"><div class="name">${esc(sq.name)}</div><div class="val">${fmt(g.price(i), true)}</div><div class="toks">${toks}</div></div><div class="own" style="background:${owner ? owner.color : 'transparent'}"></div>${pr.mortgaged ? '<div class="mort"></div>' : ''}`;
+      c.innerHTML = `<div class="stripe ${grp.dark ? 'dark' : ''}" style="background:${grp.color}">${sq.group === 'transport' ? '🚆' : houses}</div><div class="body"><div class="name">${esc(sq.name)}</div><div class="val">${fmt(g.price(i), true)}</div></div><div class="toks">${toks}</div><div class="own" style="background:${owner ? owner.color : 'transparent'}"></div>${pr.mortgaged ? '<div class="mort"></div>' : ''}`;
       c.title = `${sq.name} — ${owner ? 'owned by ' + owner.name : 'for sale'}${pr.mortgaged ? ' (mortgaged)' : ''}`;
     });
   }
   function renderCentre() {
     const g = ui.game, st = g.state, q = g.pending, c = $('#centre');
+    c.classList.toggle('spinmode', !!(q && q.type === 'spin'));
     if (q && q.type === 'spin') {
       const p = g.player(q.playerId);
       c.innerHTML = `<h2>${esc(p.name)}, spin the wheel</h2><canvas id="wheel" class="wheel" width="420" height="420"></canvas><div class="ticker">Where you start in life is not up to you.</div>`;
@@ -165,9 +171,9 @@
     }
     const cur = g.current();
     const last = st.log.slice(-4).reverse();
-    c.innerHTML = `<div class="dice">${st.dice ? DICE[st.dice[0] - 1] + DICE[st.dice[1] - 1] : '🎲'}</div><h2>${st.over ? 'Game over' : esc(poss(cur.name)) + ' turn'}</h2>
+    c.innerHTML = `<div class="ribbon">Real Estate Capital</div><div class="deck life">Life</div><div class="deck world">World</div><div class="note"><div class="dice">${st.dice ? DICE[st.dice[0] - 1] + DICE[st.dice[1] - 1] : '🎲'}</div><h2>${st.over ? 'Game over' : esc(poss(cur.name)) + ' turn'}</h2>
       <div class="fx">${st.effects.map(e => `<span class="chip warn">${esc(e.title)}</span>`).join('')}</div>
-      <div class="ticker">${last.map(e => `<div>${esc(e.text)}</div>`).join('')}</div>`;
+      <div class="ticker">${last.map(e => `<div>${esc(e.text)}</div>`).join('')}</div></div>`;
   }
 
   /* ---------------- rail: action card, me, players ---------------- */
@@ -183,7 +189,7 @@
     if (!key || seen(pid, key) || !D.EXPLAIN[key]) return '';
     return `<div class="explain"><b>ℹ️ ${esc(D.EXPLAIN[key][0])}</b>${esc(D.EXPLAIN[key][1])}</div>`;
   }
-  function who(p, label) { return `<div class="who"><span class="avatar" style="background:${p.color}">${p.token}</span><div><b>${esc(p.name)}</b><div class="muted">${esc(label || '')}</div></div></div>`; }
+  function who(p, label) { return `<div class="who"><span class="avatar" style="border-color:${p.color}">${p.token}</span><div><b>${esc(p.name)}</b><div class="muted">${esc(label || '')}</div></div></div>`; }
   function btn(label, fn, o) { const b = document.createElement('button'); b.className = 'btn ' + ((o && o.cls) || ''); b.textContent = label; b.disabled = !!(o && o.disabled); b.title = (o && o.title) || ''; b.onclick = fn; return b; }
   function actionCard(q) {
     const g = ui.game, st = g.state;
@@ -202,7 +208,8 @@
         btns.appendChild(btn(ui.spinning ? 'Spinning…' : '🎡 Spin', async () => { if (ui.spinning) return; markSeen(pid, 'spin'); render(); await spinWheel(p); act({ type: 'spin', playerId: pid }); }, { cls: 'primary big', disabled: ui.spinning }));
         break;
       case 'notice': case 'card': {
-        card.innerHTML = who(p, label) + `<h2>${esc(q.title)}</h2><div class="text">${esc(q.text)}</div>${q.lines && q.lines.length ? `<div class="lines">${q.lines.map(l => `<div><span>${esc(l)}</span></div>`).join('')}</div>` : ''}${q.real ? `<div class="real">🌍 In the real world: ${esc(q.real)}</div>` : ''}${explainBox(pid, q.explain)}`;
+        if (q.type === 'card') { card.classList.add('t-card', 'deck-' + q.deck); }
+        card.innerHTML = who(p, label) + (q.type === 'card' ? `<div class="deckhead">${q.deck === 'life' ? '? Life card' : '🌍 World card · everyone'}</div>` : '') + `<h2>${esc(q.title.replace(/^[^\w]+/, ''))}</h2><div class="text">${esc(q.text)}</div>${q.lines && q.lines.length ? `<div class="lines">${q.lines.map(l => `<div><span>${esc(l)}</span></div>`).join('')}</div>` : ''}${q.real ? `<div class="real">🌍 In the real world: ${esc(q.real)}</div>` : ''}${explainBox(pid, q.explain)}`;
         btns.appendChild(btn(q.type === 'card' ? 'OK' : 'Continue', () => act({ type: 'ack', playerId: pid }), { cls: 'primary big' }));
         break;
       }
@@ -254,7 +261,7 @@
     let rows;
     if (sq.group === 'transport') rows = sq.rents.map((r, k) => `<div><span>Rent with ${k + 1} transport${k ? 's' : ''}</span><b>${fmt(r * g.state.priceMult)}</b></div>`).join('');
     else rows = `<div><span>Rent</span><b>${fmt(sq.rents[0] * g.state.priceMult)}</b></div><div><span>With the whole colour group</span><b>${fmt(sq.rents[0] * 2 * g.state.priceMult)}</b></div>` + [1, 2, 3, 4].map(k => `<div><span>With ${k} house${k > 1 ? 's' : ''}</span><b>${fmt(sq.rents[k] * g.state.priceMult)}</b></div>`).join('') + `<div><span>With a hotel</span><b>${fmt(sq.rents[5] * g.state.priceMult)}</b></div><div><span>Each house costs</span><b>${fmt(g.houseCost(i))}</b></div>`;
-    return `<div class="deed"><div class="deed-top" style="background:${grp.color}"><span>Title deed · ${esc(grp.name)}</span><b>${esc(sq.name)}</b><span>${owner ? 'Owned by ' + esc(owner.name) + (pr.mortgaged ? ' · mortgaged' : '') : 'Price ' + fmt(g.price(i))}</span></div><div class="deed-body">${rows}<div><span>Mortgage value</span><b>${fmt(g.price(i) / 2)}</b></div></div></div>`;
+    return `<div class="deed"><div class="deed-top ${grp.dark ? 'dark' : ''}" style="background:${grp.color}"><span>Title deed · ${esc(grp.name)}</span><b>${esc(sq.name)}</b><span>${owner ? 'Owned by ' + esc(owner.name) + (pr.mortgaged ? ' · mortgaged' : '') : 'Price ' + fmt(g.price(i))}</span></div><div class="deed-body">${rows}<div><span>Mortgage value</span><b>${fmt(g.price(i) / 2)}</b></div></div></div>`;
   }
   function meCard(p, q) {
     const g = ui.game, st = g.state;
@@ -291,7 +298,7 @@
   function playersCard() {
     const g = ui.game, st = g.state, cur = g.current();
     const el = document.createElement('div'); el.className = 'players';
-    el.innerHTML = st.players.map(p => { const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null; return `<div class="prow2 ${cur && cur.id === p.id && !st.over ? 'turn' : ''} ${p.bankrupt ? 'out' : ''}"><span class="avatar" style="background:${p.color}">${p.token}</span><div class="n"><b>${esc(p.name)}${p.isAI ? ' <span>(computer)</span>' : ''}</b><span>${bg ? bg.icon + ' ' + esc(bg.title) : '?'} · ${g.propsOf(p.id).length} propert${g.propsOf(p.id).length === 1 ? 'y' : 'ies'}${p.hospital ? ' · in Hospital' : ''}</span></div><span class="nw">${p.bankrupt ? '<span class="bad">Bankrupt</span>' : fmt(g.netWorth(p), true)}</span></div>`; }).join('');
+    el.innerHTML = st.players.map(p => { const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null; return `<div class="prow2 ${cur && cur.id === p.id && !st.over ? 'turn' : ''} ${p.bankrupt ? 'out' : ''}"><span class="avatar" style="border-color:${p.color}">${p.token}</span><div class="n"><b>${esc(p.name)}${p.isAI ? ' <span>(computer)</span>' : ''}</b><span>${bg ? bg.icon + ' ' + esc(bg.title) : '?'} · ${g.propsOf(p.id).length} propert${g.propsOf(p.id).length === 1 ? 'y' : 'ies'}${p.hospital ? ' · in Hospital' : ''}</span></div><span class="nw">${p.bankrupt ? '<span class="bad">Bankrupt</span>' : fmt(g.netWorth(p), true)}</span></div>`; }).join('');
     return el;
   }
 

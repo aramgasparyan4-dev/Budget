@@ -4,15 +4,15 @@
   const K = 1000;
 
   const GROUPS = {
-    oldtown:    { name: 'Old Town',     color: '#8d5a3b' },
-    riverside:  { name: 'Riverside',    color: '#5fb3d9' },
-    suburbs:    { name: 'Suburbs',      color: '#d65c9c' },
-    university: { name: 'University',   color: '#e8903a' },
-    midtown:    { name: 'Midtown',      color: '#d9403a' },
-    techpark:   { name: 'Tech Park',    color: '#e3c13a' },
-    waterfront: { name: 'Waterfront',   color: '#3f9d5a' },
-    downtown:   { name: 'Downtown',     color: '#2f55a4' },
-    transport:  { name: 'Transport',    color: '#555b66' },
+    oldtown:    { name: 'Old Town',     color: '#955436' },
+    riverside:  { name: 'Riverside',    color: '#aae0fa', dark: true },
+    suburbs:    { name: 'Suburbs',      color: '#d93a96' },
+    university: { name: 'University',   color: '#f7941d' },
+    midtown:    { name: 'Midtown',      color: '#ed1b24' },
+    techpark:   { name: 'Tech Park',    color: '#fef200', dark: true },
+    waterfront: { name: 'Waterfront',   color: '#1fb25a' },
+    downtown:   { name: 'Downtown',     color: '#0072bb' },
+    transport:  { name: 'Transport',    color: '#222222' },
   };
 
   // Monopoly ratios, realistic magnitudes (x1000). rents: [base, 1 house, 2, 3, 4, hotel]
@@ -65,28 +65,28 @@
 
   /* The wheel. One spin decides where you start in life. */
   const BACKGROUNDS = [
-    { id: 'heir', title: 'Heir', icon: '👑', cash: 700 * K, salary: 80 * K, insured: true, inherit: ['downtown', 'midtown'],
+    { id: 'heir', short: 'Heir', title: 'Heir', icon: '👑', cash: 700 * K, salary: 80 * K, insured: true, inherit: ['downtown', 'midtown'],
       desc: 'Born rich. You inherit a Downtown tower, a Midtown building and a fat bank account. You pay estate tax, then never worry again.',
       real: 'In the US about 60% of the wealth of the richest families is inherited. Inheritance is the biggest single predictor of ending up wealthy.' },
-    { id: 'business', title: 'Business Owner', icon: '🏭', cash: 350 * K, salary: 150 * K, insured: true, inherit: ['transport'],
+    { id: 'business', short: 'Business', title: 'Business Owner', icon: '🏭', cash: 350 * K, salary: 150 * K, insured: true, inherit: ['transport'],
       desc: 'You run the family firm and own the Rail Depot. Good income, and assets that work while you sleep.',
       real: 'Owning a business or property means income that does not depend on your hours worked.' },
-    { id: 'engineer', title: 'Software Engineer', icon: '💻', cash: 250 * K, salary: 180 * K, insured: true, debt: 40 * K,
+    { id: 'engineer', short: 'Engineer', title: 'Software Engineer', icon: '💻', cash: 250 * K, salary: 180 * K, insured: true, debt: 40 * K,
       desc: 'High salary, no property, a student loan that is taken from your first payday.',
       real: 'High earners with no assets still pay the top income tax rates. Wealth and income are different things.' },
-    { id: 'nurse', title: 'Nurse', icon: '🩺', cash: 150 * K, salary: 90 * K, insured: true,
+    { id: 'nurse', short: 'Nurse', title: 'Nurse', icon: '🩺', cash: 150 * K, salary: 90 * K, insured: true,
       desc: 'Steady job, health insurance from work, a little saved.',
       real: 'Most people in rich countries live like this: one paycheck at a time, one accident from trouble.' },
-    { id: 'worker', title: 'Construction Worker', icon: '🔧', cash: 80 * K, salary: 60 * K, insured: false, inherit: ['oldtown'],
+    { id: 'worker', short: 'Builder', title: 'Construction Worker', icon: '🔧', cash: 80 * K, salary: 60 * K, insured: false, inherit: ['oldtown'],
       desc: 'Your parents left you the old rowhouse. No health insurance. One bad fall and it is gone.',
       real: 'In 2022 about 26 million Americans had no health insurance. Medical bills are the top cause of personal bankruptcy there.' },
-    { id: 'student', title: 'Graduate', icon: '🎓', cash: 30 * K, salary: 55 * K, insured: false, debt: 40 * K,
+    { id: 'student', short: 'Graduate', title: 'Graduate', icon: '🎓', cash: 30 * K, salary: 55 * K, insured: false, debt: 40 * K,
       desc: 'Young, broke, uninsured, and the student loan comes out of your first payday.',
       real: 'US student debt is over $1.7 trillion. Graduates start their working lives in the red.' },
-    { id: 'retiree', title: 'Retiree', icon: '🧓', cash: 450 * K, salary: 50 * K, insured: true, inherit: ['suburbs'],
+    { id: 'retiree', short: 'Retiree', title: 'Retiree', icon: '🧓', cash: 450 * K, salary: 50 * K, insured: true, inherit: ['suburbs'],
       desc: 'A paid-off house in the Suburbs, savings, and a pension. Your income will not grow.',
       real: 'Pensioners own most of the housing in many countries but have fixed incomes. Inflation hurts them most.' },
-    { id: 'landlord', title: 'Small Landlord', icon: '🔑', cash: 150 * K, salary: 70 * K, insured: true, inherit: ['riverside', 'riverside'], mortgaged: true,
+    { id: 'landlord', short: 'Landlord', title: 'Small Landlord', icon: '🔑', cash: 150 * K, salary: 70 * K, insured: true, inherit: ['riverside', 'riverside'], mortgaged: true,
       desc: 'Two Riverside rentals, both mortgaged to the bank. Rent comes in, but you owe a lot.',
       real: 'Leverage: borrowed money makes gains bigger and losses bigger. Landlords did very well in 2010 to 2021 and badly in 2008.' },
   ];
@@ -157,8 +157,8 @@
     trade: ['Trading', 'Players can trade properties and cash. Deals are how colour groups get completed. Whoever has more to offer usually gets the better deal.'],
   };
 
-  const TOKENS = ['🎩', '🚗', '🐕', '🚢', '👢', '🐈', '🚲', '🎸'];
-  const COLORS = ['#ff6b6b', '#4dabf7', '#ffd43b', '#69db7c', '#da77f2', '#ff922b', '#38d9a9', '#f783ac'];
+  const TOKENS = ['🎩', '🚗', '🐕', '🚢', '🦆', '🐈', '🦖', '🐧'];
+  const COLORS = ['#ed1b24', '#0072bb', '#f7941d', '#1fb25a', '#8e44ad', '#d93a96', '#17a2b8', '#6d4c41'];
 
   g.GAME_DATA = { K, GROUPS, BOARD, BACKGROUNDS, TAX, COSTS, LIFE, WORLD, EXPLAIN, TOKENS, COLORS };
 })(typeof window !== 'undefined' ? window : globalThis);
