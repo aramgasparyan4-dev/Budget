@@ -20,7 +20,7 @@
           <label>Game length <select id="rounds"><option value="16">Quick (about 25 min)</option><option value="24" selected>Normal (about 40 min)</option><option value="40">Long (an hour or more)</option></select></label>
           <label>Computer speed <select id="speed"><option value="600">Normal</option><option value="200">Fast</option><option value="0">Instant</option></select></label>
           <label>Explain things the first time they happen <input type="checkbox" id="explain" checked></label></div>
-        <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary big" id="start" style="width:auto">Start game</button>${saved ? '<button class="btn big" id="cont" style="width:auto">Continue saved game</button>' : ''}</div></div>
+        <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary big" id="start" style="width:auto">Start game</button><button class="btn big" id="demo" style="width:auto" title="Four computer players play a quick game by themselves">Watch a demo</button>${saved ? '<button class="btn big" id="cont" style="width:auto">Continue saved game</button>' : ''}</div></div>
       <div class="card"><h2>How it works</h2><div class="howto">
         <div><span class="ic">🎡</span><div><b>Spin the wheel.</b> It deals you a life: an heir, a nurse, a graduate with debt. Different cash, salary, insurance and property.</div></div>
         <div><span class="ic">🎲</span><div><b>Then it is Monopoly.</b> Roll, buy properties, collect rent, build houses, trade. Doubles roll again.</div></div>
@@ -39,11 +39,12 @@
       ui.speed = Number($('#speed').value);
       startGame(new Game({ players, rounds: Number($('#rounds').value), explain: $('#explain').checked }));
     };
+    $('#demo').onclick = () => { ui.speed = 250; startGame(new Game({ players: [['Heir', '🎩'], ['Nurse', '🚗'], ['Graduate', '🐕'], ['Builder', '🚢']].map(([n, t]) => ({ name: n, isAI: true, token: t })), rounds: 16, explain: false })); };
     if (saved) $('#cont').onclick = () => { try { ui.speed = Number($('#speed').value); const data = JSON.parse(saved); ui.explained = data.explained || {}; startGame(Game.fromJSON(data.state)); } catch (e) { console.error(e); toast('Saved game could not be loaded', 'bad'); } };
   }
 
   function startGame(game) {
-    ui.game = game; ui.animPos = {}; ui.spinning = false; ui.selected = null;
+    ui.game = game; ui.animPos = {}; ui.spinning = false; ui.selected = null; ui.shownOver = false;
     game.onChange(() => { render(); save(); });
     buildGame(); render(); drive();
   }
@@ -201,7 +202,7 @@
   function actionCard(q) {
     const g = ui.game, st = g.state;
     const card = document.createElement('div'); card.className = 'act';
-    if (!q || st.over) { card.innerHTML = `<h2>Game over</h2><div class="text">${st.winner !== null ? esc(g.player(st.winner).name) + ' has the highest net worth.' : ''}</div>`; card.appendChild(btn('See the results', showGameOver, { cls: 'primary big' })); return card; }
+    if (!q || st.over) { if (st.over && !ui.shownOver) { ui.shownOver = true; setTimeout(showGameOver, 600); } card.innerHTML = `<h2>Game over</h2><div class="text">${st.winner !== null ? esc(g.player(st.winner).name) + ' has the highest net worth.' : ''}</div>`; card.appendChild(btn('See the results', showGameOver, { cls: 'primary big' })); return card; }
     const p = actorOf(q);
     const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null;
     const label = bg ? `${bg.icon} ${bg.title}` : 'about to find out who they are';
