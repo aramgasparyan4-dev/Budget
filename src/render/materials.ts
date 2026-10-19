@@ -35,9 +35,9 @@ float litProb(float style, float hour) {
   float evening = smoothstep(16.5, 19.5, hour) * (1.0 - smoothstep(23.0, 24.5, hour));
   float late = (1.0 - smoothstep(0.3, 2.8, hour));
   float morning = smoothstep(5.5, 6.5, hour) * (1.0 - smoothstep(8.0, 9.0, hour));
-  if (style > 1.5 && style < 4.5) return 0.07 + 0.6 * evening + 0.25 * late + 0.3 * morning;
-  float work = smoothstep(6.5, 8.5, hour) * (1.0 - smoothstep(18.0, 21.5, hour));
-  return 0.1 + 0.62 * work + 0.1 * evening;
+  if (style > 1.5 && style < 4.5) return 0.06 + 0.52 * evening + 0.22 * late + 0.25 * morning;
+  float work = smoothstep(6.5, 8.5, hour) * (1.0 - smoothstep(17.0, 20.5, hour));
+  return 0.08 + 0.5 * work + 0.08 * evening;
 }
 
 void storefront(vec3 base, float u, float v, float faceW, float gH, float seed, float night) {
@@ -53,7 +53,7 @@ void storefront(vec3 base, float u, float v, float faceW, float gH, float seed, 
     float wid = h12(vec2(ci + seed, seed * 0.37));
     vec3 interior = mix(vec3(1.0, 0.8, 0.55), vec3(0.82, 0.9, 1.0), step(0.62, wid));
     float shelf = 0.65 + 0.35 * step(0.5, fract((v - 0.45) * 1.35 + wid));
-    float glow = (0.18 + 1.7 * night) * shelf * (0.6 + 0.4 * wid);
+    float glow = (0.16 + 1.0 * night) * shelf * (0.6 + 0.4 * wid);
     fAlb = vec3(0.035, 0.042, 0.05);
     fRough = 0.06;
     fMetal = 0.55;
@@ -241,7 +241,7 @@ void facadeShade(vec3 base) {
   float lit = step(wid, p) * night;
   vec3 lightCol = mix(vec3(1.0, 0.7, 0.4), vec3(0.78, 0.86, 1.0), step(0.72, h12(vec2(colI * 3.1, rowI) + seed)));
   float inner = 0.55 + 0.45 * smoothstep(winY - winH * 0.5, winY + winH * 0.5, fvv);
-  vec3 emis = lightCol * lit * (1.2 + 1.8 * h12(vec2(colI, rowI * 1.7) + seed)) * inner;
+  vec3 emis = lightCol * lit * (0.45 + 0.85 * h12(vec2(colI, rowI * 1.7) + seed)) * inner;
   // glass towers keep a faint glow in the day (lobbies / offices)
   emis += lightCol * 0.03 * step(wid, p) * (glassy ? 1.0 : 0.0) * power;
 

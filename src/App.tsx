@@ -3,7 +3,6 @@ import { GameCanvas } from './scene/GameCanvas';
 import { useStore } from './state/store';
 import { game, DEFAULT_SEED } from './game/Game';
 import { randomLook } from './render/Human';
-import { CURB_H } from './world/types';
 
 (window as unknown as { __store: typeof useStore }).__store = useStore;
 
@@ -18,6 +17,8 @@ async function boot() {
 
 function startNewGame() {
   const city = game.city!;
+  const sess = game.newSession(8 * 60 + 30);
+  sess.baseProviders();
   const home = city.buildings[city.playerHome];
   const out = [
     [0, -1],
@@ -28,8 +29,8 @@ function startNewGame() {
   const x = home.door.x + out[0] * 2.5;
   const z = home.door.z + out[1] * 2.5;
   const yaw = Math.atan2(out[0], out[1]);
-  game.spawnPlayer(randomLook(Math.random, false), x, CURB_H, z, yaw);
-  game.mode = 'game';
+  sess.player.look = randomLook(Math.random, false);
+  sess.spawnPlayer(x, z, yaw);
   useStore.getState().setScreen('game');
   game.input.requestLock();
 }

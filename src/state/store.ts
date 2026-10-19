@@ -102,7 +102,17 @@ export const useStore = create<StoreState>((set, get) => ({
   overlay: null,
   loadingProgress: 0,
   loadingText: '',
-  settings: loadSettings(),
+  settings: (() => {
+    const st = loadSettings();
+    // ?preset=low|medium|high|ultra overrides graphics (handy for testing / weak machines)
+    try {
+      const q = new URLSearchParams(location.search).get('preset') as Preset | null;
+      if (q && PRESETS[q]) st.graphics = { ...PRESETS[q] };
+    } catch {
+      /* no location */
+    }
+    return st;
+  })(),
   hud: {
     time: '08:00',
     day: 1,

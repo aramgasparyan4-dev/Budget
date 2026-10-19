@@ -22,13 +22,21 @@ function GameRoot() {
   return null;
 }
 
+/** Without post-processing we render ourselves (a priority>0 frame hook disables R3F's auto render). */
+function PlainRender() {
+  useFrame(({ gl, scene, camera }) => {
+    gl.render(scene, camera);
+  }, 1);
+  return null;
+}
+
 function PostFX() {
   const g = useStore((s) => s.settings.graphics);
-  if (!g.postFX) return null;
+  if (!g.postFX) return <PlainRender />;
   return (
     <EffectComposer multisampling={g.aa === 'msaa' ? 4 : 0} enableNormalPass={false}>
       <>{g.ao ? <N8AO aoRadius={2.2} intensity={2.2} distanceFalloff={1.2} halfRes={g.preset !== 'ultra'} quality={g.preset === 'ultra' ? 'high' : 'medium'} /> : null}</>
-      <>{g.bloom ? <Bloom mipmapBlur intensity={0.75} luminanceThreshold={1.0} luminanceSmoothing={0.25} radius={0.72} /> : null}</>
+      <>{g.bloom ? <Bloom mipmapBlur intensity={0.6} luminanceThreshold={1.05} luminanceSmoothing={0.3} radius={0.7} /> : null}</>
       <ColorGrade />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
       <Vignette offset={0.32} darkness={0.42} />
