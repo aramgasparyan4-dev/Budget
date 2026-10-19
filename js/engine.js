@@ -143,20 +143,17 @@
       p.startNW = this.netWorth(p);
       st.queue.shift();
       this.log(`${p.name} spins the wheel: ${bg.title}. ${bg.desc}`, 'spin', p.id);
-      const lines = [`Cash ${fmt(p.cash)}`, `Salary ${fmt(p.salary)} a year${p.unstable ? ' (hours can be cut)' : ''}`, `Living costs ${fmt(p.living)} a year`, p.insured ? 'Health insurance: yes' : 'Health insurance: none'];
-      if (p.trust) lines.push(`Family trust pays ${fmt(p.trust)} a year`);
-      if (p.invest) lines.push(`Investments ${fmt(p.invest)}, growing ${Math.round(D.COSTS.investReturn * 100)}% a year`);
-      if (p.family) lines.push(`Family will cover a shortfall once, up to ${fmt(p.family)}`);
-      if (inherited) lines.push(`Inherited property worth ${fmt(inherited)}${estate ? ` (estate tax paid: ${fmt(estate)})` : ''}${bg.mortgaged ? ', mortgaged' : ''}`);
-      if (p.debt) lines.push(`Student loan ${fmt(p.debt)}, taken from your first payday`);
-      lines.push(`${p.loanRate >= 0.2 ? 'A payday lender' : 'The bank'} will lend you up to ${fmt(p.credit)} at ${Math.round(p.loanRate * 100)}%`);
+      const lines = [`Cash ${fmt(p.cash)}`, `Salary ${fmt(p.salary)}/yr${p.unstable ? ', unstable' : ''}`, `Living costs ${fmt(p.living)}/yr`];
+      if (p.trust) lines.push(`Trust income ${fmt(p.trust)}/yr`);
+      if (p.invest) lines.push(`Investments ${fmt(p.invest)}`);
+      if (inherited) lines.push(`Property ${fmt(inherited)}${bg.mortgaged ? ' (mortgaged)' : ''}${estate ? `, estate tax ${fmt(estate)}` : ''}`);
+      if (p.debt) lines.push(`Debt ${fmt(p.debt)}`);
+      lines.push(p.insured ? 'Insured' : 'No health insurance');
       this.notice(p.id, `${bg.icon} ${bg.title}`, bg.desc, { lines, real: bg.real, explain: 'spin', bg: bg.id });
       const next = st.players.find(x => x.id > p.id);
       if (next) this.push({ type: 'spin', playerId: next.id });
       else {
         this.log('Everyone has a life. Let the game begin.');
-        const rows = st.players.slice().sort((a, b) => this.netWorth(b) - this.netWorth(a)).map(x => `${x.name}: ${D.BACKGROUNDS.find(b => b.id === x.bg).title}. Net worth ${fmt(this.netWorth(x), true)}, ${this.propsOf(x.id).length} propert${this.propsOf(x.id).length === 1 ? 'y' : 'ies'}, earns ${fmt(x.salary + x.trust, true)} a year.`);
-        st.players.forEach(x => { if (!x.isAI) this.notice(x.id, 'Who starts where', 'Same board, same dice, very different starting lines.', { lines: rows, explain: 'living' }); });
         this.startTurn();
       }
       return this.ok();
@@ -200,13 +197,13 @@
         if (doubles) { p.hospital = 0; this.log(`${p.name} rolls doubles (${d1}+${d2}) and leaves Hospital.`, 'info', p.id); this.move(p, d1 + d2, false); }
         else {
           p.hospital++;
-          if (p.hospital > 3) { const bill = p.insured ? D.COSTS.hospitalBillInsured : D.COSTS.hospitalBill; this.log(`${p.name} has been in Hospital three turns and must pay the ${fmt(bill)} bill.`, 'info', p.id); p.hospital = 0; this.charge(p, bill, null, 'medical'); this.notice(p.id, 'Discharged', `Three turns in Hospital. You pay the bill of ${fmt(bill)} and leave.`); this.move(p, d1 + d2, false); }
-          else { this.log(`${p.name} rolls ${d1}+${d2}, no doubles, and stays in Hospital.`, 'info', p.id); this.notice(p.id, 'Still in Hospital', `No doubles. Turn ${p.hospital} of 3 in Hospital.`); this.push({ type: 'endTurn', playerId: p.id }); }
+          if (p.hospital > 3) { const bill = p.insured ? D.COSTS.hospitalBillInsured : D.COSTS.hospitalBill; this.log(`${p.name} has been in Hospital three turns and must pay the ${fmt(bill)} bill.`, 'info', p.id); p.hospital = 0; this.charge(p, bill, null, 'medical'); this.notice(p.id, 'Discharged', `You pay ${fmt(bill)} and leave.`, { trivial: true }); this.move(p, d1 + d2, false); }
+          else { this.log(`${p.name} rolls ${d1}+${d2}, no doubles, and stays in Hospital.`, 'info', p.id); this.notice(p.id, 'Still in Hospital', `No doubles.`, { trivial: true }); this.push({ type: 'endTurn', playerId: p.id }); }
         }
         return this.ok();
       }
       if (doubles) p.doubles++;
-      if (p.doubles === 3) { this.log(`${p.name} rolls doubles three times: exhaustion. Off to Hospital.`, 'warn', p.id); this.toHospital(p, 'Three doubles in a row. You collapse from exhaustion and wake up in Hospital.'); this.push({ type: 'endTurn', playerId: p.id }); return this.ok(); }
+      if (p.doubles === 3) { this.log(`${p.name} rolls doubles three times: exhaustion. Off to Hospital.`, 'warn', p.id); this.toHospital(p, 'Three doubles. Exhaustion.'); this.push({ type: 'endTurn', playerId: p.id }); return this.ok(); }
       this.log(`${p.name} rolls ${d1}+${d2}${doubles ? ' (doubles)' : ''}.`, 'info', p.id);
       this.move(p, d1 + d2, doubles);
       return this.ok();
@@ -241,7 +238,7 @@
       p.stats.tax += tax; p.stats.wages += gross - p.trust - growth;
       if (net < 0) { this.charge(p, -net, null, 'interest'); } else p.cash += net;
       this.log(`${p.name} passes Payday: ${fmt(gross)} income, ${fmt(tax)} tax, ${fmt(p.living)} living costs, keeps ${fmt(net)}.`, 'payday', p.id);
-      this.notice(p.id, '💵 Payday', `Another year. You take home ${fmt(net)}.`, { lines, explain: 'payday' });
+      this.notice(p.id, '💵 Payday', `You keep ${fmt(net)}.`, { lines, explain: 'payday' });
     }
     land(p, dice) {
       const i = p.position, sq = this.sq(i);
@@ -249,10 +246,10 @@
         case 'property': return this.landProperty(p, i, dice);
         case 'life': return this.drawCard(p, 'life');
         case 'world': return this.drawCard(p, 'world');
-        case 'tax': { let v = 0; this.propsOf(p.id).forEach(j => { v += this.price(j) + this.prop(j).houses * this.houseCost(j); }); const tax = Math.max(D.TAX.propertyTaxMin, round(v * D.TAX.propertyTaxRate / 100) * 100); this.charge(p, tax, null, 'tax'); this.notice(p.id, '🧾 Property tax', `You pay ${fmt(tax)}: 1% of the ${fmt(v)} of property you own${v === 0 ? ' (the minimum, since you own nothing)' : ''}.`, { explain: 'tax' }); return; }
-        case 'wealth': { const nw = this.netWorth(p); const tax = nw > D.TAX.wealthTaxThreshold ? round(nw * D.TAX.wealthTaxRate / 100) * 100 : 0; if (tax) this.charge(p, tax, null, 'tax'); this.notice(p.id, '💎 Wealth tax', tax ? `Your net worth is ${fmt(nw)}, over $1,000,000. You pay 2%: ${fmt(tax)}.` : `Your net worth is ${fmt(nw)}, under $1,000,000. Nothing to pay. This tax is for the rich.`, { explain: 'wealth' }); return; }
+        case 'tax': { let v = 0; this.propsOf(p.id).forEach(j => { v += this.price(j) + this.prop(j).houses * this.houseCost(j); }); const tax = Math.max(D.TAX.propertyTaxMin, round(v * D.TAX.propertyTaxRate / 100) * 100); this.charge(p, tax, null, 'tax'); this.notice(p.id, '🧾 Property tax', `1% of your property: ${fmt(tax)}.`, { explain: 'tax' }); return; }
+        case 'wealth': { const nw = this.netWorth(p); const tax = nw > D.TAX.wealthTaxThreshold ? round(nw * D.TAX.wealthTaxRate / 100) * 100 : 0; if (tax) this.charge(p, tax, null, 'tax'); this.notice(p.id, '💎 Wealth tax', tax ? `2% of ${fmt(nw)}: ${fmt(tax)}.` : `Under $1M. Nothing to pay.`, { explain: 'wealth' }); return; }
         case 'hospital': this.notice(p.id, '🏥 Hospital', 'Just visiting.', { trivial: true }); return;
-        case 'accident': this.toHospital(p, 'A fall on the stairs. Ambulance to Hospital.'); return;
+        case 'accident': this.toHospital(p, 'A bad fall. Off to Hospital.'); return;
         case 'dayoff': this.notice(p.id, '🌴 Day off', 'Nothing happens. Enjoy it.', { trivial: true }); return;
         case 'go': return;
       }
@@ -260,7 +257,7 @@
     toHospital(p, why) {
       p.position = 10; p.hospital = 1; p.doubles = 0;
       this.log(`${p.name} goes to Hospital.`, 'warn', p.id);
-      this.notice(p.id, '🚑 Hospital', `${why} Pay ${fmt(p.insured ? D.COSTS.hospitalBillInsured : D.COSTS.hospitalBill)} to leave${p.insured ? ' (you are insured)' : ' (no insurance)'}, or roll doubles.`, { explain: 'hospital' });
+      this.notice(p.id, '🚑 Hospital', `${why}`, { explain: 'hospital' });
     }
     doHospitalPay(p) {
       const st = this.state; st.queue.shift();
@@ -278,7 +275,7 @@
         const price = this.price(i);
         if (p.cash >= price) this.push({ type: 'buy', playerId: p.id, square: i, price, explain: 'buy' });
         else if (p.cash + (p.credit - p.loan) >= price) this.push({ type: 'buy', playerId: p.id, square: i, price, explain: 'buy', needsLoan: price - p.cash });
-        else { this.notice(p.id, sq.name, `For sale at ${fmt(price)}, but you only have ${fmt(p.cash)}${p.credit - p.loan > 0 ? ` and can borrow ${fmt(p.credit - p.loan)}` : ' and no credit'}. It goes to auction.`); this.startAuction(i, p.id); }
+        else { this.notice(p.id, sq.name, `${fmt(price)}: more than you can pay. Auction.`, { trivial: true }); this.startAuction(i, p.id); }
         return;
       }
       if (pr.owner === p.id) { this.notice(p.id, sq.name, 'Your own property. Nothing to pay.', { trivial: true }); return; }
@@ -288,17 +285,17 @@
       this.charge(p, r, owner, 'rent');
       p.stats.rentPaid += r; owner.stats.rentGot += r;
       this.log(`${p.name} pays ${fmt(r)} rent to ${owner.name} at ${sq.name}.`, 'rent', p.id);
-      this.notice(p.id, `${sq.name}`, `${owner.name} owns this${pr.houses === 5 ? ' with a hotel' : pr.houses ? ` with ${pr.houses} house${pr.houses > 1 ? 's' : ''}` : ''}. You pay ${fmt(r)} rent.`, { explain: 'rentpaid', square: i });
-      this.notice(owner.id, `${sq.name}`, `${p.name} landed on your property and paid you ${fmt(r)}.`, { explain: 'rentgot', passive: true });
+      this.notice(p.id, `Rent: ${fmt(r)}`, `To ${owner.name} for ${sq.name}${pr.houses === 5 ? ' (hotel)' : pr.houses ? ` (${pr.houses} house${pr.houses > 1 ? 's' : ''})` : ''}.`, { explain: 'rentpaid', square: i });
+      this.notice(owner.id, `+${fmt(r)} rent`, `${p.name} paid you for ${sq.name}.`, { explain: 'rentgot', passive: true });
     }
     doBuy(p, i) {
       const st = this.state, q = st.queue.shift();
       const price = this.price(i);
-      if (p.cash < price) { const need = price - p.cash; if (need > p.credit - p.loan) return this.fail('Not enough cash or credit'); const amt = Math.ceil(need / D.COSTS.loanStep) * D.COSTS.loanStep; p.loan += amt; p.cash += amt; this.log(`${p.name} borrows ${fmt(amt)} from the bank to buy.`, 'deal', p.id); }
+      if (p.cash < price) { const need = price - p.cash; if (need > p.credit - p.loan) return this.fail('Not enough cash or credit'); const amt = Math.ceil(need / 1000) * 1000; p.loan += amt; p.cash += amt; this.log(`${p.name} borrows ${fmt(amt)} from the bank to buy.`, 'deal', p.id); }
       p.cash -= price; this.prop(i).owner = p.id;
       this.log(`${p.name} buys ${this.sq(i).name} for ${fmt(price)}.`, 'deal', p.id);
       const sq = this.sq(i);
-      if (sq.group !== 'transport' && this.ownsGroup(p.id, sq.group)) this.notice(p.id, `${D.GROUPS[sq.group].name} complete`, `You own all of ${D.GROUPS[sq.group].name}. Rents there are doubled and you can build houses.`, { explain: 'group' });
+      if (sq.group !== 'transport' && this.ownsGroup(p.id, sq.group)) this.notice(p.id, `${D.GROUPS[sq.group].name} complete`, `Rents doubled. You can build houses.`, { explain: 'group' });
       this.afterLanding();
       return this.ok();
     }
@@ -327,12 +324,12 @@
       const sq = this.sq(au.square);
       if (!entries.length) { this.log(`Nobody bids for ${sq.name}. It stays with the bank.`, 'deal'); st.auction = null; return this.ok(); }
       const w = this.player(entries[0].id), price = entries[0].b;
-      if (w.cash < price) { const amt = Math.ceil((price - w.cash) / D.COSTS.loanStep) * D.COSTS.loanStep; w.loan += amt; w.cash += amt; this.log(`${w.name} borrows ${fmt(amt)} to pay for the auction.`, 'deal', w.id); }
+      if (w.cash < price) { const amt = Math.ceil((price - w.cash) / 1000) * 1000; w.loan += amt; w.cash += amt; this.log(`${w.name} borrows ${fmt(amt)} to pay for the auction.`, 'deal', w.id); }
       w.cash -= price; this.prop(au.square).owner = w.id;
       const lines = entries.map(e => `${this.player(e.id).name} bid ${fmt(e.b)}`);
       this.log(`${w.name} wins the auction for ${sq.name} at ${fmt(price)} (list price ${fmt(this.price(au.square))}).`, 'deal', w.id);
-      this.active().forEach(x => { if (x.id === w.id || au.bids[x.id] > 0) this.notice(x.id, `Auction: ${sq.name}`, `${w.name} wins at ${fmt(price)}${price < this.price(au.square) ? `, a bargain against the ${fmt(this.price(au.square))} list price` : ''}.`, { lines, passive: x.id !== w.id }); });
-      if (sq.group !== 'transport' && this.ownsGroup(w.id, sq.group)) this.notice(w.id, `${D.GROUPS[sq.group].name} complete`, `You own all of ${D.GROUPS[sq.group].name}. Rents there are doubled and you can build houses.`, { explain: 'group' });
+      this.active().forEach(x => { if (x.id === w.id || au.bids[x.id] > 0) this.notice(x.id, `${w.name} wins ${sq.name}`, `${fmt(price)}${price < this.price(au.square) ? ` (list ${fmt(this.price(au.square))})` : ''}.`, { lines, passive: x.id !== w.id, trivial: x.id !== w.id }); });
+      if (sq.group !== 'transport' && this.ownsGroup(w.id, sq.group)) this.notice(w.id, `${D.GROUPS[sq.group].name} complete`, `Rents doubled. You can build houses.`, { explain: 'group' });
       st.auction = null;
       return this.ok();
     }
@@ -355,15 +352,15 @@
 
     /* ---------- bank loans ---------- */
     doLoan(p, amount) {
-      amount = Math.floor((amount || D.COSTS.loanStep) / D.COSTS.loanStep) * D.COSTS.loanStep;
-      if (amount <= 0) return this.fail('Bad amount');
+      amount = Math.min(p.credit - p.loan, Math.floor((amount || D.COSTS.loanStep) / 1000) * 1000);
+      if (amount < 1000) return this.fail('Bad amount');
       if (p.loan + amount > p.credit) return this.fail(`The bank will only lend you ${fmt(p.credit - p.loan)} more`);
       p.loan += amount; p.cash += amount;
       this.log(`${p.name} borrows ${fmt(amount)} (${fmt(p.loan)} owed at ${Math.round(p.loanRate * 100)}% a year).`, 'deal', p.id);
       return this.ok('explain:loan');
     }
     doRepay(p, amount) {
-      amount = Math.min(p.loan, Math.floor((amount || p.loan) / D.COSTS.loanStep) * D.COSTS.loanStep || p.loan);
+      amount = Math.min(p.loan, Math.floor((amount || p.loan) / 1000) * 1000 || p.loan);
       if (amount <= 0 || p.cash < amount) return this.fail('Not enough cash');
       p.loan -= amount; p.cash -= amount;
       this.log(`${p.name} repays ${fmt(amount)} to the bank.`, 'deal', p.id);
@@ -413,7 +410,7 @@
       if (p.cash < 0 && p.family > 0) {
         const gift = Math.min(p.family, -p.cash); p.family = 0; p.cash += gift;
         this.log(`${p.name}'s family steps in with ${fmt(gift)}.`, 'deal', p.id);
-        this.notice(p.id, 'Family support', `You were ${fmt(gift)} short. Your family covered it. They will not do it again.`, { explain: 'family' });
+        this.notice(p.id, 'Family support', `Your family covers ${fmt(gift)}. Once.`, { explain: 'family' });
       }
       if (p.cash < 0) {
         // must raise money before anything else happens
@@ -433,7 +430,7 @@
       if (cred && p.invest > 0) cred.cash += p.invest;
       p.cash = D.COSTS.freshStart; p.invest = 0; p.loan = 0; p.debt = 0; p.family = 0; p.bankruptcies = (p.bankruptcies || 0) + 1;
       this.log(`${p.name} is bankrupt${cred ? `. Everything goes to ${cred.name}` : ''}. Debts wiped, starting again from zero.`, 'news', p.id);
-      this.notice(p.id, 'Bankrupt', `You lost everything${cred ? ` to ${cred.name}` : ''}. Your debts are wiped, you keep your job, and emergency assistance gives you ${fmt(D.COSTS.freshStart)} to start again.`, { explain: 'freshstart' });
+      this.notice(p.id, 'Bankrupt', `Everything goes${cred ? ` to ${cred.name}` : ''}. Debts wiped. You restart with ${fmt(D.COSTS.freshStart)}.`, { explain: 'freshstart' });
       st.queue = st.queue.filter(x => x.type !== 'debt' || x.playerId !== p.id);
       return this.ok();
     }

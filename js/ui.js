@@ -14,20 +14,13 @@
   function renderSetup() {
     let saved = null; try { saved = localStorage.getItem(SAVE); } catch (e) { /* ignore */ }
     $('#app').innerHTML = `<div class="setup"><div class="logo">Real Estate Capital</div>
-      <p class="tag">Monopoly, except nobody starts equal. Spin the wheel to find out who you are, then buy, build, pay rent, pay tax, and survive whatever the world throws at you.</p>
-      <div class="setup-grid"><div class="card"><h2>Who is playing?</h2><div id="rows"></div><button class="btn small" id="add">+ Add player</button>
-        <div class="opts"><div class="muted" style="font-size:13px">Best with 4 or 5 players: each gets a different start in life (Old Money, Upper-middle, Professional, Working class, Working poor). Click a token to change it.</div>
-          <label>Game length <select id="rounds"><option value="16">Quick (about 25 min)</option><option value="24" selected>Normal (about 40 min)</option><option value="40">Long (an hour or more)</option></select></label>
+      <p class="tag">Monopoly, except nobody starts equal.</p>
+      <div class="card" style="max-width:520px"><div id="rows"></div><button class="btn small" id="add">+ Add player</button>
+        <details class="opts-d"><summary>Options</summary><div class="opts">
+          <label>Game length <select id="rounds"><option value="16">Quick</option><option value="24" selected>Normal</option><option value="40">Long</option></select></label>
           <label>Computer speed <select id="speed"><option value="600">Normal</option><option value="200">Fast</option><option value="0">Instant</option></select></label>
-          <label>Explain things the first time they happen <input type="checkbox" id="explain" checked></label></div>
-        <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary big" id="start" style="width:auto">Start game</button><button class="btn big" id="demo" style="width:auto" title="Four computer players play a quick game by themselves">Watch a demo</button>${saved ? '<button class="btn big" id="cont" style="width:auto">Continue saved game</button>' : ''}</div></div>
-      <div class="card"><h2>How it works</h2><div class="howto">
-        <div><span class="ic">🎡</span><div><b>Spin the wheel.</b> It deals you a life: Old Money with a quarter of the board, Upper-middle with a house and investments, a Professional with a big salary and student debt, Working class with a mortgaged home, or Working poor with nothing.</div></div>
-        <div><span class="ic">🎲</span><div><b>Then it is Monopoly.</b> Roll, buy properties, collect rent, build houses, trade. Doubles roll again.</div></div>
-        <div><span class="ic">💵</span><div><b>Every lap is a year.</b> Pass Payday for your salary and investment income, minus income tax and living costs. Assets earn while you sleep; wages barely cover rent.</div></div>
-        <div><span class="ic">🎴</span><div><b>Life and World cards.</b> Accidents, layoffs, recessions, pandemics. They do not hit everyone equally.</div></div>
-        <div><span class="ic">🏥</span><div><b>Hospital instead of jail.</b> Pay the bill or roll doubles. Insurance makes it cheap.</div></div>
-        <div><span class="ic">🏆</span><div><b>Two titles.</b> Richest (highest net worth) and Best climber (most growth from your own starting line). Bankruptcy wipes you out but you keep playing from zero.</div></div></div></div></div></div>
+          <label>Explain new things with ⓘ <input type="checkbox" id="explain" checked></label></div></details>
+        <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary big" id="start" style="width:auto">Play</button><button class="btn big" id="demo" style="width:auto">Watch a demo</button>${saved ? '<button class="btn big" id="cont" style="width:auto">Continue</button>' : ''}<button class="btn big ghost" id="howBtn" style="width:auto">How to play</button></div></div></div>
       <div id="modal" class="modal" hidden><div class="mbox" id="mbox"></div></div><div class="toasts" id="toasts"></div>`;
     const rows = $('#rows');
     const addRow = (name, ai) => { const i = rows.children.length; const r = document.createElement('div'); r.className = 'prow'; r.innerHTML = `<button type="button" class="avatar tokpick" style="border-color:${D.COLORS[i]}" data-t="${i}">${D.TOKENS[i]}</button><input type="text" value="${esc(name)}" maxlength="14"><select><option value="h"${ai ? '' : ' selected'}>Human</option><option value="ai"${ai ? ' selected' : ''}>Computer</option></select><button class="btn small ghost danger">✕</button>`; r.lastElementChild.onclick = () => { if (rows.children.length > 2) { r.remove(); [...rows.children].forEach((x, k) => { x.firstElementChild.style.borderColor = D.COLORS[k]; }); } }; const tp = r.querySelector('.tokpick'); tp.onclick = () => { const n = (Number(tp.dataset.t) + 1) % D.TOKENS.length; tp.dataset.t = n; tp.textContent = D.TOKENS[n]; }; rows.appendChild(r); };
@@ -39,6 +32,7 @@
       ui.speed = Number($('#speed').value);
       startGame(new Game({ players, rounds: Number($('#rounds').value), explain: $('#explain').checked }));
     };
+    $('#howBtn').onclick = showHelp;
     $('#demo').onclick = () => { ui.speed = 250; startGame(new Game({ players: [['Alex', '🎩'], ['Sam', '🚗'], ['Jordan', '🐕'], ['Riley', '🚢'], ['Casey', '🦆']].map(([n, t]) => ({ name: n, isAI: true, token: t })), rounds: 16, explain: false })); };
     if (saved) $('#cont').onclick = () => { try { ui.speed = Number($('#speed').value); const data = JSON.parse(saved); ui.explained = data.explained || {}; startGame(Game.fromJSON(data.state)); } catch (e) { console.error(e); toast('Saved game could not be loaded', 'bad'); } };
   }
@@ -72,7 +66,7 @@
           continue;
         }
         // human: auto-dismiss passive notices once explained
-        if (q.type === 'notice' && ((q.passive && seen(p.id, q.explain)) || q.trivial)) { toast(`${p.name}: ${q.text}`, q.passive ? 'good' : ''); g.dispatch({ type: 'ack', playerId: p.id }); continue; }
+        if (q.type === 'notice' && ((q.passive && seen(p.id, q.explain)) || q.trivial)) { toast(`${q.title} · ${q.text}`, q.passive ? 'good' : ''); g.dispatch({ type: 'ack', playerId: p.id }); continue; }
         break;
       }
     } finally { ui.busy = false; if (ui.driveAgain) { ui.driveAgain = false; drive(); } }
@@ -143,11 +137,10 @@
 
   function renderTop() {
     const g = ui.game, st = g.state;
-    $('#top').innerHTML = `<div><div class="title">Real Estate Capital</div><div class="sub">Round ${Math.min(st.round, st.cfg.rounds)} of ${st.cfg.rounds}${st.priceMult !== 1 ? ` · prices ${Math.round(st.priceMult * 100)}%` : ''}</div></div>
-      <div>${st.effects.map(e => `<span class="chip warn" title="${e.rounds} rounds left">${esc(e.title)} · ${e.rounds}</span>`).join(' ')}</div><span class="spacer"></span>
-      <button class="btn small" id="helpBtn">How to play</button><button class="btn small" id="menuBtn">Menu</button>`;
+    $('#top').innerHTML = `<div class="title">Real Estate Capital</div><div class="sub">Round ${Math.min(st.round, st.cfg.rounds)} / ${st.cfg.rounds}</div><span class="spacer"></span>
+      <button class="btn small" id="helpBtn">?</button><button class="btn small" id="menuBtn">Menu</button>`;
     $('#helpBtn').onclick = showHelp;
-    $('#menuBtn').onclick = () => modal({ title: 'Leave the game?', text: 'It is saved in this browser. Continue from the menu later.', options: [{ id: 'yes', label: 'Save and go to menu' }, { id: 'no', label: 'Keep playing' }] }).then(r => { if (r === 'yes') { save(); location.reload(); } });
+    $('#menuBtn').onclick = () => modal({ title: 'Leave the game?', text: 'Your game is saved.', options: [{ id: 'yes', label: 'Leave' }, { id: 'no', label: 'Keep playing' }] }).then(r => { if (r === 'yes') { save(); location.reload(); } });
   }
   function renderBoard() {
     const g = ui.game, st = g.state;
@@ -178,10 +171,7 @@
       drawWheel($('#wheel'), ui.wheelAngle, -1); return;
     }
     const cur = g.current();
-    const last = st.log.slice(-4).reverse();
-    c.innerHTML = `<div class="ribbon">Real Estate Capital</div><div class="deck life">Life</div><div class="deck world">World</div><div class="note"><div class="dice">${st.dice ? DICE[st.dice[0] - 1] + DICE[st.dice[1] - 1] : '🎲'}</div><h2>${st.over ? 'Game over' : esc(poss(cur.name)) + ' turn'}</h2>
-      <div class="fx">${st.effects.map(e => `<span class="chip warn">${esc(e.title)}</span>`).join('')}</div>
-      <div class="ticker">${last.map(e => `<div>${esc(e.text)}</div>`).join('')}</div></div>`;
+    c.innerHTML = `<div class="ribbon">Real Estate Capital</div><div class="deck life">Life</div><div class="deck world">World</div><div class="note"><div class="dice">${st.dice ? DICE[st.dice[0] - 1] + DICE[st.dice[1] - 1] : '🎲'}</div><h2>${st.over ? 'Game over' : esc(poss(cur.name)) + ' turn'}</h2>${st.effects.length ? `<div class="fx">${st.effects.map(e => `<span class="chip warn">${esc(e.title)}</span>`).join('')}</div>` : ''}</div>`;
   }
 
   /* ---------------- rail: action card, me, players ---------------- */
@@ -195,9 +185,9 @@
   }
   function explainBox(pid, key) {
     if (!key || seen(pid, key) || !D.EXPLAIN[key]) return '';
-    return `<div class="explain"><b>ℹ️ ${esc(D.EXPLAIN[key][0])}</b>${esc(D.EXPLAIN[key][1])}</div>`;
+    return `<details class="explain"><summary>ⓘ ${esc(D.EXPLAIN[key][0])}</summary><div>${esc(D.EXPLAIN[key][1])}</div></details>`;
   }
-  function who(p, label) { return `<div class="who"><span class="avatar" style="border-color:${p.color}">${p.token}</span><div><b>${esc(p.name)}</b><div class="muted">${esc(label || '')}</div></div></div>`; }
+  function who(p, label) { return `<div class="who"><span class="avatar" style="border-color:${p.color}">${p.token}</span><b>${esc(p.name)}</b><span class="muted">${esc(label || '')}</span></div>`; }
   function btn(label, fn, o) { const b = document.createElement('button'); b.className = 'btn ' + ((o && o.cls) || ''); b.textContent = label; b.disabled = !!(o && o.disabled); b.title = (o && o.title) || ''; b.onclick = fn; return b; }
   function actionCard(q) {
     const g = ui.game, st = g.state;
@@ -205,72 +195,71 @@
     if (!q || st.over) { if (st.over && !ui.shownOver) { ui.shownOver = true; setTimeout(showGameOver, 600); } card.innerHTML = `<h2>Game over</h2><div class="text">${st.winner !== null ? esc(g.player(st.winner).name) + ' finishes richest.' : ''}</div>`; card.appendChild(btn('See the results', showGameOver, { cls: 'primary big' })); return card; }
     const p = actorOf(q);
     const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null;
-    const label = bg ? `${bg.icon} ${bg.title}` : 'about to find out who they are';
-    if (p.isAI) { card.innerHTML = who(p, label) + `<div class="text muted">${esc(p.name)} is ${q.type === 'spin' ? 'spinning the wheel' : 'playing'}…</div>`; return card; }
+    const label = bg ? `${bg.icon} ${bg.title}` : '';
+    if (p.isAI) { card.innerHTML = who(p, label) + `<div class="text muted">…</div>`; return card; }
     card.classList.add('mine');
     const btns = document.createElement('div'); btns.className = 'btns';
     const pid = p.id;
     switch (q.type) {
       case 'spin':
-        card.innerHTML = who(p, label) + `<h2>Spin the wheel</h2><div class="text">Nobody picks where they start. Spin to find out.</div>${explainBox(pid, 'spin')}`;
+        card.innerHTML = who(p, label) + `<h2>Spin the wheel</h2>${explainBox(pid, 'spin')}`;
         btns.appendChild(btn(ui.spinning ? 'Spinning…' : '🎡 Spin', async () => { if (ui.spinning) return; markSeen(pid, 'spin'); render(); await spinWheel(p); act({ type: 'spin', playerId: pid }); }, { cls: 'primary big', disabled: ui.spinning }));
         break;
       case 'notice': case 'card': {
         if (q.type === 'card') { card.classList.add('t-card', 'deck-' + q.deck); }
-        card.innerHTML = who(p, label) + (q.type === 'card' ? `<div class="deckhead">${q.deck === 'life' ? '? Life card' : '🌍 World card · everyone'}</div>` : '') + `<h2>${esc(q.title.replace(/^[^\w]+/, ''))}</h2><div class="text">${esc(q.text)}</div>${q.lines && q.lines.length ? `<div class="lines">${q.lines.map(l => `<div><span>${esc(l)}</span></div>`).join('')}</div>` : ''}${q.real ? `<div class="real">🌍 In the real world: ${esc(q.real)}</div>` : ''}${explainBox(pid, q.explain)}`;
-        btns.appendChild(btn(q.type === 'card' ? 'OK' : 'Continue', () => act({ type: 'ack', playerId: pid }), { cls: 'primary big' }));
+        card.innerHTML = who(p, label) + (q.type === 'card' ? `<div class="deckhead">${q.deck === 'life' ? '? Life' : '🌍 World'}</div>` : '') + `<h2>${esc(q.title.replace(/^[^\w+$-]+/, ''))}</h2>${q.text ? `<div class="text">${esc(q.text)}</div>` : ''}${q.lines && q.lines.length ? `<div class="lines">${q.lines.map(l => `<div><span>${esc(l)}</span></div>`).join('')}</div>` : ''}${q.real ? `<details class="explain real"><summary>🌍 In the real world</summary><div>${esc(q.real)}</div></details>` : ''}${explainBox(pid, q.explain)}`;
+        btns.appendChild(btn('OK', () => act({ type: 'ack', playerId: pid }), { cls: 'primary big' }));
         break;
       }
       case 'buy': {
         const i = q.square;
-        card.innerHTML = who(p, label) + `<h2>${esc(g.sq(i).name)} is for sale</h2>` + deedHtml(i) + explainBox(pid, 'buy');
-        btns.appendChild(btn(q.needsLoan ? `Buy for ${fmt(q.price)} (borrow ${fmt(Math.ceil(q.needsLoan / D.COSTS.loanStep) * D.COSTS.loanStep)})` : `Buy for ${fmt(q.price)}`, () => act({ type: 'buy', playerId: pid }), { cls: 'primary big' }));
-        btns.appendChild(btn('Pass (it goes to auction)', () => act({ type: 'pass', playerId: pid }), { cls: 'big' }));
-        card.insertAdjacentHTML('beforeend', `<div class="hint">You have ${fmt(p.cash)}${p.credit - p.loan > 0 ? ` and can borrow ${fmt(p.credit - p.loan)}` : ''}.</div>`);
+        card.innerHTML = who(p, label) + deedHtml(i) + explainBox(pid, 'buy');
+        btns.appendChild(btn(q.needsLoan ? `Buy ${fmt(q.price)} (borrow ${fmt(Math.ceil(q.needsLoan / D.COSTS.loanStep) * D.COSTS.loanStep)})` : `Buy ${fmt(q.price)}`, () => act({ type: 'buy', playerId: pid }), { cls: 'primary big' }));
+        btns.appendChild(btn('Auction', () => act({ type: 'pass', playerId: pid }), { cls: 'big' }));
         break;
       }
       case 'bid': {
         const i = q.square, maxBid = Math.floor((p.cash + Math.max(0, p.credit - p.loan)) / D.COSTS.auctionStep) * D.COSTS.auctionStep;
-        card.innerHTML = who(p, label) + `<h2>Auction: ${esc(g.sq(i).name)}</h2><div class="text">List price ${fmt(g.price(i))}. Everyone bids once, in secret. Highest bid wins.</div>` + deedHtml(i) + explainBox(pid, 'auction') + `<div class="amt"><label>Your bid <input type="number" id="bidAmt" min="0" max="${maxBid}" step="${D.COSTS.auctionStep}" value="${Math.min(maxBid, Math.round(g.price(i) * 0.8 / D.COSTS.auctionStep) * D.COSTS.auctionStep)}" style="width:150px"></label><span class="muted" style="font-size:12px">up to ${fmt(maxBid)}</span></div>`;
-        btns.appendChild(btn('Place bid', () => act({ type: 'bid', playerId: pid, amount: Number(card.querySelector('#bidAmt').value) || 0 }), { cls: 'primary big', disabled: maxBid < D.COSTS.auctionStep }));
+        card.innerHTML = who(p, label) + `<h2>Auction</h2>` + deedHtml(i) + explainBox(pid, 'auction') + `<div class="amt"><label>Bid <input type="number" id="bidAmt" min="0" max="${maxBid}" step="${D.COSTS.auctionStep}" value="${Math.min(maxBid, Math.round(g.price(i) * 0.8 / D.COSTS.auctionStep) * D.COSTS.auctionStep)}" style="width:150px"></label><span class="muted" style="font-size:12px">max ${fmt(maxBid)}</span></div>`;
+        btns.appendChild(btn('Bid', () => act({ type: 'bid', playerId: pid, amount: Number(card.querySelector('#bidAmt').value) || 0 }), { cls: 'primary big', disabled: maxBid < D.COSTS.auctionStep }));
         btns.appendChild(btn('No bid', () => act({ type: 'bid', playerId: pid, amount: 0 }), { cls: 'big' }));
         break;
       }
       case 'turn':
-        card.innerHTML = who(p, label) + `<h2>${q.again ? 'Doubles! Roll again' : 'Your turn'}</h2><div class="text muted">Build, mortgage or trade below if you want. Then roll.</div>`;
-        btns.appendChild(btn('🎲 Roll the dice', () => act({ type: 'roll', playerId: pid }), { cls: 'primary big' }));
+        card.innerHTML = who(p, label) + `<h2>${q.again ? 'Doubles! Roll again' : 'Your turn'}</h2>`;
+        btns.appendChild(btn('🎲 Roll', () => act({ type: 'roll', playerId: pid }), { cls: 'primary big' }));
         break;
       case 'hospital': {
         const bill = p.insured ? D.COSTS.hospitalBillInsured : D.COSTS.hospitalBill;
-        card.innerHTML = who(p, label) + `<h2>In Hospital (turn ${q.turn} of 3)</h2><div class="text">Pay the bill and move on, or roll for doubles.${q.turn >= 3 ? ' This is your last turn here: if you do not roll doubles, you pay anyway.' : ''}</div>${explainBox(pid, 'hospital')}`;
-        btns.appendChild(btn(`Pay ${fmt(bill)} and leave${p.insured ? ' (insured)' : ''}`, () => act({ type: 'hospitalPay', playerId: pid }), { cls: 'primary big' }));
-        btns.appendChild(btn('🎲 Try for doubles', () => act({ type: 'roll', playerId: pid }), { cls: 'big' }));
+        card.innerHTML = who(p, label) + `<h2>Hospital · turn ${q.turn}/3</h2>${explainBox(pid, 'hospital')}`;
+        btns.appendChild(btn(`Pay ${fmt(bill)}${p.insured ? ' (insured)' : ''}`, () => act({ type: 'hospitalPay', playerId: pid }), { cls: 'primary big' }));
+        btns.appendChild(btn('🎲 Roll for doubles', () => act({ type: 'roll', playerId: pid }), { cls: 'big' }));
         break;
       }
       case 'endTurn':
-        card.innerHTML = who(p, label) + `<h2>Anything else?</h2><div class="text muted">Build, mortgage, pay off or trade below. Then end your turn.</div>`;
-        btns.appendChild(btn('End turn ➜', () => act({ type: 'endTurn', playerId: pid }), { cls: 'primary big' }));
+        card.innerHTML = who(p, label) + `<h2>Your turn</h2>`;
+        btns.appendChild(btn('End turn', () => act({ type: 'endTurn', playerId: pid }), { cls: 'primary big' }));
         break;
       case 'debt': {
         const canRaise = g.liquid(p) >= 0;
-        card.innerHTML = who(p, label) + `<h2>You are ${fmt(Math.max(0, -p.cash))} short</h2><div class="text">${q.creditorId !== null ? `You owe ${esc(g.player(q.creditorId).name)}.` : 'You owe the bank.'} Borrow from the bank, sell houses or mortgage properties below to raise the money.</div>${explainBox(pid, 'debt')}`;
+        card.innerHTML = who(p, label) + `<h2>${fmt(Math.max(0, -p.cash))} short</h2>${explainBox(pid, 'debt')}`;
         if (p.cash >= 0) btns.appendChild(btn('Pay and continue', () => act({ type: 'payDebt', playerId: pid }), { cls: 'primary big' }));
         else if (!canRaise) btns.appendChild(btn('Declare bankruptcy', () => act({ type: 'bankrupt', playerId: pid }), { cls: 'big danger' }));
         else {
           const need = -p.cash, credit = p.credit - p.loan;
           if (p.invest >= 10000) { const amt = Math.min(p.invest, Math.ceil(need / 10000) * 10000); btns.appendChild(btn(`Cash out ${fmt(amt)} of investments`, () => act({ type: 'cashOut', playerId: pid, amount: amt }), { cls: 'primary big' })); }
-          if (credit >= D.COSTS.loanStep) { const amt = Math.min(credit, Math.ceil(need / D.COSTS.loanStep) * D.COSTS.loanStep); btns.appendChild(btn(`Borrow ${fmt(amt)} at ${Math.round(p.loanRate * 100)}%`, () => act({ type: 'loan', playerId: pid, amount: amt }), { cls: p.invest >= 10000 ? 'big' : 'primary big' })); }
+          if (credit >= 1000) { const amt = Math.min(credit, Math.ceil(need / 1000) * 1000); btns.appendChild(btn(`Borrow ${fmt(amt)} at ${Math.round(p.loanRate * 100)}%`, () => act({ type: 'loan', playerId: pid, amount: amt }), { cls: p.invest >= 10000 ? 'big' : 'primary big' })); }
           const withHouses = g.propsOf(pid).filter(i => g.prop(i).houses > 0).sort((a, b) => g.houseCost(b) - g.houseCost(a));
           if (withHouses.length) btns.appendChild(btn(`Sell a house on ${g.sq(withHouses[0]).name} (+${fmt(g.houseCost(withHouses[0]) / 2)})`, () => act({ type: 'sellHouse', playerId: pid, square: withHouses[0] }), { cls: 'big' }));
           const canMort = g.propsOf(pid).filter(i => !g.prop(i).mortgaged && g.prop(i).houses === 0 && !(g.sq(i).group !== 'transport' && g.groupSquares(g.sq(i).group).some(j => g.prop(j).owner === pid && g.prop(j).houses > 0))).sort((a, b) => g.price(a) - g.price(b));
           if (canMort.length) btns.appendChild(btn(`Mortgage ${g.sq(canMort[0]).name} (+${fmt(g.price(canMort[0]) / 2)})`, () => act({ type: 'mortgage', playerId: pid, square: canMort[0] }), { cls: 'big' }));
-          card.insertAdjacentHTML('beforeend', `<div class="hint">Or use the buttons on your properties below. You can raise up to ${fmt(g.liquid(p) - p.cash)}.</div>`);
+
         }
         break;
       }
       case 'trade': {
         const from = g.player(q.fromId);
-        card.innerHTML = who(p, label) + `<h2>Trade offer from ${esc(from.name)}</h2><div class="text">${esc(g.describeTrade(q))}.</div>${explainBox(pid, 'trade')}`;
+        card.innerHTML = who(p, label) + `<h2>Trade from ${esc(from.name)}</h2><div class="text">${esc(g.describeTrade(q))}.</div>${explainBox(pid, 'trade')}`;
         btns.appendChild(btn('Accept', () => act({ type: 'acceptTrade', playerId: pid }), { cls: 'primary big' }));
         btns.appendChild(btn('Decline', () => act({ type: 'declineTrade', playerId: pid }), { cls: 'big' }));
         break;
@@ -293,43 +282,45 @@
     const debtOnly = q && q.type === 'debt';
     const el = document.createElement('div'); el.className = 'me';
     const mine = g.propsOf(p.id);
-    el.innerHTML = `<div class="nums"><div><div class="l">Cash</div><div class="v ${p.cash < 0 ? 'bad' : ''}">${fmt(p.cash, true)}</div></div><div><div class="l">Net worth</div><div class="v">${fmt(g.netWorth(p), true)}</div></div><div><div class="l">Salary</div><div class="v">${fmt(p.salary, true)}</div></div></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px">${p.insured ? '<span class="chip good">Insured</span>' : '<span class="chip bad">No health insurance</span>'}${p.debt ? `<span class="chip warn">Student loan ${fmt(p.debt, true)}</span>` : ''}${p.loan ? `<span class="chip warn">Bank loan ${fmt(p.loan, true)}</span>` : ''}${p.invest ? `<span class="chip good">Invested ${fmt(p.invest, true)}</span>` : ''}${p.trust ? `<span class="chip good">Trust ${fmt(p.trust, true)}/yr</span>` : ''}${p.family ? `<span class="chip">Family can help once</span>` : ''}${p.laidOff ? '<span class="chip bad">Laid off</span>' : ''}${p.bankruptcies ? `<span class="chip bad">Bankrupt ×${p.bankruptcies}</span>` : ''}<span class="muted">Living ${fmt(p.living, true)}/yr · Credit left ${fmt(Math.max(0, p.credit - p.loan), true)} at ${Math.round(p.loanRate * 100)}% · Laps ${p.laps}</span></div>
-      <div class="section"><h3>${esc(poss(p.name))} properties</h3><div class="plist" id="plist"></div></div><div id="mactions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>`;
+    const chips = [];
+    if (!p.insured) chips.push('<span class="chip bad">No insurance</span>');
+    if (p.debt) chips.push(`<span class="chip warn">Debt ${fmt(p.debt, true)}</span>`);
+    if (p.loan) chips.push(`<span class="chip warn">Loan ${fmt(p.loan, true)} · ${Math.round(p.loanRate * 100)}%</span>`);
+    if (p.invest) chips.push(`<span class="chip good">Invested ${fmt(p.invest, true)}</span>`);
+    if (p.laidOff) chips.push('<span class="chip bad">Laid off</span>');
+    if (p.bankruptcies) chips.push(`<span class="chip bad">Bankrupt ×${p.bankruptcies}</span>`);
+    el.innerHTML = `<div class="nums"><div><div class="l">Cash</div><div class="v ${p.cash < 0 ? 'bad' : ''}">${fmt(p.cash, true)}</div></div><div><div class="l">Net worth</div><div class="v">${fmt(g.netWorth(p), true)}</div></div><div><div class="l">Income</div><div class="v">${fmt(p.salary + p.trust, true)}</div></div></div>
+      ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}<div class="plist" id="plist"></div><div id="mactions" class="mactions"></div>`;
     const list = el.querySelector('#plist');
-    if (!mine.length) list.innerHTML = '<span class="muted" style="font-size:13px">None yet.</span>';
     mine.sort((a, b) => a - b).forEach(i => {
       const sq = g.sq(i), pr = g.prop(i), row = document.createElement('div'); row.className = 'pitem' + (pr.mortgaged ? ' mort' : '');
-      row.innerHTML = `<span class="sw" style="background:${D.GROUPS[sq.group].color}"></span><span class="n"><a href="#" style="color:inherit;text-decoration:none">${esc(sq.name)}</a> ${pr.houses === 5 ? '🏨' : '🏠'.repeat(pr.houses)}${pr.mortgaged ? ' <span class="muted">(mortgaged)</span>' : ''}</span>`;
+      row.innerHTML = `<span class="sw" style="background:${D.GROUPS[sq.group].color}"></span><span class="n"><a href="#" style="color:inherit;text-decoration:none">${esc(sq.name)}</a> ${pr.houses === 5 ? '🏨' : '🏠'.repeat(pr.houses)}${pr.mortgaged ? ' <span class="muted">M</span>' : ''}</span>`;
       row.querySelector('a').onclick = e => { e.preventDefault(); showDeed(i); };
       if (manage) {
         const acts = document.createElement('span'); acts.className = 'acts';
-        if (!debtOnly && g.canBuild(p.id, i)) acts.appendChild(btn(`${pr.houses === 4 ? 'Hotel' : 'House'} ${fmt(g.houseCost(i), true)}`, () => act({ type: 'build', playerId: p.id, square: i }), { cls: 'small', disabled: p.cash < g.houseCost(i) }));
-        if (pr.houses > 0) acts.appendChild(btn(`Sell house +${fmt(g.houseCost(i) / 2, true)}`, () => act({ type: 'sellHouse', playerId: p.id, square: i }), { cls: 'small' }));
+        if (!debtOnly && g.canBuild(p.id, i)) acts.appendChild(btn(`+🏠 ${fmt(g.houseCost(i), true)}`, () => act({ type: 'build', playerId: p.id, square: i }), { cls: 'small', disabled: p.cash < g.houseCost(i), title: 'Build' }));
+        if (pr.houses > 0) acts.appendChild(btn(`−🏠 +${fmt(g.houseCost(i) / 2, true)}`, () => act({ type: 'sellHouse', playerId: p.id, square: i }), { cls: 'small', title: 'Sell a house' }));
         if (!pr.mortgaged && pr.houses === 0) acts.appendChild(btn(`Mortgage +${fmt(g.price(i) / 2, true)}`, () => act({ type: 'mortgage', playerId: p.id, square: i }), { cls: 'small' }));
-        if (pr.mortgaged && !debtOnly) acts.appendChild(btn(`Pay off ${fmt(g.price(i) * 0.55, true)}`, () => act({ type: 'unmortgage', playerId: p.id, square: i }), { cls: 'small', disabled: p.cash < g.price(i) * 0.55 }));
+        if (pr.mortgaged && !debtOnly) acts.appendChild(btn(`Unmortgage ${fmt(g.price(i) * 0.55, true)}`, () => act({ type: 'unmortgage', playerId: p.id, square: i }), { cls: 'small', disabled: p.cash < g.price(i) * 0.55 }));
         row.appendChild(acts);
       }
       list.appendChild(row);
     });
     if (manage) {
       const ma = el.querySelector('#mactions');
-      if (p.credit - p.loan >= D.COSTS.loanStep) ma.appendChild(btn(p.loanRate >= 0.2 ? 'Borrow (payday lender, 25%)' : 'Borrow from the bank', () => loanModal(p), { cls: 'small' }));
-      if (!debtOnly && p.cash >= 10000) ma.appendChild(btn('Invest spare cash', () => investModal(p), { cls: 'small' }));
-      if (p.invest > 0) ma.appendChild(btn(`Cash out investments`, () => act({ type: 'cashOut', playerId: p.id, amount: debtOnly ? Math.min(p.invest, Math.ceil(-p.cash / 10000) * 10000) : p.invest }), { cls: 'small' }));
-      if (p.loan > 0 && !debtOnly && p.cash >= D.COSTS.loanStep) ma.appendChild(btn(`Repay loan`, () => act({ type: 'repayLoan', playerId: p.id, amount: Math.min(p.loan, Math.floor(p.cash / D.COSTS.loanStep) * D.COSTS.loanStep) }), { cls: 'small' }));
-    }
-    if (manage && !debtOnly) {
-      const ma = el.querySelector('#mactions');
-      ma.appendChild(btn(p.insured ? 'Cancel health insurance' : `Get health insurance (${fmt(D.COSTS.premium, true)}/year)`, () => act({ type: 'insurance', playerId: p.id, on: !p.insured }), { cls: 'small' }));
-      if (g.active().length > 1) ma.appendChild(btn('Propose a trade', () => tradeModal(p), { cls: 'small' }));
+      if (p.credit - p.loan >= 1000) ma.appendChild(btn('Borrow', () => loanModal(p), { cls: 'small' }));
+      if (p.loan > 0 && !debtOnly && p.cash >= D.COSTS.loanStep) ma.appendChild(btn('Repay', () => act({ type: 'repayLoan', playerId: p.id, amount: Math.min(p.loan, Math.floor(p.cash / D.COSTS.loanStep) * D.COSTS.loanStep) }), { cls: 'small' }));
+      if (!debtOnly && p.cash >= 10000) ma.appendChild(btn('Invest', () => investModal(p), { cls: 'small' }));
+      if (p.invest > 0) ma.appendChild(btn('Cash out', () => act({ type: 'cashOut', playerId: p.id, amount: debtOnly ? Math.min(p.invest, Math.ceil(-p.cash / 10000) * 10000) : p.invest }), { cls: 'small' }));
+      if (!debtOnly) ma.appendChild(btn(p.insured ? 'Drop insurance' : `Insure ${fmt(D.COSTS.premium, true)}/yr`, () => act({ type: 'insurance', playerId: p.id, on: !p.insured }), { cls: 'small' }));
+      if (!debtOnly && g.active().length > 1) ma.appendChild(btn('Trade', () => tradeModal(p), { cls: 'small' }));
     }
     return el;
   }
   function playersCard() {
     const g = ui.game, st = g.state, cur = g.current();
     const el = document.createElement('div'); el.className = 'players';
-    el.innerHTML = st.players.map(p => { const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null; return `<div class="prow2 ${cur && cur.id === p.id && !st.over ? 'turn' : ''}"><span class="avatar" style="border-color:${p.color}">${p.token}</span><div class="n"><b>${esc(p.name)}${p.isAI ? ' <span>(computer)</span>' : ''}</b><span>${bg ? bg.icon + ' ' + esc(bg.title) : '?'} · ${g.propsOf(p.id).length} propert${g.propsOf(p.id).length === 1 ? 'y' : 'ies'}${p.hospital ? ' · in Hospital' : ''}</span></div><span class="nw">${fmt(g.netWorth(p), true)}${p.bankruptcies ? ` <span class="bad" style="font-size:11px">×${p.bankruptcies} bankrupt</span>` : ''}</span></div>`; }).join('');
+    el.innerHTML = st.players.map(p => { const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null; return `<div class="prow2 ${cur && cur.id === p.id && !st.over ? 'turn' : ''}"><span class="avatar" style="border-color:${p.color}">${p.token}</span><div class="n"><b>${esc(p.name)}</b><span>${bg ? bg.icon + ' ' + esc(bg.title) : ''}${p.hospital ? ' · 🏥' : ''}</span></div><span class="nw">${fmt(g.netWorth(p), true)}${p.bankruptcies ? ` <span class="bad" style="font-size:11px">×${p.bankruptcies} bankrupt</span>` : ''}</span></div>`; }).join('');
     return el;
   }
 
@@ -350,23 +341,19 @@
   }
   function loanModal(p) {
     const g = ui.game, max = p.credit - p.loan;
-    modal({ title: p.loanRate >= 0.2 ? 'Borrow from a payday lender' : 'Borrow from the bank', text: `You can borrow up to ${fmt(max)} more, at ${Math.round(p.loanRate * 100)}% interest a year, paid at every Payday.`, html: `<div class="amt"><label>Amount <input type="number" id="loanAmt" min="${D.COSTS.loanStep}" max="${max}" step="${D.COSTS.loanStep}" value="${Math.min(max, 50000)}" style="width:150px"></label></div>`, options: [{ id: 'ok', label: 'Borrow' }, { id: 'cancel', label: 'Cancel' }], onRender: box => { box.querySelector('[data-id=ok]').onclick = () => { const amt = Number(box.querySelector('#loanAmt').value) || 0; $('#modal').hidden = true; act({ type: 'loan', playerId: p.id, amount: amt }); }; } });
+    modal({ title: p.loanRate >= 0.2 ? 'Borrow from a payday lender' : 'Borrow from the bank', text: `You can borrow up to ${fmt(max)} more, at ${Math.round(p.loanRate * 100)}% interest a year, paid at every Payday.`, html: `<div class="amt"><label>Amount <input type="number" id="loanAmt" min="1000" max="${max}" step="1000" value="${Math.min(max, 50000)}" style="width:150px"></label></div>`, options: [{ id: 'ok', label: 'Borrow' }, { id: 'cancel', label: 'Cancel' }], onRender: box => { box.querySelector('[data-id=ok]').onclick = () => { const amt = Number(box.querySelector('#loanAmt').value) || 0; $('#modal').hidden = true; act({ type: 'loan', playerId: p.id, amount: amt }); }; } });
   }
   function showDeed(i) { const g = ui.game; ui.selected = i; modal({ title: '', html: deedHtml(i), options: [{ id: 'ok', label: 'Close' }] }); }
   function showExplain(key) { const e = D.EXPLAIN[key]; modal({ title: e[0], text: e[1], options: [{ id: 'ok', label: 'Got it' }] }); }
   function showHelp() {
     modal({ title: 'How to play', html: `<div class="howto">
-      <div><span class="ic">🎲</span><div><b>Roll and move.</b> Land on a property nobody owns and you can buy it. Land on someone else's and you pay rent. Doubles let you roll again; three doubles in a row sends you to Hospital.</div></div>
-      <div><span class="ic">💵</span><div><b>Pass Payday for a year's income:</b> salary, trust and investment returns, minus income tax (10% to 40%), living costs, insurance and loan interest.</div></div>
-      <div><span class="ic">📈</span><div><b>Invest spare cash</b> and it grows 6% a year by itself. Cash it out whenever you need it. A stock crash cuts it.</div></div>
-      <div><span class="ic">🏠</span><div><b>Own a whole colour group</b> and rents there double. Then build houses (up to 4) and a hotel. Each one multiplies the rent.</div></div>
-      <div><span class="ic">🏦</span><div><b>Short of cash?</b> Cash out investments, borrow (the rich pay 5%, the poor 25%), sell houses for half price or mortgage a property. Nothing left means bankruptcy: you lose everything, debts are wiped, and you restart from zero.</div></div>
-      <div><span class="ic">🔨</span><div><b>Pass on a property and it goes to auction.</b> Everyone bids once in secret; the highest bid wins, even below list price.</div></div>
-      <div><span class="ic">🏛️</span><div><b>Bank loans.</b> Borrow up to your credit limit at 10% a year, paid at Payday. Your limit depends on who you are.</div></div>
-      <div><span class="ic">🤝</span><div><b>Trade.</b> On your turn, propose a swap of properties and cash to any player. Computer players will propose trades too.</div></div>
-      <div><span class="ic">🧾</span><div><b>Taxes.</b> Property Tax: 1% of what you own. Wealth Tax: 2% of net worth, only above $1,000,000.</div></div>
-      <div><span class="ic">🎴</span><div><b>Life cards</b> happen to you. <b>World cards</b> happen to everyone. Each tells you what it would mean in the real world.</div></div>
-      <div><span class="ic">🏆</span><div><b>Two titles</b> when the last round ends: Richest (highest net worth) and Best climber (most growth from your own starting line).</div></div></div>`, options: [{ id: 'ok', label: 'Close' }], wide: true });
+      <div><span class="ic">🎡</span><div>Spin the wheel: it deals you a start in life.</div></div>
+      <div><span class="ic">🎲</span><div>Roll. Buy what you land on, or pay rent. Doubles roll again; three send you to Hospital.</div></div>
+      <div><span class="ic">💵</span><div>Pass Payday: salary and investment income, minus tax and living costs.</div></div>
+      <div><span class="ic">🏠</span><div>Own a colour group: rents double, build houses.</div></div>
+      <div><span class="ic">🔨</span><div>Pass on a property: auction, highest bid wins.</div></div>
+      <div><span class="ic">🏦</span><div>Short of cash: borrow, cash out, sell houses, mortgage. Nothing left: bankrupt, restart from zero.</div></div>
+      <div><span class="ic">🏆</span><div>Richest and Best climber win when the rounds run out.</div></div></div>`, options: [{ id: 'ok', label: 'OK' }] });
   }
   function tradeModal(p) {
     const g = ui.game; const others = g.active().filter(x => x.id !== p.id);
@@ -399,8 +386,7 @@
     const rows = rank.map((p, i) => { const bg = D.BACKGROUNDS.find(b => b.id === p.bg); return `<tr><td>${p.id === richest.id ? '🏆' : ''}${p.id === climber.id ? '🧗' : ''}${p.id !== richest.id && p.id !== climber.id ? i + 1 : ''}</td><td><b style="color:${p.color}">${esc(p.name)}</b><br><span class="muted">${bg ? bg.icon + ' ' + esc(bg.title) : ''}</span></td><td class="r">${fmt(p.startNW, true)}</td><td class="r"><b>${fmt(g.netWorth(p), true)}</b></td><td>${bar(p.stats.wages, 'var(--blue)')}</td><td>${bar(p.stats.rentGot + p.stats.passive, 'var(--green)')}</td><td class="r">${fmt(p.stats.tax, true)}</td><td class="r">${p.stats.medical ? fmt(p.stats.medical, true) : '–'}</td><td class="r">${p.bankruptcies || '–'}</td></tr>`; }).join('');
     modal({ title: `🏆 Richest: ${richest.name} · 🧗 Best climber: ${climber.name}`, wide: true, html: `<div class="twrap"><table class="t"><thead><tr><th></th><th>Player</th><th class="r">Started</th><th class="r">Finished</th><th>From working</th><th>From owning</th><th class="r">Tax</th><th class="r">Medical</th><th class="r">Bankrupt</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h3 style="font-size:16px;margin:14px 0 6px">Net worth, round by round</h3><canvas class="chart" id="chart" width="800" height="160"></canvas><div class="muted" style="font-size:12px">${rank.map(p => `<span style="color:${p.color}">■</span> ${esc(p.name)}`).join(' &nbsp; ')}</div>
-      <h3 style="font-size:16px;margin:14px 0 6px">What this game showed</h3><ul class="facts">${facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
-      <h3 style="font-size:16px;margin:14px 0 6px">Talk about it</h3><ul class="facts"><li>Who worked the most? Who finished richest? Are those the same people?</li><li>Who climbed the most? What did they have that the others did not?</li><li>Which World cards hurt everyone, and which only hurt some people?</li><li>Is this game fair? Is Monopoly? Is the real economy?</li></ul>`, options: [{ id: 'menu', label: 'New game' }, { id: 'stay', label: 'Look at the board' }], onRender: box => drawChart(box.querySelector('#chart')) })
+      <details class="explain" style="margin-top:12px"><summary>ⓘ What this game showed</summary><ul class="facts">${facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul><ul class="facts"><li>Who worked the most? Who finished richest?</li><li>Who climbed the most? What did they have?</li><li>Is this game fair? Is Monopoly? Is the real economy?</li></ul></details>`, options: [{ id: 'menu', label: 'New game' }, { id: 'stay', label: 'Look at the board' }], onRender: box => drawChart(box.querySelector('#chart')) })
       .then(r => { if (r === 'menu') { try { localStorage.removeItem(SAVE); } catch (e) { /* ignore */ } location.reload(); } });
   }
   function drawChart(cv) {

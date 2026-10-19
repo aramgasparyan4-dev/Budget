@@ -54,12 +54,12 @@
   function raise(game, p) {
     const need = -p.cash;
     if (p.invest >= 10000) return { type: 'cashOut', playerId: p.id, amount: Math.min(p.invest, Math.ceil(need / 10000) * 10000) };
-    if (p.credit - p.loan >= 10000 && p.loanRate < 0.2) return { type: 'loan', playerId: p.id, amount: Math.min(p.credit - p.loan, Math.ceil(need / 10000) * 10000) };
+    if (p.credit - p.loan >= 1000 && p.loanRate < 0.2) return { type: 'loan', playerId: p.id, amount: Math.min(p.credit - p.loan, Math.ceil(need / 1000) * 1000) };
     const withHouses = game.propsOf(p.id).filter(i => game.prop(i).houses > 0).sort((a, b) => game.prop(b).houses - game.prop(a).houses);
     if (withHouses.length) return { type: 'sellHouse', playerId: p.id, square: withHouses[0] };
     const mort = game.propsOf(p.id).filter(i => !game.prop(i).mortgaged).sort((a, b) => game.price(a) - game.price(b));
     if (mort.length) return { type: 'mortgage', playerId: p.id, square: mort[0] };
-    if (p.credit - p.loan >= 10000) return { type: 'loan', playerId: p.id, amount: Math.min(p.credit - p.loan, Math.ceil(need / 10000) * 10000) };
+    if (p.credit - p.loan >= 1000) return { type: 'loan', playerId: p.id, amount: Math.min(p.credit - p.loan, Math.ceil(need / 1000) * 1000) };
     return { type: 'bankrupt', playerId: p.id };
   }
 

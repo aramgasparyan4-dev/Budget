@@ -32,7 +32,7 @@ h1, h2, h3 { margin: 0; font-family: var(--title); font-weight: 700; text-wrap: 
 /* ---------- setup ---------- */
 .setup { max-width: 920px; margin: 0 auto; padding: 36px 16px 60px; }
 .logo { display: inline-block; background: var(--red); color: #fff; font-family: var(--title); font-weight: 700; text-transform: uppercase; letter-spacing: 2px; padding: 10px 26px; border-radius: 10px; font-size: 32px; border: 3px solid #fff; box-shadow: 0 4px 0 var(--red-dark), var(--shadow); transform: rotate(-2deg); }
-.setup .tag { color: #e8f3ea; font-size: 17px; max-width: 640px; margin: 22px 0 24px; }
+.setup .tag { color: #e8f3ea; font-size: 17px; margin: 18px 0 20px; }
 .setup-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; }
 @media (max-width: 760px) { .setup-grid { grid-template-columns: 1fr; } }
 .card { background: var(--paper); border: 2px solid var(--rule); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
@@ -98,15 +98,17 @@ h1, h2, h3 { margin: 0; font-family: var(--title); font-weight: 700; text-wrap: 
 .act.t-card.deck-world { background: #e5f4fd; border-color: var(--blue); }
 .act .deckhead { font-family: var(--title); font-weight: 700; text-transform: uppercase; letter-spacing: 2px; font-size: 12px; margin-bottom: 4px; }
 .act.deck-life .deckhead { color: var(--orange); } .act.deck-world .deckhead { color: var(--blue); }
-.act .who { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.act .who b { font-size: 16px; } .act .who .muted { font-size: 13px; }
-.act h2 { font-size: 22px; margin: 4px 0 6px; }
+.act .who { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.act .who b { font-size: 15px; } .act .who .muted { font-size: 12px; }
+.act h2 { font-size: 22px; margin: 2px 0 8px; }
 .act .text { margin-bottom: 8px; }
 .act .lines { display: grid; gap: 2px; margin: 6px 0 10px; font-size: 14px; }
 .act .lines div { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dotted var(--rule); padding: 2px 0; }
-.act .real { background: var(--board); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-bottom: 10px; }
-.act .explain { border-left: 5px solid var(--blue); background: #eef5fb; border-radius: 0 8px 8px 0; padding: 8px 10px; font-size: 13px; margin-bottom: 10px; }
-.act .explain b { display: block; margin-bottom: 2px; }
+.explain { font-size: 13px; margin: 4px 0 10px; }
+.explain summary { cursor: pointer; color: var(--blue); font-weight: 700; list-style: none; }
+.explain summary::-webkit-details-marker { display: none; }
+.explain > div, .explain > ul { background: #eef5fb; border-left: 4px solid var(--blue); border-radius: 0 8px 8px 0; padding: 8px 10px; margin-top: 4px; }
+.explain.real > div { background: var(--board); border-left-color: var(--green); }
 .act .btns { display: grid; gap: 8px; }
 .amt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; } .amt label { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .act .hint { color: var(--muted); font-size: 13px; text-align: center; margin-top: 6px; }
@@ -120,7 +122,10 @@ h1, h2, h3 { margin: 0; font-family: var(--title); font-weight: 700; text-wrap: 
 
 /* ---------- me + players ---------- */
 .me { background: var(--paper); border: 2px solid var(--rule); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); }
-.me .nums { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.me .nums { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+.me .chips { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.me .mactions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.opts-d { margin-top: 12px; } .opts-d summary { cursor: pointer; color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 12px; letter-spacing: .5px; }
 .me .nums > div { background: #e8f1dc; border: 1.5px solid #7fa86a; border-radius: 6px; padding: 6px 8px; }
 .me .nums .l { font-size: 10px; color: #3a5a2e; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; font-family: var(--label); }
 .me .nums .v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: var(--title); }
