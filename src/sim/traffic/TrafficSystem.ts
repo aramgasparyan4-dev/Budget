@@ -82,6 +82,9 @@ export class TrafficSystem {
   center = new THREE.Vector3();
   camFwd = new THREE.Vector2(0, 1);
   spawnRadius = { min: 120, max: 290, despawn: 340 };
+  /** seconds between spawn attempts, and random lanes tried per attempt (arcade modes want denser streets) */
+  spawnInterval = 0.15;
+  spawnAttempts = 8;
   enabled = true;
   usedSpots = new Set<number>();
   onHonk: ((v: TVehicle) => void) | null = null;
@@ -296,7 +299,7 @@ export class TrafficSystem {
     const driving = this.vehicles.length;
     if (driving >= target) return;
     const lanes = this.graph.lanes;
-    for (let attempt = 0; attempt < 8; attempt++) {
+    for (let attempt = 0; attempt < this.spawnAttempts; attempt++) {
       const l = lanes[Math.floor(this.rng.next() * lanes.length)];
       const s = 6 + this.rng.next() * Math.max(1, l.length - 12);
       const x = l.x0 + l.dx * s;
@@ -383,7 +386,7 @@ export class TrafficSystem {
     this.camFwd.copy(camFwd);
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
-      this.spawnTimer = 0.15;
+      this.spawnTimer = this.spawnInterval;
       this.trySpawnAround();
     }
     // despawn far vehicles

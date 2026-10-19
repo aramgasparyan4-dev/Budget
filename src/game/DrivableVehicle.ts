@@ -39,6 +39,10 @@ export class DrivableVehicle {
   rpm = 0;
   gear = 1;
   siren = false;
+  /** tuning hooks for arcade modes: boost (power, top speed) and wet roads (grip) */
+  powerMul = 1;
+  topMul = 1;
+  gripMul = 1;
   private drawable: VehicleDrawable;
   private physics: Physics;
 
@@ -169,8 +173,8 @@ export class DrivableVehicle {
     this.steer += clamp(target - this.steer, -rate * h, rate * h);
     // power-limited engine
     const vKnee = s.maxSpeed * 0.32;
-    let force = s.engine * Math.min(1, vKnee / Math.max(Math.abs(v), 1));
-    if (thr > 0 && v > s.maxSpeed) force = 0;
+    let force = s.engine * this.powerMul * Math.min(1, (vKnee * this.topMul) / Math.max(Math.abs(v), 1));
+    if (thr > 0 && v > s.maxSpeed * this.topMul) force = 0;
     if (thr < 0 && v < -9) force = 0;
     const drive = thr * force;
     const rwd = s.key === 'sports' || s.key === 'truck' || s.key === 'bus' || s.key === 'police';
@@ -189,7 +193,7 @@ export class DrivableVehicle {
       if (hand && !front) b = s.brake * 1.2;
       vc.setWheelBrake(i, b);
       vc.setWheelSideFrictionStiffness(i, hand && !front ? 0.35 : 1.0);
-      vc.setWheelFrictionSlip(i, hand && !front ? s.grip * 0.55 : s.grip);
+      vc.setWheelFrictionSlip(i, (hand && !front ? s.grip * 0.55 : s.grip) * this.gripMul);
     }
     vc.updateVehicle(h, undefined, groups(GROUP.VEHICLE, GROUP.STATIC | GROUP.DYNAMIC | GROUP.TRAFFIC), (col) => col.handle !== this.collider.handle);
     // aerodynamic drag + downforce

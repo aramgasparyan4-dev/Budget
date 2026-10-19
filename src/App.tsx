@@ -137,7 +137,7 @@ export default function App() {
         if (st.screen === 'game' && st.overlay === null && (e.target as HTMLElement).tagName === 'CANVAS') game.input.requestLock();
       }}
     >
-      <GameCanvas />
+      <GameCanvas engine={game} />
       {screen === 'game' && (
         <div className="absolute inset-0 pointer-events-none">
           <Emotes />

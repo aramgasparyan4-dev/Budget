@@ -377,6 +377,51 @@ export class AudioEngine {
     this.burst(0.25, 4200, 2, 0.06 * intensity, 'bandpass', 0.05);
   }
 
+  /** air rushing past another car: a falling noise sweep, louder and brighter for closer passes */
+  whoosh(tier: number, pan: number) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const src = this.noise(false);
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 1.3;
+    f.frequency.setValueAtTime(2400 + tier * 700, t);
+    f.frequency.exponentialRampToValueAtTime(420, t + 0.5);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.14 + tier * 0.07, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    const p = ctx.createStereoPanner();
+    p.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), t);
+    p.pan.linearRampToValueAtTime(-pan * 0.4, t + 0.5);
+    src.connect(f).connect(g).connect(p).connect(this.buses.sfx);
+    src.start(t, Math.random());
+    src.stop(t + 0.6);
+  }
+
+  /** arcade chime that climbs with the combo multiplier */
+  combo(level: number) {
+    const f = 523 * Math.pow(2, Math.min(level, 10) / 8);
+    this.blip(f, 0.12, 'triangle', 0.07);
+    this.blip(f * 1.5, 0.18, 'sine', 0.05, undefined, 'sfx', 0.05);
+  }
+
+  /** combo banked: bigger banks ring longer */
+  bank(size: number) {
+    const n = size > 20000 ? 4 : size > 5000 ? 3 : 2;
+    for (let i = 0; i < n; i++) this.blip(1047 * Math.pow(1.26, i), 0.22, 'triangle', 0.07, undefined, 'sfx', i * 0.07);
+  }
+
+  /** combo lost after a scrape */
+  comboLost() {
+    this.blip(420, 0.45, 'sawtooth', 0.05, 110);
+  }
+
+  countdown(go: boolean) {
+    this.blip(go ? 988 : 494, go ? 0.55 : 0.18, 'square', 0.05);
+  }
+
   thunder(delay: number, power: number) {
     if (!this.ctx) return;
     const ctx = this.ctx;

@@ -3,21 +3,27 @@ import { EffectComposer, Bloom, SMAA, N8AO, ToneMapping, Vignette } from '@react
 import { ToneMappingMode } from 'postprocessing';
 import { useEffect } from 'react';
 import * as THREE from 'three';
-import { game } from '../game/Game';
 import { useStore } from '../state/store';
 import { ColorGrade } from './ColorGrade';
 
-function GameRoot() {
+/** what the canvas drives each frame: Echo City's Game or another game built on the same engine */
+export interface CanvasEngine {
+  attach(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera): void;
+  update(dt: number): void;
+  afterRender(): void;
+}
+
+function GameRoot({ engine }: { engine: CanvasEngine }) {
   const { gl, scene, camera } = useThree();
   useEffect(() => {
-    game.attach(gl as THREE.WebGLRenderer, scene, camera as THREE.PerspectiveCamera);
-  }, [gl, scene, camera]);
+    engine.attach(gl as THREE.WebGLRenderer, scene, camera as THREE.PerspectiveCamera);
+  }, [engine, gl, scene, camera]);
   useFrame((_, dt) => {
-    game.update(dt);
+    engine.update(dt);
   }, -1);
   // collect stats after rendering (priority above the composer)
   useFrame(() => {
-    game.afterRender();
+    engine.afterRender();
   }, 10);
   return null;
 }
@@ -46,7 +52,7 @@ function PostFX() {
 }
 
 function RenderConfig() {
-  const { gl } = useThree();
+  const { gl, scene } = useThree();
   const postFX = useStore((s) => s.settings.graphics.postFX);
   const shadows = useStore((s) => s.settings.graphics.shadows);
   useEffect(() => {
@@ -56,16 +62,16 @@ function RenderConfig() {
     gl.shadowMap.type = THREE.PCFShadowMap;
     gl.outputColorSpace = THREE.SRGBColorSpace;
     // force material recompiles for the tone mapping switch
-    game.scene?.traverse((o) => {
+    scene.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
       if (!m) return;
       (Array.isArray(m) ? m : [m]).forEach((mm) => (mm.needsUpdate = true));
     });
-  }, [gl, postFX, shadows]);
+  }, [gl, scene, postFX, shadows]);
   return null;
 }
 
-export function GameCanvas() {
+export function GameCanvas({ engine }: { engine: CanvasEngine }) {
   const scale = useStore((s) => s.settings.graphics.resolutionScale);
   const dpr = Math.min(2, (typeof window !== 'undefined' ? window.devicePixelRatio : 1) * scale);
   return (
@@ -80,7 +86,7 @@ export function GameCanvas() {
       frameloop="always"
     >
       <RenderConfig />
-      <GameRoot />
+      <GameRoot engine={engine} />
       <PostFX />
     </Canvas>
   );

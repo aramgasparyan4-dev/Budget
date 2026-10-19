@@ -8,12 +8,17 @@ You start with $250 and a studio apartment. Work, drive, make friends, buy a car
 business. The residents have jobs, daily schedules, needs, personalities, memories of what
 you did, and relationships with you and with each other.
 
+This repo holds two games built on the same engine:
+
+- **Echo City** (`index.html`): the life simulation described below.
+- **Near Miss** (`near-miss.html`): an arcade driving game set in the same city. See [Near Miss](#near-miss).
+
 ## Run it
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173
-npm run build        # type-check + production build into dist/
+npm run dev          # Echo City: http://localhost:5173 · Near Miss: http://localhost:5173/near-miss.html
+npm run build        # type-check + production build of both games into dist/
 npm run preview      # serve dist/
 ```
 
@@ -123,14 +128,43 @@ your business, objectives and settings.
 **Intro and goals.** An opening cinematic, then a tutorial (look, walk, go home, phone, take a
 delivery, deliver it, meet someone, earn $500) followed by longer life goals with rewards.
 
+## Near Miss
+
+Weave through dense city traffic as fast as you dare. Passing a car with less than 1.7 m of
+side clearance is a near miss (under 0.9 m is a close call, under 0.4 m is INSANE); oncoming
+passes count double and crossing traffic one and a half times. Driving against traffic,
+drifting and running red lights also feed the combo. Every event raises the multiplier
+(up to x10); the combo banks into your score after four quiet seconds, and a scrape loses
+whatever hasn't banked. The clock starts at 40 seconds and drains; risky driving buys time
+back. A big hit ends the run.
+
+- **Cars:** Volta GT (fast), Patrol Cruiser (heavy, lights on), Echo Cab (forgiving), Pixie
+  Compact (small enough for gaps nothing else fits through).
+- **Conditions:** midnight, night rain (lower grip), golden hour, noon.
+- **Boost:** near misses fill the meter; hold Shift for more power and top speed, and points
+  earned while boosting are worth 1.5x.
+- **Traffic:** a director keeps a stream of slower and oncoming cars on the road ahead of
+  you, and traffic gets denser the longer you survive.
+- **Scores:** your top 10 runs are kept in this browser (localStorage).
+
+Controls: W A S D drive, Shift boost, Space handbrake, mouse to look, Esc pause, R restart,
+Enter start, ← → pick a car.
+
+It reuses Echo City's city generator, chunk renderer and shaders, sky and weather, Rapier car
+physics, traffic simulation, vehicle models and procedural audio. Its own code is in
+`src/nearmiss/` (about 1,400 lines): the scoring rules (`scoring.ts`, pure and unit-tested),
+the game loop and traffic director (`NearMissGame.ts`) and the interface (`App.tsx`).
+
 ## Architecture
 
 ```
 src/
+  nearmiss/  Near Miss: scoring rules, game loop, interface
   core/      seeded RNG, noise, math helpers
   world/     city generator, buildings, names, chunk geometry + worker, terrain
   render/    materials/shaders, chunk manager, sky/lighting, humans, vehicles, rain, terrain
-  engine/    input, Rapier physics wrapper, procedural Web Audio
+  engine/    World (city + chunks + terrain + collision + sky, shared by both games), input,
+             Rapier physics wrapper, procedural Web Audio
   sim/       clock, weather, economy, NPC population + life simulation, pedestrians,
              sidewalk navigation, traffic, dialogue lines, LLM hook
   game/      Game (engine loop), Session (one playthrough), player/camera/vehicle controllers,
@@ -155,9 +189,15 @@ throttled HUD updates.
 ```bash
 npm run typecheck
 npm run test:sim     # headless 3-day simulation of all residents and the economy
+npm run test:unit    # Near Miss scoring rules (13 checks)
 npm run dev &        # then, in another shell:
-npm run test:e2e     # drives the real game in headless Chromium (needs Playwright's Chromium)
+npm run test:e2e     # drives both games in headless Chromium (needs Playwright's Chromium)
 ```
+
+`scripts/e2e-nearmiss.mjs` (14 checks) covers the title screen, car and condition choice, the
+countdown, a scripted near miss, combo banking, boost, oncoming driving, pause, a crash into a
+stopped car, the results screen and leaderboard, restart, running out of time and the rain
+grip penalty. Like the Echo City suites it also passes against the production build.
 
 `scripts/e2e.mjs` (21 checks) and `scripts/e2e-systems.mjs` (11 checks) dispatch real key and
 mouse events to the page and advance the game with `window.__echo.simulate()`. They cover:

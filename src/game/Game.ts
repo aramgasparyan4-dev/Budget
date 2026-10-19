@@ -1,12 +1,7 @@
 import * as THREE from 'three';
 import { Input } from '../engine/Input';
-import { Physics, initRapier } from '../engine/Physics';
 import { AudioEngine } from '../engine/Audio';
-import { generateCity } from '../world/CityGenerator';
-import type { CityData } from '../world/types';
-import { ChunkManager } from '../render/ChunkManager';
-import { Environment } from '../render/Environment';
-import { Terrain } from '../render/Terrain';
+import { World } from '../engine/World';
 import { G } from '../render/globals';
 import { CameraController } from './CameraController';
 import { PlayerController } from './PlayerController';
@@ -14,7 +9,6 @@ import { Crowd, buildHumanGeometry, createHumanMaterial, createHumanDepthMateria
 import { useStore } from '../state/store';
 import type { Settings } from '../state/settings';
 import { Session } from './Session';
-import { Rain } from '../render/Rain';
 
 export const DEFAULT_SEED = 20261019;
 
@@ -27,12 +21,22 @@ export class Game {
   cam!: CameraController;
   attached = false;
 
-  city: CityData | null = null;
-  physics: Physics | null = null;
-  chunks: ChunkManager | null = null;
-  env: Environment | null = null;
-  terrain: Terrain | null = null;
-  rain: Rain | null = null;
+  world: World | null = null;
+  get city() {
+    return this.world?.city ?? null;
+  }
+  get physics() {
+    return this.world?.physics ?? null;
+  }
+  get chunks() {
+    return this.world?.chunks ?? null;
+  }
+  get env() {
+    return this.world?.env ?? null;
+  }
+  get terrain() {
+    return this.world?.terrain ?? null;
+  }
   player: PlayerController | null = null;
   session: Session | null = null;
   humanGeo = buildHumanGeometry('high');
@@ -91,88 +95,28 @@ export class Game {
     if (this.worldSeed === seed && this.city) return;
     this.endSession();
     this.unloadWorld();
-    progress(0.02, 'Initialising physics');
-    await initRapier();
-    progress(0.06, 'Surveying the city');
-    await new Promise((r) => setTimeout(r, 0));
-    const city = generateCity(seed);
-    this.city = city;
+    this.world = await World.load(this.scene, seed, this.settings, progress);
     this.worldSeed = seed;
-    progress(0.15, 'Laying roads and foundations');
-    const chunks = new ChunkManager(city);
-    this.chunks = chunks;
-    this.scene.add(chunks.group);
-    await chunks.init((p) => progress(0.15 + p * 0.55, 'Raising buildings'));
-    progress(0.72, 'Shaping the hills');
-    await new Promise((r) => setTimeout(r, 0));
-    this.terrain = new Terrain(seed, this.settings.graphics.vegetation);
-    this.scene.add(this.terrain.group);
-    progress(0.8, 'Building collision');
-    await new Promise((r) => setTimeout(r, 0));
-    this.physics = new Physics();
-    this.physics.buildCity(city, chunks.models, seed);
-    this.env = new Environment(this.scene);
-    this.rain = new Rain(this.settings.graphics.rainParticles);
-    this.scene.add(this.rain.group);
     this.applySettings(this.settings);
     progress(0.9, 'Waking up the citizens');
   }
 
   unloadWorld() {
-    if (this.chunks) {
-      this.scene.remove(this.chunks.group);
-      this.chunks.dispose();
-      this.chunks = null;
-    }
-    if (this.terrain) {
-      this.scene.remove(this.terrain.group);
-      this.terrain.dispose();
-      this.terrain = null;
-    }
-    if (this.rain) {
-      this.scene.remove(this.rain.group);
-      this.rain = null;
-    }
-    this.env?.dispose();
-    this.env = null;
     this.player?.dispose();
     this.player = null;
-    this.physics?.dispose();
-    this.physics = null;
-    this.city = null;
+    this.world?.dispose(this.scene);
+    this.world = null;
     this.worldSeed = -1;
   }
 
   applySettings(s: Settings) {
-    const g = s.graphics;
-    if (this.env) {
-      this.env.drawDistance = g.drawDistance;
-      this.env.setShadowQuality(g.shadows || 1024, g.shadowExtent, g.shadows > 0);
-    }
-    if (this.renderer) {
-      this.renderer.shadowMap.enabled = g.shadows > 0;
-      this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    }
-    if (this.chunks) {
-      this.chunks.detailRadius = g.detailRadius;
-      if (this.chunks.vegetation !== g.vegetation) {
-        this.chunks.vegetation = g.vegetation;
-        this.chunks.reloadDetails();
-      }
-      this.chunks.setShadows(g.shadows > 0);
-    }
-    if (this.camera) {
-      this.camera.far = g.drawDistance + 400;
-      this.camera.near = 0.25;
-      this.camera.updateProjectionMatrix();
-    }
+    this.world?.applySettings(s, this.renderer, this.camera);
     if (this.cam) {
       this.cam.sensitivity = s.controls.sensitivity;
       this.cam.invertY = s.controls.invertY;
       this.cam.baseFov = s.controls.fov;
       this.cam.dist = s.controls.cameraDistance;
     }
-    this.rain?.setCount(g.rainParticles);
     if (this.session) {
       if (!this.session.background) this.session.clock.scale = s.gameplay.timeScale;
       this.session.applyDensity();
@@ -231,7 +175,8 @@ export class Game {
     dt = Math.min(dt, 0.1);
     this.time += dt;
     G.uTime.value = this.time;
-    if (!this.city || !this.env || !this.physics) {
+    const world = this.world;
+    if (!world) {
       this.input.endFrame();
       return;
     }
@@ -245,9 +190,7 @@ export class Game {
     const hour = s ? s.clock.hour : 12;
     const weather = s ? s.weather.p : { cloud: 0.2, rain: 0, fog: 0, wet: 0, wind: 0.2, storm: 0, flash: 0 };
     const focus = s && s.mode !== 'none' ? s.playerPos() : this.focus;
-    this.env.update(this.renderer, hour, weather, this.camera.position, focus, dt);
-    this.chunks?.update(this.camera.position.x, this.camera.position.z, this.time);
-    if (this.rain) this.rain.update(dt, this.camera.position, weather.rain * (s?.mode === 'interior' ? 0 : 1), weather.wind);
+    world.update(this.renderer, this.camera, dt, this.time, hour, weather, focus, s?.mode === 'interior' ? 0 : 1);
 
     // audio ambience
     if (this.audio.ready && s) {
