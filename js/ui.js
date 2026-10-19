@@ -78,12 +78,14 @@
     for (let i = 0; i < 9; i++) { el.textContent = DICE[Math.floor(Math.random() * 6)] + DICE[Math.floor(Math.random() * 6)]; await sleep(ms); }
     const d = ui.game.state.dice; if (d) el.textContent = DICE[d[0] - 1] + DICE[d[1] - 1];
   }
+  function moving() { const g = ui.game; if (!g) return false; const lm = g.state.lastMove; const key = lm ? `${lm.playerId}:${lm.from}:${lm.to}:${g.state.log.length}` : null; return ui.moving || (!!lm && key !== ui.lastMoveKey && (ui.speed > 0 || !g.player(lm.playerId).isAI)); }
   async function animateMove(lm) {
+    ui.moving = true;
     await tumble();
-    const steps = (lm.to - lm.from + 40) % 40; if (!steps || steps > 12) { renderBoard(); return; }
+    const steps = (lm.to - lm.from + 40) % 40; if (!steps || steps > 12) { ui.moving = false; render(); return; }
     let pos = lm.from; const ms = ui.speed === 0 ? 60 : 110;
     for (let i = 0; i < steps; i++) { pos = (pos + 1) % 40; ui.animPos[lm.playerId] = pos; renderBoard(); await sleep(ms); }
-    delete ui.animPos[lm.playerId]; renderBoard();
+    delete ui.animPos[lm.playerId]; ui.moving = false; render();
   }
 
   /* ---------------- the wheel ---------------- */
@@ -123,7 +125,7 @@
   /* ---------------- layout ---------------- */
   function cellPos(i) { if (i <= 10) return [11, 11 - i]; if (i <= 20) return [11 - (i - 10), 1]; if (i <= 30) return [1, 1 + (i - 20)]; return [1 + (i - 30), 11]; }
   function buildGame() {
-    $('#app').innerHTML = `<div class="game"><div class="top" id="top"></div><div class="main"><div class="board" id="board"></div><div class="rail" id="rail"></div></div></div><div id="modal" class="modal" hidden><div class="mbox" id="mbox"></div></div><div class="toasts" id="toasts"></div>`;
+    $('#app').innerHTML = `<div class="game"><div class="top" id="top"></div><div class="main"><div class="side" id="side"></div><div class="board" id="board"></div></div></div><div id="modal" class="modal" hidden><div class="mbox" id="mbox"></div></div><div class="toasts" id="toasts"></div>`;
     const board = $('#board');
     D.BOARD.forEach((sq, i) => {
       const c = document.createElement('div'); c.className = 'cell' + (sq.kind === 'property' ? '' : ' sp') + (i % 10 === 0 ? ' corner' : ''); c.dataset.i = i;
@@ -133,7 +135,7 @@
     });
     const centre = document.createElement('div'); centre.className = 'centre'; centre.id = 'centre'; board.appendChild(centre);
   }
-  function render() { if (ui.queued) return; ui.queued = true; requestAnimationFrame(() => { ui.queued = false; if (!ui.game || !$('#board')) return; try { renderTop(); renderBoard(); renderCentre(); renderRail(); } catch (e) { console.error(e); } }); }
+  function render() { if (ui.queued) return; ui.queued = true; requestAnimationFrame(() => { ui.queued = false; if (!ui.game || !$('#board')) return; try { renderTop(); renderBoard(); renderCentre(); renderSide(); } catch (e) { console.error(e); } }); }
 
   function renderTop() {
     const g = ui.game, st = g.state;
@@ -167,21 +169,66 @@
     c.classList.toggle('spinmode', !!(q && q.type === 'spin'));
     if (q && q.type === 'spin') {
       const p = g.player(q.playerId);
-      c.innerHTML = `<h2>${esc(p.name)}, spin the wheel</h2><canvas id="wheel" class="wheel" width="420" height="420"></canvas><div class="ticker">Where you start in life is not up to you.</div>`;
-      drawWheel($('#wheel'), ui.wheelAngle, -1); return;
+      c.innerHTML = `<h2>${esc(p.name)}, spin the wheel</h2><canvas id="wheel" class="wheel" width="420" height="420"></canvas><div class="stage small" id="stage"></div>`;
+      drawWheel($('#wheel'), ui.wheelAngle, -1);
+      $('#stage').appendChild(actionCard(q)); return;
     }
-    const cur = g.current();
-    c.innerHTML = `<div class="ribbon">Real Estate Capital</div><div class="deck life">Life</div><div class="deck world">World</div><div class="note"><div class="dice">${st.dice ? DICE[st.dice[0] - 1] + DICE[st.dice[1] - 1] : '🎲'}</div><h2>${st.over ? 'Game over' : esc(poss(cur.name)) + ' turn'}</h2>${st.effects.length ? `<div class="fx">${st.effects.map(e => `<span class="chip warn">${esc(e.title)}</span>`).join('')}</div>` : ''}</div>`;
+    c.innerHTML = `<div class="ribbon">Real Estate Capital</div><div class="deck life">Life</div><div class="deck world">World</div><div class="stage" id="stage"></div>`;
+    const stage = $('#stage');
+    const dice = document.createElement('div'); dice.className = 'dice'; dice.textContent = st.dice ? DICE[st.dice[0] - 1] + DICE[st.dice[1] - 1] : '🎲'; stage.appendChild(dice);
+    if (!moving()) stage.appendChild(actionCard(q));
+    if (st.effects.length) stage.insertAdjacentHTML('beforeend', `<div class="fx">${st.effects.map(e => `<span class="chip warn">${esc(e.title)}</span>`).join('')}</div>`);
   }
 
   /* ---------------- rail: action card, me, players ---------------- */
-  function renderRail() {
-    const g = ui.game, st = g.state, q = g.pending, rail = $('#rail');
-    rail.innerHTML = '';
-    rail.appendChild(actionCard(q));
-    const p = actorOf(q) || g.current();
-    if (p && p.bg) rail.appendChild(meCard(p, q));
-    rail.appendChild(playersCard());
+  function renderSide() {
+    const g = ui.game, st = g.state, q = g.pending, side = $('#side');
+    side.innerHTML = '';
+    const order = st.players.slice();
+    order.forEach(p => side.appendChild(playerCard(p, q)));
+  }
+  function playerCard(p, q) {
+    const g = ui.game, st = g.state, cur = g.current();
+    const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null;
+    const isTurn = cur && cur.id === p.id && !st.over;
+    const manage = q && !p.isAI && (q.type === 'turn' || q.type === 'endTurn' || q.type === 'debt') && q.playerId === p.id;
+    const el = document.createElement('div'); el.className = 'pc' + (isTurn ? ' turn' : '') + (p.isAI ? '' : ' human');
+    el.style.setProperty('--pc', p.color);
+    const mine = g.propsOf(p.id).sort((a, b) => a - b);
+    const tiles = mine.map(i => { const sq = g.sq(i), pr = g.prop(i), grp = D.GROUPS[sq.group]; return `<button class="tile ${pr.mortgaged ? 'mort' : ''}" data-i="${i}" style="background:${grp.color}" title="${esc(sq.name)}">${pr.houses === 5 ? 'H' : pr.houses || ''}</button>`; }).join('');
+    const flags = [];
+    if (p.hospital) flags.push('🏥');
+    if (!p.insured && p.bg) flags.push('<span title="No health insurance">🚫🩺</span>');
+    if (p.loan) flags.push(`<span title="Loan">💳 ${fmt(p.loan, true)}</span>`);
+    if (p.invest) flags.push(`<span title="Invested">📈 ${fmt(p.invest, true)}</span>`);
+    if (p.bankruptcies) flags.push(`<span title="Bankruptcies">💥 ×${p.bankruptcies}</span>`);
+    el.innerHTML = `<div class="pc-head"><span class="avatar" style="border-color:${p.color}">${p.token}</span><div class="pc-name"><b>${esc(p.name)}</b><span>${bg ? bg.icon + ' ' + esc(bg.title) : ''}</span></div>${isTurn ? '<span class="pc-turn">TURN</span>' : ''}</div>
+      <div class="pc-cash ${p.cash < 0 ? 'bad' : ''}">${fmt(p.cash)}</div>
+      <div class="pc-sub">Net worth ${fmt(g.netWorth(p), true)}${p.bg ? ` · Income ${fmt(p.salary + p.trust, true)}/yr` : ''}</div>
+      <div class="tiles">${tiles || '<span class="muted" style="font-size:12px">No properties</span>'}</div>
+      ${flags.length ? `<div class="pc-flags">${flags.join(' ')}</div>` : ''}`;
+    el.querySelectorAll('.tile').forEach(t => { t.onclick = () => showDeed(Number(t.dataset.i)); });
+    if (manage) {
+      const row = document.createElement('div'); row.className = 'pc-actions';
+      row.appendChild(btn('Bank', () => bankModal(p), { cls: 'small' }));
+      if (q.type !== 'debt') row.appendChild(btn(p.insured ? 'Drop insurance' : 'Insure', () => act({ type: 'insurance', playerId: p.id, on: !p.insured }), { cls: 'small', title: `${fmt(D.COSTS.premium)} a year` }));
+      if (q.type !== 'debt' && g.active().length > 1) row.appendChild(btn('Trade', () => tradeModal(p), { cls: 'small' }));
+      el.appendChild(row);
+    }
+    return el;
+  }
+  function bankModal(p) {
+    const g = ui.game, q = g.pending, debtOnly = q && q.type === 'debt';
+    const credit = Math.max(0, p.credit - p.loan);
+    const html = `<div class="kv"><div><span>Cash</span><b>${fmt(p.cash)}</b></div><div><span>Loan</span><b>${fmt(p.loan)} at ${Math.round(p.loanRate * 100)}%</b></div><div><span>Credit left</span><b>${fmt(credit)}</b></div><div><span>Invested</span><b>${fmt(p.invest)} (+${Math.round(D.COSTS.investReturn * 100)}%/yr)</b></div>${p.debt ? `<div><span>Student debt</span><b>${fmt(p.debt)}</b></div>` : ''}</div>
+      <div class="amt"><label>Amount <input type="number" id="bankAmt" min="1000" step="1000" value="${Math.min(50000, Math.max(1000, credit || p.cash))}" style="width:150px"></label></div>`;
+    const opts = [];
+    if (credit >= 1000) opts.push({ id: 'loan', label: 'Borrow' });
+    if (p.loan > 0 && p.cash >= 1000 && !debtOnly) opts.push({ id: 'repayLoan', label: 'Repay loan' });
+    if (p.cash >= 10000 && !debtOnly) opts.push({ id: 'invest', label: 'Invest' });
+    if (p.invest > 0) opts.push({ id: 'cashOut', label: 'Cash out investments' });
+    opts.push({ id: 'cancel', label: 'Close' });
+    modal({ title: 'Bank', html, options: opts, onRender: box => { box.querySelectorAll('.opt').forEach(b => { if (b.dataset.id === 'cancel') return; b.onclick = () => { const amt = Number(box.querySelector('#bankAmt').value) || 0; $('#modal').hidden = true; act({ type: b.dataset.id, playerId: p.id, amount: amt }); }; }); } });
   }
   function explainBox(pid, key) {
     if (!key || seen(pid, key) || !D.EXPLAIN[key]) return '';
@@ -191,58 +238,58 @@
   function btn(label, fn, o) { const b = document.createElement('button'); b.className = 'btn ' + ((o && o.cls) || ''); b.textContent = label; b.disabled = !!(o && o.disabled); b.title = (o && o.title) || ''; b.onclick = fn; return b; }
   function actionCard(q) {
     const g = ui.game, st = g.state;
-    const card = document.createElement('div'); card.className = 'act';
+    const card = document.createElement('div'); card.className = 'act' + (q ? ' t-' + q.type : '');
     if (!q || st.over) { if (st.over && !ui.shownOver) { ui.shownOver = true; setTimeout(showGameOver, 600); } card.innerHTML = `<h2>Game over</h2><div class="text">${st.winner !== null ? esc(g.player(st.winner).name) + ' finishes richest.' : ''}</div>`; card.appendChild(btn('See the results', showGameOver, { cls: 'primary big' })); return card; }
     const p = actorOf(q);
     const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null;
     const label = bg ? `${bg.icon} ${bg.title}` : '';
-    if (p.isAI) { card.innerHTML = who(p, label) + `<div class="text muted">…</div>`; return card; }
+    if (p.isAI) { card.innerHTML = `<div class="text muted">${esc(p.name)} is ${q.type === 'spin' ? 'spinning' : 'playing'}…</div>`; return card; }
     card.classList.add('mine');
     const btns = document.createElement('div'); btns.className = 'btns';
     const pid = p.id;
     switch (q.type) {
       case 'spin':
-        card.innerHTML = who(p, label) + `<h2>Spin the wheel</h2>${explainBox(pid, 'spin')}`;
+        card.innerHTML = `<h2>Spin the wheel</h2>${explainBox(pid, 'spin')}`;
         btns.appendChild(btn(ui.spinning ? 'Spinning…' : '🎡 Spin', async () => { if (ui.spinning) return; markSeen(pid, 'spin'); render(); await spinWheel(p); act({ type: 'spin', playerId: pid }); }, { cls: 'primary big', disabled: ui.spinning }));
         break;
       case 'notice': case 'card': {
         if (q.type === 'card') { card.classList.add('t-card', 'deck-' + q.deck); }
-        card.innerHTML = who(p, label) + (q.type === 'card' ? `<div class="deckhead">${q.deck === 'life' ? '? Life' : '🌍 World'}</div>` : '') + `<h2>${esc(q.title.replace(/^[^\w+$-]+/, ''))}</h2>${q.text ? `<div class="text">${esc(q.text)}</div>` : ''}${q.lines && q.lines.length ? `<div class="lines">${q.lines.map(l => `<div><span>${esc(l)}</span></div>`).join('')}</div>` : ''}${q.real ? `<details class="explain real"><summary>🌍 In the real world</summary><div>${esc(q.real)}</div></details>` : ''}${explainBox(pid, q.explain)}`;
+        card.innerHTML = (q.type === 'card' ? `<div class="deckhead">${q.deck === 'life' ? '? Life' : '🌍 World'}</div>` : '') + `<h2>${esc(q.title.replace(/^[^\w+$-]+/, ''))}</h2>${q.text ? `<div class="text">${esc(q.text)}</div>` : ''}${q.lines && q.lines.length ? `<div class="lines">${q.lines.map(l => `<div><span>${esc(l)}</span></div>`).join('')}</div>` : ''}${q.real ? `<details class="explain real"><summary>🌍 In the real world</summary><div>${esc(q.real)}</div></details>` : ''}${explainBox(pid, q.explain)}`;
         btns.appendChild(btn('OK', () => act({ type: 'ack', playerId: pid }), { cls: 'primary big' }));
         break;
       }
       case 'buy': {
         const i = q.square;
-        card.innerHTML = who(p, label) + deedHtml(i) + explainBox(pid, 'buy');
+        card.innerHTML = deedHtml(i) + explainBox(pid, 'buy');
         btns.appendChild(btn(q.needsLoan ? `Buy ${fmt(q.price)} (borrow ${fmt(Math.ceil(q.needsLoan / D.COSTS.loanStep) * D.COSTS.loanStep)})` : `Buy ${fmt(q.price)}`, () => act({ type: 'buy', playerId: pid }), { cls: 'primary big' }));
         btns.appendChild(btn('Auction', () => act({ type: 'pass', playerId: pid }), { cls: 'big' }));
         break;
       }
       case 'bid': {
         const i = q.square, maxBid = Math.floor((p.cash + Math.max(0, p.credit - p.loan)) / D.COSTS.auctionStep) * D.COSTS.auctionStep;
-        card.innerHTML = who(p, label) + `<h2>Auction</h2>` + deedHtml(i) + explainBox(pid, 'auction') + `<div class="amt"><label>Bid <input type="number" id="bidAmt" min="0" max="${maxBid}" step="${D.COSTS.auctionStep}" value="${Math.min(maxBid, Math.round(g.price(i) * 0.8 / D.COSTS.auctionStep) * D.COSTS.auctionStep)}" style="width:150px"></label><span class="muted" style="font-size:12px">max ${fmt(maxBid)}</span></div>`;
+        card.innerHTML = `<h2>Auction</h2>` + deedHtml(i) + explainBox(pid, 'auction') + `<div class="amt"><label>Bid <input type="number" id="bidAmt" min="0" max="${maxBid}" step="${D.COSTS.auctionStep}" value="${Math.min(maxBid, Math.round(g.price(i) * 0.8 / D.COSTS.auctionStep) * D.COSTS.auctionStep)}" style="width:150px"></label><span class="muted" style="font-size:12px">max ${fmt(maxBid)}</span></div>`;
         btns.appendChild(btn('Bid', () => act({ type: 'bid', playerId: pid, amount: Number(card.querySelector('#bidAmt').value) || 0 }), { cls: 'primary big', disabled: maxBid < D.COSTS.auctionStep }));
         btns.appendChild(btn('No bid', () => act({ type: 'bid', playerId: pid, amount: 0 }), { cls: 'big' }));
         break;
       }
       case 'turn':
-        card.innerHTML = who(p, label) + `<h2>${q.again ? 'Doubles! Roll again' : 'Your turn'}</h2>`;
+        card.innerHTML = `<h2>${q.again ? 'Doubles! Roll again' : 'Your turn'}</h2>`;
         btns.appendChild(btn('🎲 Roll', () => act({ type: 'roll', playerId: pid }), { cls: 'primary big' }));
         break;
       case 'hospital': {
         const bill = p.insured ? D.COSTS.hospitalBillInsured : D.COSTS.hospitalBill;
-        card.innerHTML = who(p, label) + `<h2>Hospital · turn ${q.turn}/3</h2>${explainBox(pid, 'hospital')}`;
+        card.innerHTML = `<h2>Hospital · turn ${q.turn}/3</h2>${explainBox(pid, 'hospital')}`;
         btns.appendChild(btn(`Pay ${fmt(bill)}${p.insured ? ' (insured)' : ''}`, () => act({ type: 'hospitalPay', playerId: pid }), { cls: 'primary big' }));
         btns.appendChild(btn('🎲 Roll for doubles', () => act({ type: 'roll', playerId: pid }), { cls: 'big' }));
         break;
       }
       case 'endTurn':
-        card.innerHTML = who(p, label) + `<h2>Your turn</h2>`;
+        card.innerHTML = `<h2>Your turn</h2>`;
         btns.appendChild(btn('End turn', () => act({ type: 'endTurn', playerId: pid }), { cls: 'primary big' }));
         break;
       case 'debt': {
         const canRaise = g.liquid(p) >= 0;
-        card.innerHTML = who(p, label) + `<h2>${fmt(Math.max(0, -p.cash))} short</h2>${explainBox(pid, 'debt')}`;
+        card.innerHTML = `<h2>${fmt(Math.max(0, -p.cash))} short</h2>${explainBox(pid, 'debt')}`;
         if (p.cash >= 0) btns.appendChild(btn('Pay and continue', () => act({ type: 'payDebt', playerId: pid }), { cls: 'primary big' }));
         else if (!canRaise) btns.appendChild(btn('Declare bankruptcy', () => act({ type: 'bankrupt', playerId: pid }), { cls: 'big danger' }));
         else {
@@ -259,7 +306,7 @@
       }
       case 'trade': {
         const from = g.player(q.fromId);
-        card.innerHTML = who(p, label) + `<h2>Trade from ${esc(from.name)}</h2><div class="text">${esc(g.describeTrade(q))}.</div>${explainBox(pid, 'trade')}`;
+        card.innerHTML = `<h2>Trade from ${esc(from.name)}</h2><div class="text">${esc(g.describeTrade(q))}.</div>${explainBox(pid, 'trade')}`;
         btns.appendChild(btn('Accept', () => act({ type: 'acceptTrade', playerId: pid }), { cls: 'primary big' }));
         btns.appendChild(btn('Decline', () => act({ type: 'declineTrade', playerId: pid }), { cls: 'big' }));
         break;
@@ -276,54 +323,6 @@
     else rows = `<div><span>Rent</span><b>${fmt(sq.rents[0] * g.state.priceMult)}</b></div><div><span>With the whole colour group</span><b>${fmt(sq.rents[0] * 2 * g.state.priceMult)}</b></div>` + [1, 2, 3, 4].map(k => `<div><span>With ${k} house${k > 1 ? 's' : ''}</span><b>${fmt(sq.rents[k] * g.state.priceMult)}</b></div>`).join('') + `<div><span>With a hotel</span><b>${fmt(sq.rents[5] * g.state.priceMult)}</b></div><div><span>Each house costs</span><b>${fmt(g.houseCost(i))}</b></div>`;
     return `<div class="deed"><div class="deed-top ${grp.dark ? 'dark' : ''}" style="background:${grp.color}"><span>Title deed · ${esc(grp.name)}</span><b>${esc(sq.name)}</b><span>${owner ? 'Owned by ' + esc(owner.name) + (pr.mortgaged ? ' · mortgaged' : '') : 'Price ' + fmt(g.price(i))}</span></div><div class="deed-body">${rows}<div><span>Mortgage value</span><b>${fmt(g.price(i) / 2)}</b></div></div></div>`;
   }
-  function meCard(p, q) {
-    const g = ui.game, st = g.state;
-    const manage = q && !p.isAI && (q.type === 'turn' || q.type === 'endTurn' || q.type === 'debt') && q.playerId === p.id;
-    const debtOnly = q && q.type === 'debt';
-    const el = document.createElement('div'); el.className = 'me';
-    const mine = g.propsOf(p.id);
-    const chips = [];
-    if (!p.insured) chips.push('<span class="chip bad">No insurance</span>');
-    if (p.debt) chips.push(`<span class="chip warn">Debt ${fmt(p.debt, true)}</span>`);
-    if (p.loan) chips.push(`<span class="chip warn">Loan ${fmt(p.loan, true)} · ${Math.round(p.loanRate * 100)}%</span>`);
-    if (p.invest) chips.push(`<span class="chip good">Invested ${fmt(p.invest, true)}</span>`);
-    if (p.laidOff) chips.push('<span class="chip bad">Laid off</span>');
-    if (p.bankruptcies) chips.push(`<span class="chip bad">Bankrupt ×${p.bankruptcies}</span>`);
-    el.innerHTML = `<div class="nums"><div><div class="l">Cash</div><div class="v ${p.cash < 0 ? 'bad' : ''}">${fmt(p.cash, true)}</div></div><div><div class="l">Net worth</div><div class="v">${fmt(g.netWorth(p), true)}</div></div><div><div class="l">Income</div><div class="v">${fmt(p.salary + p.trust, true)}</div></div></div>
-      ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}<div class="plist" id="plist"></div><div id="mactions" class="mactions"></div>`;
-    const list = el.querySelector('#plist');
-    mine.sort((a, b) => a - b).forEach(i => {
-      const sq = g.sq(i), pr = g.prop(i), row = document.createElement('div'); row.className = 'pitem' + (pr.mortgaged ? ' mort' : '');
-      row.innerHTML = `<span class="sw" style="background:${D.GROUPS[sq.group].color}"></span><span class="n"><a href="#" style="color:inherit;text-decoration:none">${esc(sq.name)}</a> ${pr.houses === 5 ? '🏨' : '🏠'.repeat(pr.houses)}${pr.mortgaged ? ' <span class="muted">M</span>' : ''}</span>`;
-      row.querySelector('a').onclick = e => { e.preventDefault(); showDeed(i); };
-      if (manage) {
-        const acts = document.createElement('span'); acts.className = 'acts';
-        if (!debtOnly && g.canBuild(p.id, i)) acts.appendChild(btn(`+🏠 ${fmt(g.houseCost(i), true)}`, () => act({ type: 'build', playerId: p.id, square: i }), { cls: 'small', disabled: p.cash < g.houseCost(i), title: 'Build' }));
-        if (pr.houses > 0) acts.appendChild(btn(`−🏠 +${fmt(g.houseCost(i) / 2, true)}`, () => act({ type: 'sellHouse', playerId: p.id, square: i }), { cls: 'small', title: 'Sell a house' }));
-        if (!pr.mortgaged && pr.houses === 0) acts.appendChild(btn(`Mortgage +${fmt(g.price(i) / 2, true)}`, () => act({ type: 'mortgage', playerId: p.id, square: i }), { cls: 'small' }));
-        if (pr.mortgaged && !debtOnly) acts.appendChild(btn(`Unmortgage ${fmt(g.price(i) * 0.55, true)}`, () => act({ type: 'unmortgage', playerId: p.id, square: i }), { cls: 'small', disabled: p.cash < g.price(i) * 0.55 }));
-        row.appendChild(acts);
-      }
-      list.appendChild(row);
-    });
-    if (manage) {
-      const ma = el.querySelector('#mactions');
-      if (p.credit - p.loan >= 1000) ma.appendChild(btn('Borrow', () => loanModal(p), { cls: 'small' }));
-      if (p.loan > 0 && !debtOnly && p.cash >= D.COSTS.loanStep) ma.appendChild(btn('Repay', () => act({ type: 'repayLoan', playerId: p.id, amount: Math.min(p.loan, Math.floor(p.cash / D.COSTS.loanStep) * D.COSTS.loanStep) }), { cls: 'small' }));
-      if (!debtOnly && p.cash >= 10000) ma.appendChild(btn('Invest', () => investModal(p), { cls: 'small' }));
-      if (p.invest > 0) ma.appendChild(btn('Cash out', () => act({ type: 'cashOut', playerId: p.id, amount: debtOnly ? Math.min(p.invest, Math.ceil(-p.cash / 10000) * 10000) : p.invest }), { cls: 'small' }));
-      if (!debtOnly) ma.appendChild(btn(p.insured ? 'Drop insurance' : `Insure ${fmt(D.COSTS.premium, true)}/yr`, () => act({ type: 'insurance', playerId: p.id, on: !p.insured }), { cls: 'small' }));
-      if (!debtOnly && g.active().length > 1) ma.appendChild(btn('Trade', () => tradeModal(p), { cls: 'small' }));
-    }
-    return el;
-  }
-  function playersCard() {
-    const g = ui.game, st = g.state, cur = g.current();
-    const el = document.createElement('div'); el.className = 'players';
-    el.innerHTML = st.players.map(p => { const bg = p.bg ? D.BACKGROUNDS.find(b => b.id === p.bg) : null; return `<div class="prow2 ${cur && cur.id === p.id && !st.over ? 'turn' : ''}"><span class="avatar" style="border-color:${p.color}">${p.token}</span><div class="n"><b>${esc(p.name)}</b><span>${bg ? bg.icon + ' ' + esc(bg.title) : ''}${p.hospital ? ' · 🏥' : ''}</span></div><span class="nw">${fmt(g.netWorth(p), true)}${p.bankruptcies ? ` <span class="bad" style="font-size:11px">×${p.bankruptcies} bankrupt</span>` : ''}</span></div>`; }).join('');
-    return el;
-  }
-
   /* ---------------- modals ---------------- */
   let chain = Promise.resolve();
   function modal(spec) {
@@ -331,19 +330,28 @@
       const box = $('#mbox'); $('#modal').hidden = false; box.classList.toggle('wide', !!spec.wide);
       box.innerHTML = `<h2>${esc(spec.title || '')}</h2>${spec.text ? `<div class="text">${esc(spec.text)}</div>` : ''}${spec.html || ''}<div class="opts2">${(spec.options || [{ id: 'ok', label: 'OK' }]).map(o => `<button class="opt" data-id="${esc(o.id)}" ${o.disabled ? 'disabled' : ''}>${esc(o.label)}${o.desc ? `<span class="desc">${esc(o.desc)}</span>` : ''}</button>`).join('')}</div>`;
       if (spec.onRender) { try { spec.onRender(box); } catch (e) { console.error(e); } }
-      box.querySelectorAll('.opt').forEach(b => { b.onclick = () => { $('#modal').hidden = true; resolve(b.dataset.id); }; });
+      const close = id => { $('#modal').hidden = true; ui.closeModal = null; resolve(id); };
+      ui.closeModal = close;
+      box.querySelectorAll('.opt').forEach(b => { b.onclick = () => close(b.dataset.id); });
+      $('#modal').onclick = e => { if (e.target.id === 'modal') close(null); };
     });
     const p = chain.then(run, run); chain = p.catch(() => {}); return p;
   }
-  function investModal(p) {
-    const max = Math.floor(p.cash / 10000) * 10000;
-    modal({ title: 'Invest', text: `Investments grow ${Math.round(D.COSTS.investReturn * 100)}% a year, paid at Payday. You can cash out any time, but a stock crash can cut them.`, html: `<div class="amt"><label>Amount <input type="number" id="invAmt" min="10000" max="${max}" step="10000" value="${Math.min(max, 50000)}" style="width:150px"></label></div>`, options: [{ id: 'ok', label: 'Invest' }, { id: 'cancel', label: 'Cancel' }], onRender: box => { box.querySelector('[data-id=ok]').onclick = () => { const amt = Number(box.querySelector('#invAmt').value) || 0; $('#modal').hidden = true; act({ type: 'invest', playerId: p.id, amount: amt }); }; } });
+  function showDeed(i) {
+    const g = ui.game, q = g.pending, pr = g.prop(i);
+    const p = pr.owner === null ? null : g.player(pr.owner);
+    const manage = p && q && !p.isAI && (q.type === 'turn' || q.type === 'endTurn' || q.type === 'debt') && q.playerId === p.id;
+    const opts = [];
+    if (manage) {
+      const debtOnly = q.type === 'debt';
+      if (!debtOnly && g.canBuild(p.id, i)) opts.push({ id: 'build', label: `Build ${pr.houses === 4 ? 'hotel' : 'house'} · ${fmt(g.houseCost(i))}`, disabled: p.cash < g.houseCost(i) });
+      if (pr.houses > 0) opts.push({ id: 'sellHouse', label: `Sell house · +${fmt(g.houseCost(i) / 2)}` });
+      if (!pr.mortgaged && pr.houses === 0) opts.push({ id: 'mortgage', label: `Mortgage · +${fmt(g.price(i) / 2)}` });
+      if (pr.mortgaged && !debtOnly) opts.push({ id: 'unmortgage', label: `Pay off mortgage · ${fmt(g.price(i) * 0.55)}`, disabled: p.cash < g.price(i) * 0.55 });
+    }
+    opts.push({ id: 'close', label: 'Close' });
+    modal({ title: '', html: deedHtml(i), options: opts }).then(r => { if (r && r !== 'close') act({ type: r, playerId: p.id, square: i }); });
   }
-  function loanModal(p) {
-    const g = ui.game, max = p.credit - p.loan;
-    modal({ title: p.loanRate >= 0.2 ? 'Borrow from a payday lender' : 'Borrow from the bank', text: `You can borrow up to ${fmt(max)} more, at ${Math.round(p.loanRate * 100)}% interest a year, paid at every Payday.`, html: `<div class="amt"><label>Amount <input type="number" id="loanAmt" min="1000" max="${max}" step="1000" value="${Math.min(max, 50000)}" style="width:150px"></label></div>`, options: [{ id: 'ok', label: 'Borrow' }, { id: 'cancel', label: 'Cancel' }], onRender: box => { box.querySelector('[data-id=ok]').onclick = () => { const amt = Number(box.querySelector('#loanAmt').value) || 0; $('#modal').hidden = true; act({ type: 'loan', playerId: p.id, amount: amt }); }; } });
-  }
-  function showDeed(i) { const g = ui.game; ui.selected = i; modal({ title: '', html: deedHtml(i), options: [{ id: 'ok', label: 'Close' }] }); }
   function showExplain(key) { const e = D.EXPLAIN[key]; modal({ title: e[0], text: e[1], options: [{ id: 'ok', label: 'Got it' }] }); }
   function showHelp() {
     modal({ title: 'How to play', html: `<div class="howto">
@@ -402,6 +410,7 @@
   }
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && ui.closeModal) { ui.closeModal(null); return; }
     if (e.key !== 'Enter' && e.key !== ' ') return;
     if (e.target && ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
     const m = $('#modal'); if (m && !m.hidden) return;
