@@ -119,7 +119,12 @@ const KEY = 'echo-city-settings-v1';
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return structuredClone(DEFAULT_SETTINGS);
+    if (!raw) {
+      // first launch: pick graphics for this machine
+      const s = structuredClone(DEFAULT_SETTINGS);
+      s.graphics = { ...PRESETS[detectPreset()] };
+      return s;
+    }
     const s = JSON.parse(raw) as Partial<Settings>;
     return {
       graphics: { ...DEFAULT_SETTINGS.graphics, ...(s.graphics ?? {}) },
@@ -151,9 +156,10 @@ export function detectPreset(): Preset {
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
     const renderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
     if (/swiftshader|llvmpipe|software/i.test(renderer)) return 'low';
-    if (/rtx|radeon rx|apple m[2-9]|arc a7/i.test(renderer) && cores >= 8) return 'high';
-    if (cores <= 4 || mem <= 4) return 'medium';
-    return 'high';
+    if (cores <= 4 || mem <= 4) return /rtx|radeon rx/i.test(renderer) ? 'medium' : 'low';
+    // discrete GPUs and Apple silicon get HIGH; integrated or unknown GPUs start on MEDIUM
+    if (/rtx|gtx 1[06-9]|radeon rx|apple m\d|arc a[57]/i.test(renderer)) return 'high';
+    return 'medium';
   } catch {
     return 'medium';
   }
