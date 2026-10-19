@@ -41,21 +41,25 @@
 
   function manage(game, p) {
     if (!p.insured && p.cash > 50000) return { type: 'insurance', playerId: p.id, on: true };
+    if (p.loan > 0 && p.loanRate >= 0.2 && p.cash >= 10000) return { type: 'repayLoan', playerId: p.id, amount: Math.min(p.loan, Math.floor(p.cash / 10000) * 10000) };
     if (p.loan > 0 && p.cash > p.loan + reserve(game, p) * 2) return { type: 'repayLoan', playerId: p.id, amount: Math.min(p.loan, Math.floor((p.cash - reserve(game, p) * 2) / 10000) * 10000) || p.loan };
     for (const i of game.propsOf(p.id)) { const pr = game.prop(i); if (pr.mortgaged && p.cash > game.price(i) * 0.55 + reserve(game, p) * 1.5) return { type: 'unmortgage', playerId: p.id, square: i }; }
     const buildable = game.propsOf(p.id).filter(i => game.canBuild(p.id, i)).sort((a, b) => game.prop(a).houses - game.prop(b).houses || game.houseCost(a) - game.houseCost(b));
     if (buildable.length) { const i = buildable[0]; if (p.cash - game.houseCost(i) > reserve(game, p) * 0.4) return { type: 'build', playerId: p.id, square: i }; }
     const t = proposeTrade(game, p); if (t) return t;
+    if (p.cash > reserve(game, p) * 3 + 100000 && !savingForHouses(game, p)) return { type: 'invest', playerId: p.id, amount: Math.floor((p.cash - reserve(game, p) * 3) / 2 / 10000) * 10000 };
     return null;
   }
 
   function raise(game, p) {
     const need = -p.cash;
-    if (p.credit - p.loan >= 10000) return { type: 'loan', playerId: p.id, amount: Math.min(p.credit - p.loan, Math.ceil(need / 10000) * 10000) };
+    if (p.invest >= 10000) return { type: 'cashOut', playerId: p.id, amount: Math.min(p.invest, Math.ceil(need / 10000) * 10000) };
+    if (p.credit - p.loan >= 10000 && p.loanRate < 0.2) return { type: 'loan', playerId: p.id, amount: Math.min(p.credit - p.loan, Math.ceil(need / 10000) * 10000) };
     const withHouses = game.propsOf(p.id).filter(i => game.prop(i).houses > 0).sort((a, b) => game.prop(b).houses - game.prop(a).houses);
     if (withHouses.length) return { type: 'sellHouse', playerId: p.id, square: withHouses[0] };
     const mort = game.propsOf(p.id).filter(i => !game.prop(i).mortgaged).sort((a, b) => game.price(a) - game.price(b));
     if (mort.length) return { type: 'mortgage', playerId: p.id, square: mort[0] };
+    if (p.credit - p.loan >= 10000) return { type: 'loan', playerId: p.id, amount: Math.min(p.credit - p.loan, Math.ceil(need / 10000) * 10000) };
     return { type: 'bankrupt', playerId: p.id };
   }
 
@@ -68,12 +72,12 @@
       case 'hospital': { const bill = p.insured ? D.COSTS.hospitalBillInsured : D.COSTS.hospitalBill; return p.cash > bill + reserve(game, p) || q.turn >= 3 ? { type: 'hospitalPay', playerId: p.id } : { type: 'roll', playerId: p.id }; }
       case 'buy': {
         const w = wantsSquare(game, p, q.square);
-        const afford = p.cash + (w >= 2 ? Math.max(0, p.credit - p.loan) : 0) - savingForHouses(game, p) * (w >= 2 ? 0 : 1);
+        const afford = p.cash + (w >= 2 && p.loanRate < 0.2 ? Math.max(0, p.credit - p.loan) : 0) - savingForHouses(game, p) * (w >= 2 ? 0 : 1);
         return { type: afford - q.price > reserve(game, p) / w ? 'buy' : 'pass', playerId: p.id };
       }
       case 'bid': {
         const w = wantsSquare(game, p, q.square), price = game.price(q.square);
-        const max = Math.min(p.cash + (w >= 2 ? Math.max(0, p.credit - p.loan) : 0) - reserve(game, p) * 0.5 - (w >= 2 ? 0 : savingForHouses(game, p)), price * (w >= 2 ? 1.3 : w >= 1.5 ? 0.9 : 0.6));
+        const max = Math.min(p.cash + (w >= 2 && p.loanRate < 0.2 ? Math.max(0, p.credit - p.loan) : 0) - reserve(game, p) * 0.5 - (w >= 2 ? 0 : savingForHouses(game, p)), price * (w >= 2 ? 1.3 : w >= 1.5 ? 0.9 : 0.6));
         const bid = Math.floor(Math.max(0, max) / 10000) * 10000;
         return { type: 'bid', playerId: p.id, amount: bid >= 10000 ? bid : 0 };
       }

@@ -31,8 +31,8 @@
         rng: seed, round: 1, turn: 0, queue: [], over: false, winner: null,
         priceMult: 1, effects: [], log: [], news: [],
         players: cfg.players.map((pc, i) => ({ id: i, name: pc.name || `Player ${i + 1}`, token: pc.token || D.TOKENS[i % D.TOKENS.length], color: D.COLORS[i % D.COLORS.length], isAI: !!pc.isAI,
-          bg: null, cash: 0, salary: 0, insured: false, debt: 0, loan: 0, credit: 0, position: 0, hospital: 0, laidOff: false, laps: 0, doubles: 0, bankrupt: false,
-          stats: { tax: 0, rentPaid: 0, rentGot: 0, medical: 0, wages: 0, interest: 0 }, startNW: 0, history: [] })),
+          bg: null, cash: 0, salary: 0, living: 0, insured: false, debt: 0, loan: 0, credit: 0, loanRate: 0.10, trust: 0, invest: 0, family: 0, unstable: false, position: 0, hospital: 0, laidOff: false, laps: 0, doubles: 0, bankrupt: false,
+          stats: { tax: 0, rentPaid: 0, rentGot: 0, medical: 0, wages: 0, interest: 0, passive: 0, living: 0 }, startNW: 0, history: [] })),
         auction: null, lastOffer: {},
         props: {},
         decks: { life: [], world: [] },
@@ -41,8 +41,10 @@
       st.decks.life = shuffle(st, D.LIFE.map(c => c.id));
       st.decks.world = shuffle(st, D.WORLD.map(c => c.id));
       // pre-roll the wheel so spins are deterministic and backgrounds are unique while possible
-      const bgs = shuffle(st, D.BACKGROUNDS.map(b => b.id));
-      st.wheel = st.players.map((p, i) => bgs[i % bgs.length]);
+      const n = st.players.length, all = D.BACKGROUNDS.map(b => b.id);
+      const pickTiers = { 1: ['poor'], 2: ['oldmoney', 'poor'], 3: ['oldmoney', 'working', 'poor'], 4: ['oldmoney', 'upper', 'working', 'poor'], 5: all }[n];
+      const tiers = pickTiers || all.concat(shuffle(st, all)).slice(0, n);
+      st.wheel = shuffle(st, tiers);
       st.queue.push({ type: 'spin', playerId: 0 });
       this.listeners = [];
       this.log(`Game begins: ${st.players.length} players, ${st.cfg.rounds} rounds. Spin the wheel to find out who you are.`);
@@ -75,8 +77,8 @@
     }
     propValue(i) { const pr = this.prop(i); return (pr.mortgaged ? this.price(i) / 2 : this.price(i)) + pr.houses * this.houseCost(i) / 2; }
     propsOf(id) { return Object.keys(this.state.props).map(Number).filter(i => this.prop(i).owner === id); }
-    netWorth(p) { if (p.bankrupt) return 0; let nw = p.cash - p.debt - p.loan; this.propsOf(p.id).forEach(i => { nw += this.propValue(i); }); return round(nw); }
-    liquid(p) { let v = p.cash + (p.credit - p.loan); this.propsOf(p.id).forEach(i => { const pr = this.prop(i); v += pr.houses * this.houseCost(i) / 2; if (!pr.mortgaged) v += this.price(i) / 2; }); return v; }
+    netWorth(p) { if (p.bankrupt) return 0; let nw = p.cash + p.invest - p.debt - p.loan; this.propsOf(p.id).forEach(i => { nw += this.propValue(i); }); return round(nw); }
+    liquid(p) { let v = p.cash + p.invest + (p.credit - p.loan) + p.family; this.propsOf(p.id).forEach(i => { const pr = this.prop(i); v += pr.houses * this.houseCost(i) / 2; if (!pr.mortgaged) v += this.price(i) / 2; }); return v; }
     incomeTax(salary) { let tax = 0, prev = 0; for (const [cap, rate] of D.TAX.brackets) { if (salary > prev) tax += (Math.min(salary, cap) - prev) * rate; prev = cap; } return round(tax * this.effect('taxMult', 1)); }
     canBuild(id, i) { const sq = this.sq(i), pr = this.prop(i); return sq.group !== 'transport' && pr.owner === id && !pr.mortgaged && pr.houses < 5 && this.ownsGroup(id, sq.group) && !this.groupSquares(sq.group).some(j => this.prop(j).mortgaged); }
 
@@ -104,6 +106,8 @@
         case 'pass': if (q.type !== 'buy' || q.playerId !== a.playerId) return this.fail(); st.queue.shift(); this.log(`${p.name} passes on ${this.sq(q.square).name}.`, 'info', p.id); this.startAuction(q.square, p.id); return this.ok();
         case 'bid': if (q.type !== 'bid' || q.playerId !== a.playerId) return this.fail(); return this.doBid(p, a.amount || 0);
         case 'loan': if (!manageOK || q.playerId !== a.playerId) return this.fail(); return this.doLoan(p, a.amount);
+        case 'invest': if (!manageOK || q.playerId !== a.playerId || q.type === 'debt') return this.fail(); return this.doInvest(p, a.amount);
+        case 'cashOut': if (!manageOK || q.playerId !== a.playerId) return this.fail(); return this.doCashOut(p, a.amount);
         case 'repayLoan': if (!manageOK || q.playerId !== a.playerId || q.type === 'debt') return this.fail(); return this.doRepay(p, a.amount);
         case 'ack': if ((q.type !== 'notice' && q.type !== 'card') || q.playerId !== a.playerId) return this.fail(); st.queue.shift(); this.afterLanding(); return this.ok();
         case 'endTurn': if (q.type !== 'endTurn' || q.playerId !== a.playerId) return this.fail(); st.queue.shift(); this.nextTurn(); return this.ok();
@@ -127,7 +131,7 @@
     doSpin(p) {
       const st = this.state;
       const bg = D.BACKGROUNDS.find(b => b.id === st.wheel[p.id]);
-      p.bg = bg.id; p.cash = bg.cash; p.salary = bg.salary; p.insured = !!bg.insured; p.debt = bg.debt || 0; p.credit = bg.credit || 0;
+      p.bg = bg.id; p.cash = bg.cash; p.salary = bg.salary; p.living = bg.living || 0; p.insured = !!bg.insured; p.debt = bg.debt || 0; p.credit = bg.credit || 0; p.loanRate = bg.loanRate || 0.10; p.trust = bg.trust || 0; p.invest = bg.invest || 0; p.family = bg.family || 0; p.unstable = !!bg.unstable;
       let inherited = 0;
       (bg.inherit || []).forEach(group => {
         const free = this.groupSquares(group).filter(i => this.prop(i).owner === null);
@@ -139,14 +143,22 @@
       p.startNW = this.netWorth(p);
       st.queue.shift();
       this.log(`${p.name} spins the wheel: ${bg.title}. ${bg.desc}`, 'spin', p.id);
-      const lines = [`Cash ${fmt(p.cash)}`, `Salary ${fmt(p.salary)} a year`, p.insured ? 'Health insurance: yes' : 'Health insurance: none'];
+      const lines = [`Cash ${fmt(p.cash)}`, `Salary ${fmt(p.salary)} a year${p.unstable ? ' (hours can be cut)' : ''}`, `Living costs ${fmt(p.living)} a year`, p.insured ? 'Health insurance: yes' : 'Health insurance: none'];
+      if (p.trust) lines.push(`Family trust pays ${fmt(p.trust)} a year`);
+      if (p.invest) lines.push(`Investments ${fmt(p.invest)}, growing ${Math.round(D.COSTS.investReturn * 100)}% a year`);
+      if (p.family) lines.push(`Family will cover a shortfall once, up to ${fmt(p.family)}`);
       if (inherited) lines.push(`Inherited property worth ${fmt(inherited)}${estate ? ` (estate tax paid: ${fmt(estate)})` : ''}${bg.mortgaged ? ', mortgaged' : ''}`);
       if (p.debt) lines.push(`Student loan ${fmt(p.debt)}, taken from your first payday`);
-      lines.push(`The bank will lend you up to ${fmt(p.credit)}`);
+      lines.push(`${p.loanRate >= 0.2 ? 'A payday lender' : 'The bank'} will lend you up to ${fmt(p.credit)} at ${Math.round(p.loanRate * 100)}%`);
       this.notice(p.id, `${bg.icon} ${bg.title}`, bg.desc, { lines, real: bg.real, explain: 'spin', bg: bg.id });
       const next = st.players.find(x => x.id > p.id);
       if (next) this.push({ type: 'spin', playerId: next.id });
-      else { this.log('Everyone has a life. Let the game begin.'); this.startTurn(); }
+      else {
+        this.log('Everyone has a life. Let the game begin.');
+        const rows = st.players.slice().sort((a, b) => this.netWorth(b) - this.netWorth(a)).map(x => `${x.name}: ${D.BACKGROUNDS.find(b => b.id === x.bg).title}. Net worth ${fmt(this.netWorth(x), true)}, ${this.propsOf(x.id).length} propert${this.propsOf(x.id).length === 1 ? 'y' : 'ies'}, earns ${fmt(x.salary + x.trust, true)} a year.`);
+        st.players.forEach(x => { if (!x.isAI) this.notice(x.id, 'Who starts where', 'Same board, same dice, very different starting lines.', { lines: rows, explain: 'living' }); });
+        this.startTurn();
+      }
       return this.ok();
     }
 
@@ -177,7 +189,7 @@
       const rank = this.ranking(); st.winner = rank[0] ? rank[0].id : null;
       this.log(`Game over. ${rank[0] ? rank[0].name + ' finishes with the highest net worth: ' + fmt(this.netWorth(rank[0])) : 'Nobody survived.'}`, 'news');
     }
-    ranking() { return this.state.players.slice().sort((a, b) => (b.bankrupt ? 0 : 1) - (a.bankrupt ? 0 : 1) || this.netWorth(b) - this.netWorth(a)); }
+    ranking() { return this.state.players.slice().sort((a, b) => this.netWorth(b) - this.netWorth(a)); }
     checkEnd() { if (this.active().length <= 1 && this.state.players.length > 1) { this.finish(); return true; } return false; }
 
     doRoll(p) {
@@ -213,15 +225,22 @@
       let gross = p.salary * this.effect('salaryNext', 1);
       const effIdx = st.effects.findIndex(e => e.salaryNext !== undefined); if (effIdx >= 0) delete st.effects[effIdx].salaryNext;
       const lines = [];
-      if (p.laidOff) { gross = D.COSTS.unemployment; p.laidOff = false; lines.push(`Unemployment benefit ${fmt(gross)} (you were laid off)`); } else lines.push(`Salary ${fmt(gross)}`);
+      if (p.laidOff) { gross = D.COSTS.unemployment; p.laidOff = false; lines.push(`Unemployment benefit ${fmt(gross)} (you were laid off)`); }
+      else if (p.unstable && rand(st) < 0.3) { gross = round(gross / 2); lines.push(`Salary ${fmt(gross)} (your hours were cut this year)`); }
+      else lines.push(`Salary ${fmt(gross)}`);
+      if (p.trust) { lines.push(`Family trust +${fmt(p.trust)}`); p.stats.passive += p.trust; }
+      const growth = round(p.invest * D.COSTS.investReturn);
+      if (growth) { lines.push(`Investment returns +${fmt(growth)}`); p.stats.passive += growth; }
+      gross += p.trust + growth;
       const tax = this.incomeTax(gross); lines.push(`Income tax -${fmt(tax)}`);
       let net = gross - tax;
+      if (p.living) { net -= p.living; p.stats.living += p.living; lines.push(`Living costs -${fmt(p.living)}`); }
       if (p.insured) { net -= D.COSTS.premium; lines.push(`Health insurance -${fmt(D.COSTS.premium)}`); }
       if (p.debt > 0) { const pay = Math.min(p.debt, net); net -= pay; p.debt -= pay; lines.push(`Student loan repayment -${fmt(pay)}`); }
-      if (p.loan > 0) { const interest = round(p.loan * D.COSTS.loanRate); net -= interest; p.stats.interest += interest; lines.push(`Interest on ${fmt(p.loan)} bank loan -${fmt(interest)}`); }
-      p.stats.tax += tax; p.stats.wages += gross;
+      if (p.loan > 0) { const interest = round(p.loan * p.loanRate); net -= interest; p.stats.interest += interest; lines.push(`Interest on ${fmt(p.loan)} loan at ${Math.round(p.loanRate * 100)}% -${fmt(interest)}`); }
+      p.stats.tax += tax; p.stats.wages += gross - p.trust - growth;
       if (net < 0) { this.charge(p, -net, null, 'interest'); } else p.cash += net;
-      this.log(`${p.name} passes Payday: ${fmt(gross)} salary, ${fmt(tax)} tax, keeps ${fmt(net)}.`, 'payday', p.id);
+      this.log(`${p.name} passes Payday: ${fmt(gross)} income, ${fmt(tax)} tax, ${fmt(p.living)} living costs, keeps ${fmt(net)}.`, 'payday', p.id);
       this.notice(p.id, '💵 Payday', `Another year. You take home ${fmt(net)}.`, { lines, explain: 'payday' });
     }
     land(p, dice) {
@@ -318,13 +337,29 @@
       return this.ok();
     }
 
+    /* ---------- investments ---------- */
+    doInvest(p, amount) {
+      amount = Math.floor((amount || 0) / 10000) * 10000;
+      if (amount < 10000 || p.cash < amount) return this.fail('Invest in steps of $10,000 you actually have');
+      p.cash -= amount; p.invest += amount;
+      this.log(`${p.name} invests ${fmt(amount)} (${fmt(p.invest)} invested).`, 'deal', p.id);
+      return this.ok('explain:invest');
+    }
+    doCashOut(p, amount) {
+      amount = Math.min(p.invest, Math.floor((amount || p.invest) / 10000) * 10000 || p.invest);
+      if (amount <= 0) return this.fail('Nothing invested');
+      p.invest -= amount; p.cash += amount;
+      this.log(`${p.name} cashes out ${fmt(amount)} of investments.`, 'deal', p.id);
+      return this.ok();
+    }
+
     /* ---------- bank loans ---------- */
     doLoan(p, amount) {
       amount = Math.floor((amount || D.COSTS.loanStep) / D.COSTS.loanStep) * D.COSTS.loanStep;
       if (amount <= 0) return this.fail('Bad amount');
       if (p.loan + amount > p.credit) return this.fail(`The bank will only lend you ${fmt(p.credit - p.loan)} more`);
       p.loan += amount; p.cash += amount;
-      this.log(`${p.name} borrows ${fmt(amount)} from the bank (${fmt(p.loan)} owed, 10% interest a year).`, 'deal', p.id);
+      this.log(`${p.name} borrows ${fmt(amount)} (${fmt(p.loan)} owed at ${Math.round(p.loanRate * 100)}% a year).`, 'deal', p.id);
       return this.ok('explain:loan');
     }
     doRepay(p, amount) {
@@ -342,9 +377,11 @@
       const c = (deck === 'life' ? D.LIFE : D.WORLD).find(x => x.id === id);
       const lines = [];
       if (deck === 'life') {
-        if (c.cash !== undefined) { const amt = p.insured && c.insuredCash !== undefined ? c.insuredCash : c.cash; if (amt < 0) this.charge(p, -amt, null, 'life'); else p.cash += amt; lines.push(`${amt >= 0 ? '+' : '-'}${fmt(Math.abs(amt))}${p.insured && c.insuredCash !== undefined ? ' (insured)' : ''}`); }
+        if (c.id === 'hourscut' && this.propsOf(p.id).length > 0) { lines.push('You have property income: no effect'); }
+        else if (c.cash !== undefined) { const amt = p.insured && c.insuredCash !== undefined ? c.insuredCash : c.cash; if (amt < 0) this.charge(p, -amt, null, 'life'); else p.cash += amt; lines.push(`${amt >= 0 ? '+' : '-'}${fmt(Math.abs(amt))}${p.insured && c.insuredCash !== undefined ? ' (insured)' : ''}`); }
         if (c.salaryPct) { p.salary = round(p.salary * (1 + c.salaryPct) / 1000) * 1000; lines.push(`Salary now ${fmt(p.salary)}`); }
         if (c.laidOff) { p.laidOff = true; lines.push(`Next payday: ${fmt(D.COSTS.unemployment)} unemployment instead of ${fmt(p.salary)}`); }
+        if (c.renterCost) { if (this.propsOf(p.id).length === 0) { this.charge(p, c.renterCost, null, 'life'); lines.push(`You rent: -${fmt(c.renterCost)}`); } else lines.push('You own property: nothing to pay'); }
         if (c.repairs) { let n = 0; this.propsOf(p.id).forEach(i => { const h = this.prop(i).houses; n += h === 5 ? c.repairs[1] : h * c.repairs[0]; }); if (n) this.charge(p, n, null, 'life'); lines.push(n ? `Repairs -${fmt(n)}` : 'No houses, nothing to repair'); }
         this.log(`${p.name} draws Life: ${c.title}. ${lines.join('. ')}`, 'life', p.id);
         this.push({ type: 'card', playerId: p.id, deck, title: `🎴 ${c.title}`, text: c.text, lines, real: c.real, explain: 'life' });
@@ -356,7 +393,7 @@
       const active = this.active();
       if (c.rounds) st.effects.push({ title: c.title, rounds: c.rounds, rentMult: c.rentMult, taxMult: c.taxMult, buildMult: c.buildMult, transportMult: c.transportMult, salaryNext: c.salaryNext });
       if (c.priceMult) { st.priceMult = Math.round(st.priceMult * c.priceMult * 100) / 100; lines.push(`Prices now ${Math.round(st.priceMult * 100)}% of the original`); }
-      if (c.cashPct) active.forEach(x => { const d = round(x.cash * c.cashPct / 100) * 100; x.cash += d; lines.push(`${x.name} ${d >= 0 ? '+' : '-'}${fmt(Math.abs(d))}`); });
+      if (c.cashPct) active.forEach(x => { const d = round((x.cash + x.invest) * c.cashPct / 100) * 100; if (x.invest) { const di = round(x.invest * c.cashPct / 100) * 100; x.invest += di; x.cash += d - di; } else x.cash += d; lines.push(`${x.name} ${d >= 0 ? '+' : '-'}${fmt(Math.abs(d))}`); });
       if (c.allPay) active.forEach(x => { const amt = x.insured ? c.allPay[1] : c.allPay[0]; this.charge(x, amt, null, 'medical'); lines.push(`${x.name} pays ${fmt(amt)}${x.insured ? ' (insured)' : ''}`); });
       if (c.damage) active.forEach(x => { const n = this.propsOf(x.id).filter(i => c.damage.groups.includes(this.sq(i).group)).length; if (n) { const amt = n * (x.insured ? c.damage.insuredPer : c.damage.per); if (amt) this.charge(x, amt, null, 'life'); lines.push(`${x.name}: ${n} propert${n > 1 ? 'ies' : 'y'} hit, pays ${fmt(amt)}${x.insured ? ' (insured)' : ''}`); } });
       if (c.mortgageFee) active.forEach(x => { let m = 0; this.propsOf(x.id).forEach(i => { if (this.prop(i).mortgaged) m += this.price(i) / 2; }); if (m) { const amt = round(m * c.mortgageFee); this.charge(x, amt, null, 'life'); lines.push(`${x.name} pays ${fmt(amt)} extra interest`); } });
@@ -373,6 +410,11 @@
       if (kind === 'medical') p.stats.medical += amount;
       p.cash -= amount;
       if (creditor) creditor.cash += amount;
+      if (p.cash < 0 && p.family > 0) {
+        const gift = Math.min(p.family, -p.cash); p.family = 0; p.cash += gift;
+        this.log(`${p.name}'s family steps in with ${fmt(gift)}.`, 'deal', p.id);
+        this.notice(p.id, 'Family support', `You were ${fmt(gift)} short. Your family covered it. They will not do it again.`, { explain: 'family' });
+      }
       if (p.cash < 0) {
         // must raise money before anything else happens
         this.unshift({ type: 'debt', playerId: p.id, amount: -p.cash, creditorId: creditor ? creditor.id : null, explain: 'debt' });
@@ -384,16 +426,15 @@
       this.state.queue.shift(); this.log(`${p.name} covers the shortfall.`, 'info', p.id); return this.ok();
     }
     doBankrupt(p, q) {
-      if (this.liquid(p) >= q.amount + p.cash + 0) { /* liquid includes cash; compare raisable vs owed */ }
-      if (this.liquid(p) >= 0) return this.fail('You can still raise the money by selling houses or mortgaging.');
+      if (this.liquid(p) >= 0) return this.fail('You can still raise the money by selling houses, mortgaging or borrowing.');
       const st = this.state; st.queue.shift();
       const cred = q.creditorId === null ? null : this.player(q.creditorId);
       this.propsOf(p.id).forEach(i => { const pr = this.prop(i); pr.houses = 0; if (cred) { pr.owner = cred.id; } else { pr.owner = null; pr.mortgaged = false; } });
-      if (cred && p.cash > 0) cred.cash += p.cash;
-      p.cash = 0; p.loan = 0; p.bankrupt = true;
-      this.log(`${p.name} is bankrupt${cred ? `. Everything goes to ${cred.name}` : ''}.`, 'news', p.id);
-      st.queue = st.queue.filter(x => x.playerId !== p.id || x.type === 'notice' || x.type === 'card');
-      if (!this.checkEnd() && st.turn === p.id && !st.queue.some(x => x.type === 'endTurn')) this.push({ type: 'endTurn', playerId: p.id });
+      if (cred && p.invest > 0) cred.cash += p.invest;
+      p.cash = D.COSTS.freshStart; p.invest = 0; p.loan = 0; p.debt = 0; p.family = 0; p.bankruptcies = (p.bankruptcies || 0) + 1;
+      this.log(`${p.name} is bankrupt${cred ? `. Everything goes to ${cred.name}` : ''}. Debts wiped, starting again from zero.`, 'news', p.id);
+      this.notice(p.id, 'Bankrupt', `You lost everything${cred ? ` to ${cred.name}` : ''}. Your debts are wiped, you keep your job, and emergency assistance gives you ${fmt(D.COSTS.freshStart)} to start again.`, { explain: 'freshstart' });
+      st.queue = st.queue.filter(x => x.type !== 'debt' || x.playerId !== p.id);
       return this.ok();
     }
 

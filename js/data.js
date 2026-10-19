@@ -63,32 +63,29 @@
     P('One Monarch Tower', 'downtown', 400, [50, 200, 600, 1400, 1700, 2000], 200),
   ];
 
-  /* The wheel. One spin decides where you start in life. */
+  /* The wheel. One spin decides where you start in life. Five tiers, one per player. */
   const BACKGROUNDS = [
-    { id: 'heir', credit: 400 * K, short: 'Heir', title: 'Heir', icon: '👑', cash: 600 * K, salary: 80 * K, insured: true, inherit: ['downtown', 'midtown'],
-      desc: 'Born rich. You inherit a Downtown tower, a Midtown building and a fat bank account. You pay estate tax, then never worry again.',
+    { id: 'oldmoney', short: 'Old Money', title: 'Old Money', icon: '👑', cash: 400 * K, salary: 40 * K, living: 70 * K, insured: true, credit: 500 * K, loanRate: 0.05,
+      inherit: ['downtown', 'waterfront', 'waterfront', 'techpark', 'midtown', 'transport'],
+      trust: 80 * K, invest: 200 * K, family: 150 * K,
+      desc: 'Inherited wealth. A quarter of the board is yours before the first roll, a family trust pays you every year, and the bank lends to you at half price. Your job is mostly for show.',
       real: 'In the US about 60% of the wealth of the richest families is inherited. Inheritance is the biggest single predictor of ending up wealthy.' },
-    { id: 'business', credit: 250 * K, short: 'Business', title: 'Business Owner', icon: '🏭', cash: 350 * K, salary: 150 * K, insured: true, inherit: ['transport'],
-      desc: 'You run the family firm and own the Rail Depot. Good income, and assets that work while you sleep.',
-      real: 'Owning a business or property means income that does not depend on your hours worked.' },
-    { id: 'engineer', credit: 150 * K, short: 'Engineer', title: 'Software Engineer', icon: '💻', cash: 250 * K, salary: 180 * K, insured: true, debt: 40 * K,
-      desc: 'High salary, no property, a student loan that is taken from your first payday.',
-      real: 'High earners with no assets still pay the top income tax rates. Wealth and income are different things.' },
-    { id: 'nurse', credit: 60 * K, short: 'Nurse', title: 'Nurse', icon: '🩺', cash: 150 * K, salary: 90 * K, insured: true,
-      desc: 'Steady job, health insurance from work, a little saved.',
+    { id: 'upper', short: 'Upper-middle', title: 'Upper-middle class', icon: '🏡', cash: 450 * K, salary: 140 * K, living: 45 * K, insured: true, credit: 300 * K, loanRate: 0.10,
+      inherit: ['suburbs'], invest: 100 * K, family: 50 * K,
+      desc: 'A good salary, a house in the Suburbs, some investments, and parents who can help once if things go wrong.',
+      real: 'Family help with a deposit, a wedding or a bad year is the quiet advantage of the professional middle class.' },
+    { id: 'professional', short: 'Professional', title: 'Professional', icon: '💻', cash: 60 * K, salary: 170 * K, living: 36 * K, insured: true, credit: 150 * K, loanRate: 0.10,
+      debt: 60 * K,
+      desc: 'High salary, no property, and a student loan that eats your first paydays. Income is not the same as wealth.',
+      real: 'High earners with no assets pay the top income tax rates while asset owners pay lower rates on rent and gains.' },
+    { id: 'working', short: 'Working class', title: 'Working class', icon: '🔧', cash: 20 * K, salary: 70 * K, living: 24 * K, insured: true, credit: 50 * K, loanRate: 0.10,
+      inherit: ['riverside'], mortgaged: true,
+      desc: 'A modest income, health insurance from work, and a small home that still belongs mostly to the bank.',
       real: 'Most people in rich countries live like this: one paycheck at a time, one accident from trouble.' },
-    { id: 'worker', credit: 30 * K, short: 'Builder', title: 'Construction Worker', icon: '🔧', cash: 80 * K, salary: 60 * K, insured: false, inherit: ['oldtown'],
-      desc: 'Your parents left you the old rowhouse. No health insurance. One bad fall and it is gone.',
-      real: 'In 2022 about 26 million Americans had no health insurance. Medical bills are the top cause of personal bankruptcy there.' },
-    { id: 'student', credit: 20 * K, short: 'Graduate', title: 'Graduate', icon: '🎓', cash: 30 * K, salary: 55 * K, insured: false, debt: 40 * K,
-      desc: 'Young, broke, uninsured, and the student loan comes out of your first payday.',
-      real: 'US student debt is over $1.7 trillion. Graduates start their working lives in the red.' },
-    { id: 'retiree', credit: 120 * K, short: 'Retiree', title: 'Retiree', icon: '🧓', cash: 450 * K, salary: 50 * K, insured: true, inherit: ['suburbs'],
-      desc: 'A paid-off house in the Suburbs, savings, and a pension. Your income will not grow.',
-      real: 'Pensioners own most of the housing in many countries but have fixed incomes. Inflation hurts them most.' },
-    { id: 'landlord', credit: 100 * K, short: 'Landlord', title: 'Small Landlord', icon: '🔑', cash: 150 * K, salary: 70 * K, insured: true, inherit: ['riverside', 'riverside'], mortgaged: true,
-      desc: 'Two Riverside rentals, both mortgaged to the bank. Rent comes in, but you owe a lot.',
-      real: 'Leverage: borrowed money makes gains bigger and losses bigger. Landlords did very well in 2010 to 2021 and badly in 2008.' },
+    { id: 'poor', short: 'Working poor', title: 'Working poor', icon: '🧹', cash: 5 * K, salary: 48 * K, living: 18 * K, insured: false, credit: 30 * K, loanRate: 0.25, unstable: true,
+      debt: 12 * K,
+      desc: 'No savings, no insurance, debt at 25%, and hours that get cut without warning. Every shock is an emergency.',
+      real: 'About 26 million Americans have no health insurance. Medical bills are the top cause of personal bankruptcy there.' },
   ];
 
   const TAX = {
@@ -97,7 +94,7 @@
     wealthTaxRate: 0.02, wealthTaxThreshold: 1000 * K,
     estateExemption: 500 * K, estateRate: 0.20,
   };
-  const COSTS = { premium: 8 * K, hospitalBill: 40 * K, hospitalBillInsured: 4 * K, unemployment: 20 * K, loanStep: 10 * K, loanRate: 0.10, auctionStep: 10 * K };
+  const COSTS = { investReturn: 0.06, freshStart: 10 * K, premium: 8 * K, hospitalBill: 40 * K, hospitalBillInsured: 4 * K, unemployment: 20 * K, loanStep: 10 * K, loanRate: 0.10, auctionStep: 10 * K };
 
   /* Life cards: happen to one player. */
   const LIFE = [
@@ -114,6 +111,8 @@
     { id: 'sidegig', title: 'Side gig', text: 'Weekend work paid off.', cash: 10 * K },
     { id: 'lottery', title: 'Scratch card', text: 'Against all odds, it pays.', cash: 30 * K, real: 'Lotteries take in far more than they pay out. People on low incomes spend the biggest share of their pay on them.' },
     { id: 'repairs', title: 'Building repairs', text: 'Roofs leak, boilers die. Pay $10,000 per house and $40,000 per hotel you own.', repairs: [10 * K, 40 * K], real: 'Owning buildings means paying to keep them standing. Neglect them and tenants leave.' },
+    { id: 'rentup', title: 'Rent increase', text: 'Your landlord raises the rent. If you own no property, you pay $10,000 more this year. If you own property, you are the landlord.', renterCost: 10 * K, real: 'Renters pay rising rents to owners. Owners collect them. The same housing market moves money in one direction.' },
+    { id: 'hourscut', title: 'Hours cut', text: 'Your employer cuts your hours. Lose $8,000, or nothing if you are self-employed with property income.', cash: -8 * K, real: 'Hourly and gig workers absorb downturns first; salaried staff and owners feel them last.' },
     { id: 'identity', title: 'Identity theft', text: 'Someone opened cards in your name. The bank refunds most of it.', cash: -8 * K },
     { id: 'payday', title: 'Bonus trip', text: 'Advance to Payday and collect your salary.', goto: 0 },
     { id: 'course', title: 'Night school', text: 'You pay $10,000 for a certification. Salary up 10%.', cash: -10 * K, salaryPct: 0.10, real: 'Education usually pays back, but only for people who can afford the fee up front.' },
@@ -132,7 +131,7 @@
     { id: 'taxcut', title: 'Tax cut', text: 'Income tax rates cut by a quarter for 16 rounds.', taxMult: 0.75, rounds: 16, real: 'Tax cuts give the biggest dollar amounts to the highest earners, because they pay the most tax.' },
     { id: 'taxhike', title: 'Tax rise', text: 'Income tax rates up by a quarter for 16 rounds to pay for schools and hospitals.', taxMult: 1.25, rounds: 16 },
     { id: 'rentcontrol', title: 'Rent control', text: 'The city caps rents at half for 8 rounds.', rentMult: 0.5, rounds: 8, real: 'Rent control protects current tenants. Economists argue it also discourages landlords from building. Both are true.' },
-    { id: 'stockcrash', title: 'Stock market crash', text: 'Everyone\'s savings take a hit: lose 10% of your cash.', cashPct: -0.10, real: 'Crashes hit people with money to lose. People with no savings lose nothing, and gain nothing in the recovery.' },
+    { id: 'stockcrash', title: 'Stock market crash', text: 'Everyone\'s savings and investments take a hit: lose 20%.', cashPct: -0.20, real: 'Crashes hit people with money to lose. People with no savings lose nothing, and gain nothing in the recovery.' },
     { id: 'stockboom', title: 'Stock market rally', text: 'Savings grow: gain 10% of your cash.', cashPct: 0.10, real: 'The richest 10% of Americans own about 90% of all shares. Rallies widen the gap.' },
     { id: 'minwage', title: 'Minimum wage raised', text: 'Every salary below $70,000 becomes $70,000.', minWage: 70 * K, real: 'A higher minimum wage lifts the lowest paid directly. The effect on jobs is argued about endlessly.' },
     { id: 'transit', title: 'New transport link', text: 'Transport squares charge double for 8 rounds.', transportMult: 2, rounds: 8, real: 'Public infrastructure raises the value of nearby private property. The public pays, owners gain.' },
@@ -142,7 +141,10 @@
   /* First-time explanations. Shown once per human player when the thing first happens. */
   const EXPLAIN = {
     spin: ['The wheel', 'Nobody chooses where they are born. The wheel decides your starting cash, your salary, whether you have health insurance, and what you inherit. Monopoly starts everyone equal. Life does not.'],
-    payday: ['Payday', 'Every time you pass Payday you get a year of salary. Income tax comes off first: 10% on the first $50k, 20% up to $100k, 30% up to $200k, 40% above. Higher earners pay a bigger share. Health insurance costs $8,000 a year if you have it.'],
+    living: ['Living costs', 'Every year you also pay to live: rent or upkeep, food, transport. Old Money spends more, but it is a small share of their income. For the working poor it is most of their pay. Whatever is left is what you can save or invest.'],
+    invest: ['Investments', 'Money in investments grows about 6% a year, paid at Payday, without you doing anything. The more you already have, the more you get. That is what "wealth compounds" means.'],
+    family: ['Family support', 'Your family covered the shortfall this once. Many people have no one to call.'],
+    payday: ['Payday', 'Every time you pass Payday you get a year of salary. Income tax comes off first: 10% on the first $50k, 20% up to $100k, 30% up to $200k, 40% above. Then living costs, insurance and loan payments. Trust and investment income arrive here too.'],
     rentpaid: ['Rent', 'Land on someone\'s property and you pay them rent. Rent is how owners earn money from people who own nothing. Houses multiply it.'],
     rentgot: ['Rent income', 'You just earned money without working. That is what owning does. The more you own, the more others pay you.'],
     buy: ['Buying', 'Buying a property turns cash into something that earns rent and can rise in value. Own every property of one colour and rents double; then you can build houses.'],
@@ -153,6 +155,7 @@
     tax: ['Property tax', 'Owners pay tax on what they own every year: here 1% of the value of your properties. The more you own, the more you pay, but owners can usually afford it.'],
     wealth: ['Wealth tax', 'A tax on net worth above $1,000,000. Only the rich pay it. Almost no country has one; this square is here so you can argue about it.'],
     mortgage: ['Mortgage', 'Mortgaging gives you half the property\'s price in cash now. It earns no rent until you pay the bank back with 10% interest. It is how owners survive a cash crunch that would bankrupt a renter.'],
+    freshstart: ['Bankruptcy', 'You could not pay. Everything you owned goes to whoever you owed, your debts are wiped, and you start again from zero with your job. In real life this takes years and follows you on every credit check.'],
     debt: ['Out of cash', 'You owe more than you have. Sell houses or mortgage properties to raise the money. If you cannot, you are bankrupt and out. Players with assets can borrow against them; players without have nothing to sell.'],
     loan: ['Bank loans', 'The bank lends you money at 10% interest a year, paid at every Payday. How much it lends depends on who you are: the Heir can borrow $400,000, the Graduate $20,000. Cheap credit for the rich and none for the poor is one of the quiet engines of inequality.'],
     auction: ['Auction', 'When a player passes on a property, it goes to auction: everyone bids once, in secret, and the highest bid wins. Auctions are how the player with the most cash picks up bargains nobody else can afford.'],
