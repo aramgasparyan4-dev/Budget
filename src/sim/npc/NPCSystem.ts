@@ -118,6 +118,12 @@ export class NPCSystem {
     n.loc = p;
     if (n.job && p.k === 'b' && this.city.businesses[n.job.biz].building === p.id && n.activity.kind === 'work') this.econ.biz[n.job.biz].staffPresent++;
   }
+  /** staff on shift, recounted from who is actually at work (the enter/leave counters drift when an
+   *  activity changes before the worker leaves) */
+  recountStaff() {
+    for (const s of this.econ.biz) s.staffPresent = 0;
+    for (const n of this.npcs) if (n.job && !n.trip && n.activity.kind === 'work' && this.isAt(n, this.workPlace(n)!)) this.econ.biz[n.job.biz].staffPresent++;
+  }
   private leave(n: NPC) {
     if (!n.loc) return;
     this.present.get(placeKey(n.loc))?.delete(n.id);
@@ -720,6 +726,9 @@ export class NPCSystem {
     const day = this.clock.day;
     if (hour !== this.lastHour) {
       this.lastHour = hour;
+      this.econ.weather.rain = this.weather.rain;
+      this.econ.weather.storm = this.weather.storm;
+      this.recountStaff();
       this.econ.hourly(hour, this.clock.weekday);
     }
     if (day !== this.lastDay) {
@@ -981,7 +990,6 @@ export class NPCSystem {
       if (d.loc) this.enter(n, d.loc);
     }
     this.econ.attachEmployees(this.npcs);
-    for (const s of this.econ.biz) s.staffPresent = 0;
-    for (const n of this.npcs) if (n.job && n.loc && n.activity.kind === 'work' && this.isAt(n, this.workPlace(n)!)) this.econ.biz[n.job.biz].staffPresent++;
+    this.recountStaff();
   }
 }

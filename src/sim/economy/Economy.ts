@@ -90,6 +90,21 @@ const DAILY_RENT: Partial<Record<BusinessType, number>> = {
   taxi: 200,
 };
 
+/** businesses that earn from contracts/services rather than per-customer sales */
+const SERVICE: Partial<Record<BusinessType, true>> = { office: true, factory: true, bank: true, dealership: true, depot: true, taxi: true, salon: true, gym: true, cinema: true };
+/** publicly funded: costs are covered by the city budget */
+const PUBLIC: Partial<Record<BusinessType, true>> = { school: true, cityhall: true };
+const FOOT_TRAFFIC: Record<string, number> = { downtown: 1.1, commercial: 1.15, entertainment: 1.05, residential: 0.92, wealthy: 1.0, industrial: 0.8 };
+
+/** hour-of-day demand shape (roughly mean 1 over opening hours) */
+function hourCurve(type: BusinessType, h: number) {
+  if (type === 'cafe') return h >= 7 && h < 10 ? 1.45 : h >= 12 && h < 14 ? 1.2 : 0.8;
+  if (type === 'restaurant' || type === 'fastfood') return (h >= 12 && h < 14) || (h >= 18 && h < 21) ? 1.5 : 0.7;
+  if (type === 'bar' || type === 'nightclub') return h >= 20 || h < 2 ? 1.4 : 0.65;
+  if (type === 'grocery' || type === 'convenience') return h >= 16 && h < 20 ? 1.3 : 0.9;
+  return 1;
+}
+
 export class Economy {
   biz: BizState[] = [];
   /** wholesale price index (supply vs demand) */
@@ -102,6 +117,50 @@ export class Economy {
   onClosure: ((b: BusinessDef) => void) | null = null;
   onOpening: ((b: BusinessDef) => void) | null = null;
   powerOut = new Set<string>(); // district ids
+  /** set by the NPC system: people stay in when it pours */
+  weather = { rain: 0, storm: 0 };
+  /**
+   * The 640 simulated residents are a sample of a much bigger city. Everyone else shows up as
+   * background demand: proportional to staff on shift (a proxy for size), and shaped by reputation,
+   * price, quality, district foot traffic, time of day and weather. Calibrated so a typical,
+   * fairly priced business makes a modest profit; bad reputation or overpricing loses money.
+   */
+  private background(s: BizState, d: BusinessDef, hour: number) {
+    if (s.staffPresent <= 0 || PUBLIC[d.type]) return;
+    const heads = Math.max(1, d.jobs.reduce((a, j) => a + j.count, 0));
+    const wage = d.jobs.length ? d.jobs.reduce((a, j) => a + j.wage * j.count, 0) / heads : 16;
+    // staffed hours per day across the week, to spread the rent over
+    // (scaled by how many of the positions are actually filled)
+    const fill = Math.min(1, Math.max(1, s.employees.length) / heads);
+    const staffHours = Math.max(8, fill * d.jobs.reduce((a, j) => a + j.count * (((j.end - j.start + 24) % 24) || 24) * (j.days.length / 7), 0));
+    // what one staff-hour has to earn above the cost of goods: wages + 20%, plus its share of the rent
+    const margin = 1.2 * wage + (DAILY_RENT[d.type] ?? 150) / staffHours;
+    const noise = 0.85 + Math.random() * 0.3;
+    const mood = (0.46 + 0.9 * s.reputation) * (0.85 + 0.3 * s.quality) * (FOOT_TRAFFIC[d.district] ?? 1) * (1 - this.weather.rain * 0.12 - this.weather.storm * 0.3) * noise;
+    if (SERVICE[d.type]) {
+      const rev = s.staffPresent * margin * mood;
+      s.cash += rev;
+      s.revenueToday += rev;
+      this.gdpToday += rev;
+      return;
+    }
+    const base = BASE_PRICE[d.type];
+    if (!base) return;
+    const unitCost = UNIT_COST[d.type] ?? 0.4;
+    // units a staff member sells per hour at a fair price
+    const perStaff = margin / (base * (1 - unitCost));
+    const elasticity = Math.pow(d.priceLevel * s.priceMul, -1.4);
+    const units = s.staffPresent * perStaff * mood * elasticity * hourCurve(d.type, hour);
+    const rev = units * this.price(s.id);
+    const cogs = units * base * unitCost * this.wholesale;
+    s.cash += rev - cogs;
+    s.revenueToday += rev;
+    s.expensesToday += cogs;
+    s.customersToday += Math.round(units);
+    this.gdpToday += rev;
+    this.demandToday += units * 0.1;
+    this.payWholesalers(cogs * 0.1);
+  }
 
   constructor(public city: CityData) {
     for (const b of city.businesses) {
@@ -201,6 +260,7 @@ export class Economy {
     for (const s of this.biz) {
       if (s.closed) continue;
       const d = this.city.businesses[s.id];
+      if (this.isOpen(s.id, hour, weekday)) this.background(s, d, hour);
       if (d.type === 'warehouse' || d.type === 'factory') {
         // produce goods with present staff
         this.supplyToday += s.staffPresent * (d.type === 'factory' ? 9 : 6);
@@ -215,11 +275,11 @@ export class Economy {
           s.expensesToday += cost;
           s.stock = s.maxStock;
           this.demandToday += need;
-          this.payWholesalers(cost);
+          // about half of wholesale goods come from the city's own warehouses and factories
+          this.payWholesalers(cost * 0.5);
         }
       }
     }
-    void weekday;
   }
 
   private payWholesalers(amount: number) {
@@ -250,8 +310,16 @@ export class Economy {
       const rent = DAILY_RENT[d.type] ?? 150;
       s.cash -= rent;
       s.expensesToday += rent;
+      if (PUBLIC[d.type]) {
+        // the city budget covers schools and city hall
+        const budget = s.expensesToday - s.revenueToday;
+        s.cash += budget;
+        s.revenueToday += budget;
+      }
       const profit = s.revenueToday - s.expensesToday;
       s.history.push(Math.round(profit));
+      // word of mouth fades: reputation drifts back toward average unless quality keeps it up
+      s.reputation += (0.5 + s.quality * 0.2 - s.reputation) * 0.08;
       if (s.history.length > 14) s.history.shift();
       // pricing: sold out -> raise, few customers -> discount
       if (s.maxStock > 0) {

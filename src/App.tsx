@@ -9,8 +9,10 @@ import { ShopUI, MiniGameUI, SleepUI, FadeOverlay, PerfOverlay } from './ui/Moda
 import { Phone } from './ui/Phone';
 import { MapOverlay } from './ui/MapView';
 import { LoadingScreen, MainMenu, PauseMenu, IntroOverlay } from './ui/Menus';
+import { useShop, useDialogue, useMiniGame } from './state/uiStores';
 
-(window as unknown as { __store: typeof useStore }).__store = useStore;
+// handles for automated tests and the browser console
+Object.assign(window, { __store: useStore, __ui: { useShop, useDialogue, useMiniGame } });
 
 /** overlays that own the keyboard while open (they close themselves) */
 const MODAL: Overlay[] = ['dialogue', 'shop', 'minigame', 'intro', 'newgame'];

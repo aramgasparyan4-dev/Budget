@@ -111,6 +111,19 @@ export class BusinessManager {
     s.player.business = id;
     s.player.flags.businessBuilding = b.id;
     s.player.flags.businessType = type;
+    if (!restore) {
+      this.hireStaff();
+      // grand opening: curious neighbours put the new place on their list
+      let told = 0;
+      for (const n of s.npcs) {
+        if (told >= 30) break;
+        const home = s.city.buildings[s.nsys.homeBuilding(n)];
+        if (Math.hypot(home.door.x - b.door.x, home.door.z - b.door.z) > 500 || n.traits.curiosity < 0.45) continue;
+        n.favorites.push(id);
+        if (n.favorites.length > 5) n.favorites.shift();
+        told++;
+      }
+    }
     return def;
   }
 
@@ -154,14 +167,23 @@ export class BusinessManager {
       st.cash += top;
       s.notify(`${this.def!.name} lost money`, `You injected ${formatMoney(top)} to cover costs`, 'warning');
     }
-    // hire staff from unemployed residents automatically
-    const open = s.econ.openings(id);
-    if (open > 0) {
-      const cand = s.npcs.find((n) => !n.job && n.occupation === 'Unemployed');
-      if (cand) {
-        s.nsys.hire(cand, id);
-        s.notify(`${cand.first} ${cand.last} joined your staff`, this.def!.name, 'info');
-      }
+    this.hireStaff();
+  }
+
+  /** fill open positions with unemployed residents, nearest to the shop first */
+  private hireStaff() {
+    const s = this.s;
+    const id = this.id;
+    if (id === null) return;
+    const door = s.city.buildings[this.def!.building].door;
+    const cands = s.npcs
+      .filter((n) => !n.job && n.occupation === 'Unemployed')
+      .map((n) => ({ n, d: Math.hypot(s.city.buildings[s.nsys.homeBuilding(n)].door.x - door.x, s.city.buildings[s.nsys.homeBuilding(n)].door.z - door.z) }))
+      .sort((a, b) => a.d - b.d);
+    for (const { n } of cands) {
+      if (s.econ.openings(id) <= 0) break;
+      s.nsys.hire(n, id);
+      s.notify(`${n.first} ${n.last} joined your staff`, this.def!.name, 'info');
     }
   }
 

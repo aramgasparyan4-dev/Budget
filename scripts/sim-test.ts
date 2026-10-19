@@ -40,6 +40,22 @@ console.log('npc money p10/p50/p90', money[64].toFixed(0), money[320].toFixed(0)
 const cash = econ.biz.map((b) => b.cash).sort((a, b) => a - b);
 console.log('biz cash p10/p50/p90', cash[Math.floor(cash.length * 0.1)].toFixed(0), cash[Math.floor(cash.length / 2)].toFixed(0), cash[Math.floor(cash.length * 0.9)].toFixed(0), 'closed', econ.biz.filter((b) => b.closed).length);
 console.log('econ history', econ.history);
+// average daily profit by business type (last full day)
+const byType: Record<string, { n: number; profit: number; losing: number; customers: number }> = {};
+for (const b of econ.biz) {
+  const t = city.businesses[b.id].type;
+  const e = (byType[t] ??= { n: 0, profit: 0, losing: 0, customers: 0 });
+  const last = b.history[b.history.length - 1] ?? 0;
+  e.n++;
+  e.profit += last;
+  if (last < 0) e.losing++;
+}
+console.log(
+  'profit/day by type',
+  Object.entries(byType)
+    .map(([t, e]) => `${t}:${Math.round(e.profit / e.n)} (${e.losing}/${e.n} losing)`)
+    .join('  '),
+);
 console.log('unemployed', npcs.filter((n) => n.occupation === 'Unemployed').length, 'memories avg', (npcs.reduce((s, n) => s + n.memories.length, 0) / npcs.length).toFixed(1));
 const memTypes: Record<string, number> = {};
 for (const n of npcs) for (const m of n.memories) memTypes[m.type] = (memTypes[m.type] ?? 0) + 1;
