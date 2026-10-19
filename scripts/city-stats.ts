@@ -1,0 +1,18 @@
+import { generateCity } from '../src/world/CityGenerator';
+const t0 = performance.now();
+const c = generateCity(Number(process.argv[2] ?? 1337));
+const t1 = performance.now();
+console.log('gen ms', (t1 - t0).toFixed(1));
+const count = <T,>(arr: T[], key: (t: T) => string) => arr.reduce((m, x) => ((m[key(x)] = (m[key(x)] ?? 0) + 1), m), {} as Record<string, number>);
+console.log('blocks', c.blocks.length, count(c.blocks, (b) => b.district + ':' + b.use));
+console.log('buildings', c.buildings.length, count(c.buildings, (b) => b.kind));
+console.log('businesses', c.businesses.length, count(c.businesses, (b) => b.type));
+console.log('homes', c.homes.length, 'capacity', c.homes.reduce((s, h) => s + h.capacity, 0));
+console.log('jobs', c.businesses.reduce((s, b) => s + b.jobs.reduce((q, j) => q + j.count, 0), 0));
+console.log('props', c.props.length, count(c.props, (p) => p.type));
+console.log('signals', c.signals.length, 'parking', c.parking.length, 'ground', c.ground.length, 'markings', c.markings.length);
+console.log('sw nodes', c.swNodes.length, 'edges', c.swEdges.length, 'outdoor', c.outdoor.length);
+console.log('landmarks', c.landmarks, 'playerHome', c.buildings[c.playerHome]?.address);
+console.log('enterable', c.buildings.filter((b) => b.interior).length, count(c.buildings.filter((b) => b.interior), (b) => b.interior!));
+console.log('parts', c.buildings.reduce((s, b) => s + b.parts.length, 0), 'max height', Math.max(...c.buildings.map((b) => b.height)).toFixed(0));
+console.log('forSale', c.buildings.filter((b) => b.forSale).map((b) => b.address));
