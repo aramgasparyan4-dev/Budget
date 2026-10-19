@@ -45,6 +45,7 @@ export class Game {
   mode: 'none' | 'menu' | 'game' = 'none';
   time = 0;
   private menuT = 0;
+  private menuLift = 0;
   private frames = 0;
   private fpsTimer = 0;
   fps = 60;
@@ -323,6 +324,17 @@ export class Game {
     const a = this.menuT * 0.03 + 0.6;
     const r = 250;
     const pos = new THREE.Vector3(c.x + Math.cos(a) * r, 78 + Math.sin(a * 0.7) * 22, c.z + Math.sin(a) * r);
+    // stay above any tower near the path (looking ahead a little so we rise before reaching it)
+    let top = 0;
+    for (const b of this.city.buildings) {
+      for (const k of [0, 0.12]) {
+        const px = c.x + Math.cos(a + k) * r;
+        const pz = c.z + Math.sin(a + k) * r;
+        if (px > b.x0 - 30 && px < b.x1 + 30 && pz > b.z0 - 30 && pz < b.z1 + 30) top = Math.max(top, b.height);
+      }
+    }
+    this.menuLift = Math.max(this.menuLift - dt * 6, top + 22 - pos.y, 0);
+    pos.y += this.menuLift;
     if (this.menuT < 0.2) this.camera.position.copy(pos);
     else this.camera.position.lerp(pos, 1 - Math.exp(-dt * 2));
     this.camera.lookAt(c.x, 32, c.z);

@@ -257,9 +257,10 @@ export class Environment {
       this.sun.intensity = 0.32 * smoothstep(-0.02, 0.2, this.moonDir.y) * (1 - overcast * 0.7);
     }
     this.sun.intensity += w.flash * 4;
-    this.hemi.color.copy(k.zen).lerp(new THREE.Color(1, 1, 1), 0.35).multiplyScalar(1);
+    // at night the sky term becomes a cool moonlit/city-glow fill so streets are readable, not black
+    this.hemi.color.copy(k.zen).lerp(new THREE.Color(1, 1, 1), 0.35).lerp(new THREE.Color(0.5, 0.6, 0.85), night * 0.6);
     this.hemi.groundColor.setRGB(0.18, 0.15, 0.12).lerp(new THREE.Color(0.25, 0.16, 0.1), night);
-    this.hemi.intensity = (k.amb * 0.42 + night * 0.2) * (1 - w.storm * 0.4) + w.flash * 1.5;
+    this.hemi.intensity = (k.amb * 0.42 + night * 0.3) * (1 - w.storm * 0.4) + w.flash * 1.5;
     this.envIntensity = 0.28 + 0.42 * (1 - night) * cloudDim + w.flash;
     (this.scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = this.envIntensity;
 

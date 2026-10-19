@@ -16,7 +16,9 @@ export type Overlay =
   | 'sleep'
   | 'newgame'
   | 'wardrobe'
-  | 'business';
+  | 'business'
+  | 'intro'
+  | 'controls';
 
 export interface Notification {
   id: number;
@@ -80,7 +82,12 @@ interface StoreState {
   phoneApp: string;
   version: number;
   introActive: boolean;
-  introText: { title: string; body: string } | null;
+  introText: { title: string; body: string; place?: string } | null;
+  fade: number;
+  skipLabel: string | null;
+  saveMode: 'save' | 'load';
+  setSaveMode: (m: 'save' | 'load') => void;
+  setFade: (f: number, label: string | null) => void;
   setScreen: (s: Screen) => void;
   setOverlay: (o: Overlay) => void;
   setLoading: (p: number, text?: string) => void;
@@ -92,7 +99,7 @@ interface StoreState {
   updateSettings: (fn: (s: Settings) => void) => void;
   applyPreset: (p: Preset) => void;
   bump: () => void;
-  setIntro: (t: { title: string; body: string } | null) => void;
+  setIntro: (t: { title: string; body: string; place?: string } | null) => void;
 }
 
 let nid = 1;
@@ -158,6 +165,11 @@ export const useStore = create<StoreState>((set, get) => ({
   version: 0,
   introActive: false,
   introText: null,
+  fade: 0,
+  skipLabel: null,
+  saveMode: 'save',
+  setSaveMode: (saveMode) => set({ saveMode }),
+  setFade: (fade, skipLabel) => set({ fade, skipLabel }),
   setScreen: (screen) => set({ screen }),
   setOverlay: (overlay) => set({ overlay }),
   setLoading: (loadingProgress, loadingText) => set({ loadingProgress, loadingText: loadingText ?? get().loadingText }),

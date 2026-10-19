@@ -17,6 +17,8 @@ export class BusinessManager {
     s.updaters.push(() => this.tick());
   }
   private lastDay = -1;
+  /** the city object is shared between sessions: remember what create() changed so dispose() can undo it */
+  private undo: (() => void) | null = null;
 
   get id() {
     return this.s.player.business;
@@ -68,6 +70,14 @@ export class BusinessManager {
       close: template?.close ?? 20,
       interior,
       goods: template?.goods ?? 'retail',
+    };
+    const prev = { businesses: b.businesses, interior: b.interior, forSale: b.forSale, name: b.name, count: city.businesses.length };
+    this.undo = () => {
+      city.businesses.length = prev.count;
+      b.businesses = prev.businesses;
+      b.interior = prev.interior;
+      b.forSale = prev.forSale;
+      b.name = prev.name;
     };
     city.businesses.push(def);
     b.businesses = [id];
@@ -153,6 +163,11 @@ export class BusinessManager {
         s.notify(`${cand.first} ${cand.last} joined your staff`, this.def!.name, 'info');
       }
     }
+  }
+
+  dispose() {
+    this.undo?.();
+    this.undo = null;
   }
 
   serialize() {

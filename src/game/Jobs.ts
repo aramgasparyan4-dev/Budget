@@ -354,7 +354,7 @@ export class JobSystem {
       const van = this.company;
       this.company = null;
       setTimeout(() => {
-        if (s.driving !== van) s.removeVehicle(van);
+        if (s.game.session === s && s.driving !== van && s.vehicles.includes(van)) s.removeVehicle(van);
       }, 120000);
     }
   }

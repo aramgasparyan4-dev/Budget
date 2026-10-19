@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { HumanLook } from '../render/Human';
 import type { Txn } from '../sim/economy/Economy';
 
@@ -227,5 +228,43 @@ export class PlayerState {
       flags: this.flags,
       rentDueDay: this.rentDueDay,
     };
+  }
+
+  restore(d: ReturnType<PlayerState['serialize']>) {
+    this.name = d.name;
+    this.look = {
+      shirt: new THREE.Color(d.look.shirt),
+      pants: new THREE.Color(d.look.pants),
+      skin: new THREE.Color(d.look.skin),
+      hair: new THREE.Color(d.look.hair),
+      hairStyle: d.look.hairStyle,
+      build: d.look.build,
+      height: d.look.height,
+      seed: this.look?.seed ?? 0.5,
+    };
+    this.cash = d.cash;
+    this.bank = d.bank;
+    this.txns = d.txns;
+    this.hunger = d.hunger;
+    this.energy = d.energy;
+    this.inventory = d.inventory.filter((i) => i.kind !== 'delivery');
+    this.capacity = d.capacity;
+    this.vehicles = d.vehicles;
+    for (const o of this.outfits) o.owned = o.owned || d.outfits.some((x) => x.id === o.id && x.owned);
+    this.outfit = d.outfit;
+    this.upgrades = d.upgrades;
+    this.homeTier = d.homeTier;
+    this.job = d.job;
+    this.business = d.business;
+    this.contacts = d.contacts;
+    this.messages = d.messages;
+    this.news = d.news;
+    this.reputation = d.reputation;
+    this.stats = { ...this.stats, ...d.stats };
+    this.flags = d.flags;
+    this.rentDueDay = d.rentDueDay;
+    // keep id counters ahead of restored ids
+    for (const m of this.messages) msgId = Math.max(msgId, m.id + 1);
+    for (const n of this.news) newsId = Math.max(newsId, n.id + 1);
   }
 }

@@ -137,8 +137,18 @@ export class PlayerController {
     if (!this.grounded) this.airTime += h;
     const t = this.body.translation();
     const nx = t.x + mv.x;
-    const ny = t.y + mv.y;
+    let ny = t.y + mv.y;
     const nz = t.z + mv.z;
+    // Rapier's KCC can leave the capsule a few cm inside the big ground slab while sliding along it.
+    // Recover small penetrations (< 25 cm) by putting the feet back on the surface below.
+    if (mv.y <= 0.001) {
+      const feet = ny - HALF - RADIUS;
+      const hit = this.physics.raycast(nx, feet + 0.3, nz, 0, -1, 0, 0.6, GROUP.STATIC | GROUP.INTERIOR);
+      if (hit !== null) {
+        const ground = feet + 0.3 - hit;
+        if (ground > feet + 0.003 && ground - feet < 0.25) ny += ground + 0.02 - feet;
+      }
+    }
     this.body.setNextKinematicTranslation({ x: nx, y: ny, z: nz });
     this.pos.set(nx, ny - HALF - RADIUS, nz);
     this.speed = Math.hypot(this.vel.x, this.vel.z);

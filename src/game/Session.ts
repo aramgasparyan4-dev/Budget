@@ -488,7 +488,7 @@ export class Session {
     const g = this.game;
     const store = useStore.getState();
     const inUI = store.overlay !== null;
-    const paused = this.paused || (store.overlay === 'pause' || store.overlay === 'settings' || store.overlay === 'saveload');
+    const paused = this.paused || store.overlay === 'pause' || store.overlay === 'settings' || store.overlay === 'saveload' || store.overlay === 'controls';
     let dm = 0;
     if (!paused) {
       dm = this.clock.advance(dt);
@@ -573,6 +573,8 @@ export class Session {
     // fade transitions
     const fs = this.fadeTarget > this.fade ? 3.5 : 2.5;
     this.fade += clamp(this.fadeTarget - this.fade, -fs * dt, fs * dt);
+    const st2 = useStore.getState();
+    if (Math.abs(st2.fade - this.fade) > 0.015 || st2.skipLabel !== this.skipping || (this.fade === 0 && st2.fade !== 0)) st2.setFade(this.fade < 0.005 ? 0 : this.fade, this.skipping);
     if (this.fadeCb && Math.abs(this.fade - this.fadeTarget) < 0.01) {
       const cb = this.fadeCb;
       this.fadeCb = null;
@@ -803,6 +805,7 @@ export class Session {
     this.interiors?.forceExit();
     this.jobs?.dispose();
     this.events?.dispose();
+    this.business?.dispose();
     this.minigame?.cancel();
     if (this.dialogue.active) this.dialogue.end();
     g.scene.remove(this.crowdNear.mesh, this.crowdFar.mesh, this.vehR.group, this.staticR.group);
