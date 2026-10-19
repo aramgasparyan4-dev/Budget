@@ -8,6 +8,7 @@ import { DialogueUI } from './ui/DialogueUI';
 import { ShopUI, MiniGameUI, SleepUI, FadeOverlay, PerfOverlay } from './ui/Modals';
 import { Phone } from './ui/Phone';
 import { MapOverlay } from './ui/MapView';
+import { Emotes } from './ui/Emotes';
 import { LoadingScreen, MainMenu, PauseMenu, IntroOverlay } from './ui/Menus';
 import { useShop, useDialogue, useMiniGame } from './state/uiStores';
 
@@ -139,6 +140,7 @@ export default function App() {
       <GameCanvas />
       {screen === 'game' && (
         <div className="absolute inset-0 pointer-events-none">
+          <Emotes />
           <HUD />
           <PerfOverlay />
           <Phone />

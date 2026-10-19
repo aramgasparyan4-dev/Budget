@@ -66,8 +66,8 @@ export function Minimap({ size = 196 }: { size?: number }) {
       // job markers
       const j = s.jobs?.active;
       if (j) {
-        if (j.stage === 'pickup' && j.pickup) dot(j.pickup.x, j.pickup.z, 3.5, '#ffb35a');
-        if (j.stage === 'deliver') for (const st of j.stops) if (!st.done) dot(st.x, st.z, 3.5, '#ff5a6e');
+        if (j.stage === 'pickup' && j.pickup) dot(j.pickup.x, j.pickup.z, 3.5, '#ffffff');
+        if (j.stage === 'deliver') for (const st of j.stops) if (!st.done) dot(st.x, st.z, 3.5, '#ff4d6d');
       }
       for (const ev of s.events?.events ?? []) dot(ev.x, ev.z, 3.2, ev.kind === 'accident' ? '#ff5a5a' : ev.kind === 'gathering' ? '#b07ae0' : '#ffb35a');
       g.restore();

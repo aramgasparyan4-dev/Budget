@@ -24,12 +24,14 @@ const POI_TYPE: Partial<Record<BusinessType, keyof typeof POI_ICONS>> = {
   cinema: 'cinema',
 };
 
-const FILTERS: { id: string; label: string; types: string[] }[] = [
-  { id: 'food', label: 'Food', types: ['cafe', 'restaurant', 'fastfood'] },
-  { id: 'shops', label: 'Shops', types: ['grocery', 'convenience', 'clothing'] },
-  { id: 'services', label: 'Services', types: ['bank', 'dealership', 'depot', 'taxi', 'hotel'] },
-  { id: 'night', label: 'Nightlife', types: ['bar', 'nightclub', 'cinema', 'gym'] },
+const FILTERS: { id: string; label: string; types: string[]; color: string }[] = [
+  { id: 'food', label: 'Food', types: ['cafe', 'restaurant', 'fastfood'], color: '#f08a5d' },
+  { id: 'shops', label: 'Shops', types: ['grocery', 'convenience', 'clothing'], color: '#a78bfa' },
+  { id: 'services', label: 'Services', types: ['bank', 'dealership', 'depot', 'taxi', 'hotel'], color: '#60a5fa' },
+  { id: 'night', label: 'Nightlife', types: ['bar', 'nightclub', 'cinema', 'gym'], color: '#f472b6' },
 ];
+const CAT_COLOR: Record<string, string> = {};
+for (const f of FILTERS) for (const t of f.types) CAT_COLOR[t] = f.color;
 
 interface View {
   cx: number;
@@ -129,7 +131,7 @@ export function MapCanvas({ height, compact = false }: { height: number; compact
       const f = filtersRef.current;
       const shown = new Set<string>();
       for (const fl of FILTERS) if (f[fl.id]) for (const t of fl.types) shown.add(t);
-      const r = Math.max(3, Math.min(9, v.zoom * 6));
+      const r = Math.max(2.6, Math.min(8, v.zoom * 5));
       let hoverName: string | null = null;
       const hp = hoverRef.current;
       for (const b of city.businesses) {
@@ -141,10 +143,13 @@ export function MapCanvas({ height, compact = false }: { height: number; compact
         if (x < -10 || z < -10 || x > W + 10 || z > H + 10) continue;
         const st = s.econ.biz[b.id];
         g.globalAlpha = st && st.closed ? 0.35 : 1;
-        g.fillStyle = POI_ICONS[icon].color;
+        g.fillStyle = CAT_COLOR[icon] ?? '#9fb3c8';
+        g.strokeStyle = 'rgba(5,7,12,0.85)';
+        g.lineWidth = 1.2;
         g.beginPath();
         g.arc(x, z, r, 0, Math.PI * 2);
         g.fill();
+        g.stroke();
         if (r >= 6) {
           g.fillStyle = '#05070c';
           g.font = `700 ${Math.round(r * 1.1)}px sans-serif`;
@@ -159,10 +164,13 @@ export function MapCanvas({ height, compact = false }: { height: number; compact
       // home
       const home = city.buildings[city.playerHome].door;
       const ring = (x: number, z: number, col: string, rad: number) => {
-        g.strokeStyle = col;
-        g.lineWidth = 2.5;
+        g.lineWidth = 5;
+        g.strokeStyle = 'rgba(5,7,12,0.8)';
         g.beginPath();
         g.arc(SX(x), SZ(z), rad, 0, Math.PI * 2);
+        g.stroke();
+        g.strokeStyle = col;
+        g.lineWidth = 2.6;
         g.stroke();
       };
       g.fillStyle = POI_ICONS.home.color;
@@ -200,8 +208,8 @@ export function MapCanvas({ height, compact = false }: { height: number; compact
       // job markers
       const j = s.jobs?.active;
       if (j) {
-        if (j.stage === 'pickup' && j.pickup) ring(j.pickup.x, j.pickup.z, '#ffb35a', 9);
-        if (j.stage === 'deliver') for (const st of j.stops) if (!st.done) ring(st.x, st.z, '#ff5a6e', 9);
+        if (j.stage === 'pickup' && j.pickup) ring(j.pickup.x, j.pickup.z, '#ffffff', 10);
+        if (j.stage === 'deliver') for (const st of j.stops) if (!st.done) ring(st.x, st.z, '#ff4d6d', 10);
       }
       // contacts (friends with your number, if you are close enough to know where they hang out)
       for (const p of s.peds.peds) {
@@ -343,8 +351,9 @@ export function MapCanvas({ height, compact = false }: { height: number; compact
           <button
             key={f.id}
             onClick={() => setFilters({ ...filters, [f.id]: !filters[f.id] })}
-            className={`text-[10px] px-2 py-1 rounded-full border ${filters[f.id] ? 'bg-accent/25 border-accent/60 text-white' : 'bg-black/40 border-white/15 text-white/50'}`}
+            className={`text-[10px] px-2 py-1 rounded-full border flex items-center gap-1.5 ${filters[f.id] ? 'bg-black/60 border-white/30 text-white' : 'bg-black/40 border-white/10 text-white/40'}`}
           >
+            <span className="w-2 h-2 rounded-full" style={{ background: filters[f.id] ? f.color : 'transparent', border: `1px solid ${f.color}` }} />
             {f.label}
           </button>
         ))}
@@ -384,12 +393,14 @@ export function MapOverlay() {
     return () => window.removeEventListener('resize', on);
   }, []);
   if (overlay !== 'map' || !game.session) return null;
-  const legend: [string, string][] = [
-    ['#57e3d6', 'Home / waypoint'],
-    ['#ffd166', 'Contacts · employer'],
-    ['#7ae582', 'Your business'],
-    ['#ffb35a', 'Job pickup · events'],
-    ['#ff5a6e', 'Delivery drop-off'],
+  const legend: [string, string, 'dot' | 'ring' | 'tri'][] = [
+    ['#57e3d6', 'Home · waypoint', 'dot'],
+    ['#ffd166', 'Contacts', 'dot'],
+    ['#ffd166', 'Your employer', 'ring'],
+    ['#7ae582', 'Your business', 'ring'],
+    ['#ffffff', 'Job pickup', 'ring'],
+    ['#ff4d6d', 'Drop-off', 'ring'],
+    ['#ffb35a', 'City events', 'tri'],
   ];
   return (
     <div className="absolute inset-0 bg-black/70 pointer-events-auto anim-fade flex flex-col px-10 pt-8 pb-6">
@@ -405,9 +416,13 @@ export function MapOverlay() {
       </div>
       <MapCanvas height={h} />
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/60 mt-3">
-        {legend.map(([c, l]) => (
+        {legend.map(([c, l, k]) => (
           <span key={l} className="flex items-center gap-1.5 whitespace-nowrap">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: c }} />
+            {k === 'tri' ? (
+              <span className="w-0 h-0" style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderBottom: `9px solid ${c}` }} />
+            ) : (
+              <span className="w-2.5 h-2.5 rounded-full" style={k === 'ring' ? { border: `2px solid ${c}` } : { background: c }} />
+            )}
             {l}
           </span>
         ))}
