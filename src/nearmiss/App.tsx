@@ -147,9 +147,9 @@ function Title() {
             Drive <span className="text-base font-bold opacity-60 not-italic ml-1">Enter</span>
           </button>
           <div className="text-xs text-white/45 leading-relaxed">
-            W A S D drive · Shift boost · Space handbrake
+            W A S D drive · Shift boost
             <br />
-            Esc pause · R restart
+            Space + steer to drift · Esc pause · R restart
           </div>
         </div>
 
@@ -204,8 +204,8 @@ function Countdown() {
 }
 
 function PopupItem({ p }: { p: Popup }) {
-  const color = p.kind === 'lost' ? 'text-brake' : p.kind === 'bank' ? 'text-amber' : p.tier === 3 ? 'text-brake' : p.tier === 2 ? 'text-amber' : 'text-beam';
-  const big = p.kind === 'bank' || p.kind === 'lost' || p.tier === 3;
+  const color = p.kind === 'lost' ? 'text-brake' : p.kind === 'bank' ? 'text-amber' : p.kind === 'drift' ? 'text-sodium' : p.tier === 3 ? 'text-brake' : p.tier === 2 ? 'text-amber' : 'text-beam';
+  const big = p.kind === 'bank' || p.kind === 'lost' || p.tier === 3 || p.label === 'MASSIVE DRIFT';
   return (
     <div className={`flex flex-col items-center shadow-text ${big ? 'pop-long' : 'pop'}`}>
       <div className={`display font-black uppercase leading-none ${color} ${big ? 'text-6xl' : 'text-4xl'}`}>{p.label}</div>
@@ -251,7 +251,11 @@ function Hud() {
         </div>
         <div className="mt-2 flex gap-2 h-6">
           {h.oncoming && <span className="display font-bold uppercase text-lg px-2 bg-oncoming text-asphalt">Oncoming</span>}
-          {h.drifting && <span className="display font-bold uppercase text-lg px-2 bg-sodium text-asphalt">Drift</span>}
+          {h.drifting && (
+            <span className="display font-bold uppercase text-lg px-2 bg-sodium text-asphalt tabular-nums">
+              Drift {h.driftAngle}° · +{fmt(h.driftPoints)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -316,12 +320,13 @@ function Results() {
     ['Distance', `${(r.distance / 1000).toFixed(2)} km`],
     ['Survived', `${r.seconds} s`],
     ['Against traffic', `${r.oncomingSec} s`],
-    ['Drifting', `${r.driftSec} s`],
+    ['Drifts', `${r.drifts} · ${r.driftSec} s`],
+    ['Best drift', fmt(r.bestDrift)],
     ['Closest pass', r.closest !== null ? `${Math.round(r.closest * 100)} cm` : '—'],
   ];
   return (
     <div className="absolute inset-0 bg-asphalt/85 pointer-events-auto flex items-center justify-center px-6 rise">
-      <div className="w-full max-w-3xl flex flex-col gap-6">
+      <div className="w-full max-w-4xl flex flex-col gap-6">
         <div className="flex items-end justify-between gap-6 flex-wrap">
           <div>
             <div className={`display font-black text-5xl uppercase ${r.reason === 'wrecked' ? 'text-brake' : 'text-amber'}`}>{r.reason === 'wrecked' ? 'Wrecked' : "Time's up"}</div>
@@ -335,7 +340,7 @@ function Results() {
           </div>
         </div>
         <div className="dashes" />
-        <div className="grid grid-cols-3 gap-x-8 gap-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-6 gap-y-4">
           {stats.map(([k, v]) => (
             <div key={k}>
               <div className="text-[10px] uppercase tracking-[0.22em] text-white/45">{k}</div>

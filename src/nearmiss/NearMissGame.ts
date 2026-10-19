@@ -13,6 +13,8 @@ import { laneOffset, PLATFORM } from '../world/CityGenerator';
 import { MeshBuilder, BASIC_LAYOUT, addBox, lin } from '../render/MeshBuilder';
 import { toBufferGeometry } from '../render/propModels';
 import { createPropMaterial } from '../render/materials';
+import { TireSmoke, SkidMarks } from '../render/TireEffects';
+import { wrapAngle } from '../core/math';
 import type { RoadSegment } from '../world/types';
 import type { Lane } from '../sim/traffic/RoadGraph';
 import { useStore } from '../state/store';
@@ -54,6 +56,9 @@ export class NearMissGame {
   world: World | null = null;
   traffic: TrafficSystem | null = null;
   vehR = new VehicleRenderer(320);
+  smoke = new TireSmoke(700);
+  skids = new SkidMarks(3000);
+  private smokeAcc = 0;
   car: DrivableVehicle | null = null;
   scorer = new Scorer();
   phase: Phase = 'loading';
@@ -97,7 +102,7 @@ export class NearMissGame {
     this.cam = new CameraController(camera);
     this.input.attach(renderer.domElement);
     renderer.info.autoReset = false;
-    scene.add(this.vehR.group);
+    scene.add(this.vehR.group, this.smoke.points, this.skids.mesh);
     (window as unknown as { __nm: NearMissGame }).__nm = this;
     const unlock = () => {
       this.audio.init();
@@ -281,6 +286,9 @@ export class NearMissGame {
     car.siren = def.siren;
     car.headlights = true;
     car.gripMul = this.cond.grip;
+    car.driftAssist = true;
+    this.skids.clear();
+    this.smoke.clear();
     car.driven = true;
     car.onImpact = (dv) => this.onImpact(dv);
     this.car = car;
@@ -312,6 +320,7 @@ export class NearMissGame {
   }
 
   private removeCar() {
+    this.audio.skid(0);
     if (this.car) {
       this.car.dispose();
       this.car = null;
@@ -336,6 +345,8 @@ export class NearMissGame {
         seconds: Math.round(s.elapsed),
         oncomingSec: Math.round(s.oncomingSec),
         driftSec: Math.round(s.driftSec),
+        drifts: s.drifts,
+        bestDrift: s.bestDrift,
         closest: isFinite(s.closest) ? Math.round(s.closest * 100) / 100 : null,
         car: def.name,
         cond: this.cond.label,
@@ -424,7 +435,14 @@ export class NearMissGame {
     if (car && (this.phase === 'countdown' || this.phase === 'run')) {
       this.cam.handleMouse(input, true);
       this.cam.baseFov = damp(this.cam.baseFov, this.baseFov + (this.boosting ? 12 : 0), 5, rawDt);
-      this.cam.update(rawDt, car.pos, world.physics, { heading: car.yaw, speed: car.speed });
+      // in a slide the camera swings toward the direction of travel, so you see the car side-on
+      let heading = car.yaw;
+      if (car.drifting) {
+        const lv = car.body.linvel();
+        const travel = Math.atan2(lv.x, lv.z);
+        heading = travel + wrapAngle(car.yaw - travel) * 0.45;
+      }
+      this.cam.update(rawDt, car.pos, world.physics, { heading, speed: car.speed });
       this.focus.copy(car.pos);
     } else if (car && this.phase === 'wreck') {
       this.orbit += rawDt * 0.5;
@@ -461,6 +479,7 @@ export class NearMissGame {
       if (this.flipT > 0.8) this.wreck();
     }
 
+    this.tireEffects(dt, car);
     world.update(this.renderer, this.camera, dt, this.time, cond.hour, cond.weather, this.focus);
     this.render();
 
@@ -471,6 +490,8 @@ export class NearMissGame {
         const thr = input.down('KeyW') || input.down('ArrowUp') ? 1 : 0;
         this.audio.engine(Math.min(1.2, car.rpm + (this.boosting ? 0.25 : 0)), thr, car.speed, car.spec.mass > 2300);
       }
+      const sliding = car && this.phase === 'run' && !this.paused && (car.drifting || (car.handbrake && car.speed > 8));
+      this.audio.skid(sliding ? Math.min(1, Math.max(0.35, Math.abs(car.slipAngle) / 30)) * Math.min(1, car.speed / 15) : 0);
     }
 
     input.endFrame();
@@ -520,13 +541,11 @@ export class NearMissGame {
       const spec = VEHICLES[v.type];
       others.push({ id: v.id, x: v.x, z: v.z, yaw: v.yaw, v: v.v, width: spec.width, length: spec.length });
     }
-    // sideways speed (right vector of the heading)
-    const slip = Math.abs(lv.x * -Math.cos(yaw) + lv.z * Math.sin(yaw));
     const road = this.roadInfo(car.pos.x, car.pos.z, yaw);
     this.scorer.update(
       { x: car.pos.x, z: car.pos.z, yaw, vx: lv.x, vz: lv.z, width: car.spec.width, length: car.spec.length },
       others,
-      { oncoming: road.oncoming, slip: car.speed > 9 ? slip : 0, boosting: this.boosting, dt },
+      { oncoming: road.oncoming, drift: { active: car.drifting, angle: Math.abs(car.slipAngle) }, boosting: this.boosting, dt },
     );
     // running a red light
     const it = this.intersectionAt(car.pos.x, car.pos.z);
@@ -550,7 +569,7 @@ export class NearMissGame {
         if (e.tier === 3) this.beatT = 0.4;
         this.audio.combo(this.scorer.mult);
         this.cam.shake = Math.max(this.cam.shake, 0.12 * (e.tier ?? 1));
-      } else if (e.kind === 'bonus') this.audio.combo(this.scorer.mult);
+      } else if (e.kind === 'bonus' || e.kind === 'drift') this.audio.combo(this.scorer.mult);
       else if (e.kind === 'bank') this.audio.bank(e.points);
       else if (e.kind === 'lost') this.audio.comboLost();
     }
@@ -586,6 +605,26 @@ export class NearMissGame {
     return -1;
   }
 
+  /** smoke and skid marks from the rear tires while sliding (drifts and handbrake locks) */
+  private tireEffects(dt: number, car: DrivableVehicle | null) {
+    if (dt > 0) this.smoke.update(dt);
+    this.smoke.setViewport(this.renderer.domElement.height, this.camera.fov);
+    if (!car || dt <= 0) return;
+    const sliding = (car.drifting || (car.handbrake && car.speed > 8)) && car.speed > 5;
+    const lv = car.body.linvel();
+    const intensity = car.drifting ? Math.min(1.4, Math.abs(car.slipAngle) / 25) : 0.5;
+    this.smokeAcc += sliding ? 36 * intensity * Math.min(1, car.speed / 18) * dt : 0;
+    for (const i of [2, 3]) {
+      const p = sliding ? car.wheelContact(i) : null;
+      this.skids.add(i, p);
+    }
+    while (this.smokeAcc >= 1) {
+      this.smokeAcc -= 1;
+      const p = car.wheelContact(Math.random() < 0.5 ? 2 : 3);
+      if (p) this.smoke.emit(p.x, p.y, p.z, lv.x, lv.z, 0.8 + intensity * 0.6);
+    }
+  }
+
   private render() {
     const night = G.uNight.value;
     const r = this.vehR;
@@ -608,8 +647,6 @@ export class NearMissGame {
     const s = this.scorer;
     const car = this.car;
     const road = car && this.world ? this.roadInfo(car.pos.x, car.pos.z, car.yaw) : { oncoming: false, street: '' };
-    const lv = car?.body.linvel();
-    const slip = car && lv ? Math.abs(lv.x * -Math.cos(car.yaw) + lv.z * Math.sin(car.yaw)) : 0;
     useNM.getState().setHud({
       speed: car ? Math.round(Math.abs(car.forwardSpeed) * 3.6) : 0,
       score: s.score,
@@ -620,7 +657,9 @@ export class NearMissGame {
       boosting: this.boosting,
       time: s.time,
       oncoming: this.phase === 'run' && road.oncoming && !!car && car.speed > 12,
-      drifting: this.phase === 'run' && !!car && car.speed > 9 && slip > 3.5,
+      drifting: this.phase === 'run' && s.driftActive,
+      driftAngle: car ? Math.round(Math.abs(car.slipAngle)) : 0,
+      driftPoints: Math.round(s.driftPoints),
       countdown: this.phase === 'countdown' ? Math.max(0, Math.ceil(3 - this.phaseT)) : 0,
       street: road.street,
     });

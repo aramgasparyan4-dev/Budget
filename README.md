@@ -133,7 +133,7 @@ delivery, deliver it, meet someone, earn $500) followed by longer life goals wit
 Weave through dense city traffic as fast as you dare. Passing a car with less than 1.7 m of
 side clearance is a near miss (under 0.9 m is a close call, under 0.4 m is INSANE); oncoming
 passes count double and crossing traffic one and a half times. Driving against traffic,
-drifting and running red lights also feed the combo. Every event raises the multiplier
+drifts and running red lights also feed the combo. Every event raises the multiplier
 (up to x10); the combo banks into your score after four quiet seconds, and a scrape loses
 whatever hasn't banked. The clock starts at 40 seconds and drains; risky driving buys time
 back. A big hit ends the run.
@@ -141,18 +141,26 @@ back. A big hit ends the run.
 - **Cars:** Volta GT (fast), Patrol Cruiser (heavy, lights on), Echo Cab (forgiving), Pixie
   Compact (small enough for gaps nothing else fits through).
 - **Conditions:** midnight, night rain (lower grip), golden hour, noon.
+- **Drifting:** tap Space (or the brake) while steering at speed to kick the back out, keep
+  steering into the slide to hold it and counter-steer to straighten. The car settles at about
+  20-25 degrees and keeps most of its speed, so you can slide round corners. Points build
+  with angle and speed while you slide; a drift of 0.6 s or more scores as one move and raises
+  the multiplier ("BIG DRIFT" over 28 degrees, "MASSIVE DRIFT" over 40). Near misses made
+  mid-drift are worth 1.5x. Hitting something mid-drift loses it. Tire smoke, skid marks and
+  squeal come with it.
 - **Boost:** near misses fill the meter; hold Shift for more power and top speed, and points
   earned while boosting are worth 1.5x.
 - **Traffic:** a director keeps a stream of slower and oncoming cars on the road ahead of
   you, and traffic gets denser the longer you survive.
 - **Scores:** your top 10 runs are kept in this browser (localStorage).
 
-Controls: W A S D drive, Shift boost, Space handbrake, mouse to look, Esc pause, R restart,
-Enter start, ← → pick a car.
+Controls: W A S D drive, Shift boost, Space + steer to drift, mouse to look, Esc pause,
+R restart, Enter start, ← → pick a car.
 
 It reuses Echo City's city generator, chunk renderer and shaders, sky and weather, Rapier car
-physics, traffic simulation, vehicle models and procedural audio. Its own code is in
-`src/nearmiss/` (about 1,400 lines): the scoring rules (`scoring.ts`, pure and unit-tested),
+physics (with an arcade drift layer that only Near Miss switches on), traffic simulation,
+vehicle models and procedural audio. Its own code is in
+`src/nearmiss/` (about 1,500 lines): the scoring rules (`scoring.ts`, pure and unit-tested),
 the game loop and traffic director (`NearMissGame.ts`) and the interface (`App.tsx`).
 
 ## Architecture
@@ -189,15 +197,17 @@ throttled HUD updates.
 ```bash
 npm run typecheck
 npm run test:sim     # headless 3-day simulation of all residents and the economy
-npm run test:unit    # Near Miss scoring rules (13 checks)
+npm run test:unit    # Near Miss scoring rules (18 checks) and drift handling (16 checks)
 npm run dev &        # then, in another shell:
 npm run test:e2e     # drives both games in headless Chromium (needs Playwright's Chromium)
 ```
 
-`scripts/e2e-nearmiss.mjs` (14 checks) covers the title screen, car and condition choice, the
-countdown, a scripted near miss, combo banking, boost, oncoming driving, pause, a crash into a
-stopped car, the results screen and leaderboard, restart, running out of time and the rain
-grip penalty. Like the Echo City suites it also passes against the production build.
+`scripts/e2e-nearmiss.mjs` (16 checks) covers the title screen, car and condition choice, the
+countdown, a scripted near miss, combo banking, boost, oncoming driving, a drift (scored, with
+skid marks and smoke), pause, a crash into a stopped car, the results screen and leaderboard,
+restart, running out of time and the rain grip penalty. `scripts/drift-test.ts` drives each
+Near Miss car in Rapier without a browser and checks that drifts hold an angle, keep speed
+and end cleanly, and that Echo City's cars (no drift assist) still grip. Like the Echo City suites it also passes against the production build.
 
 `scripts/e2e.mjs` (21 checks) and `scripts/e2e-systems.mjs` (11 checks) dispatch real key and
 mouse events to the page and advance the game with `window.__echo.simulate()`. They cover:

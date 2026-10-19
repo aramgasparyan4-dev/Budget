@@ -20,6 +20,7 @@ export class AudioEngine {
   private music: { gain: GainNode; timer: number; step: number; kind: 'menu' | 'club' | 'radio' | 'none'; nextTime: number } | null = null;
   private birdTimer = 0;
   private hornNodes: { g: GainNode; o: OscillatorNode[] } | null = null;
+  private skidNodes: { gain: GainNode; f1: BiquadFilterNode; f2: BiquadFilterNode } | null = null;
   vol = { master: 0.8, music: 0.55, sfx: 0.8, ambience: 0.7 };
   ready = false;
 
@@ -375,6 +376,37 @@ export class AudioEngine {
     this.burst(0.5 + intensity * 0.4, 1200, 0.5, 0.25 + intensity * 0.35, 'lowpass');
     this.blip(70, 0.35, 'sine', 0.3 * intensity + 0.1, 35);
     this.burst(0.25, 4200, 2, 0.06 * intensity, 'bandpass', 0.05);
+  }
+
+  /** tire squeal while sliding: two resonant noise bands, intensity 0..1 */
+  skid(intensity: number) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    if (!this.skidNodes) {
+      if (intensity <= 0.01) return;
+      const src = this.noise(true);
+      const f1 = ctx.createBiquadFilter();
+      f1.type = 'bandpass';
+      f1.Q.value = 9;
+      f1.frequency.value = 1350;
+      const f2 = ctx.createBiquadFilter();
+      f2.type = 'bandpass';
+      f2.Q.value = 12;
+      f2.frequency.value = 2250;
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      src.connect(f1).connect(gain);
+      src.connect(f2).connect(gain);
+      gain.connect(this.buses.sfx);
+      src.start();
+      this.skidNodes = { gain, f1, f2 };
+    }
+    const n = this.skidNodes;
+    const t = ctx.currentTime;
+    const wobble = 1 + Math.sin(t * 23) * 0.03;
+    n.gain.gain.setTargetAtTime(Math.min(1, intensity) * 0.5, t, 0.05);
+    n.f1.frequency.setTargetAtTime((1200 + intensity * 400) * wobble, t, 0.05);
+    n.f2.frequency.setTargetAtTime((2050 + intensity * 500) * wobble, t, 0.05);
   }
 
   /** air rushing past another car: a falling noise sweep, louder and brighter for closer passes */

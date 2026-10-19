@@ -7,6 +7,7 @@ const check = (name: string, ok: boolean, info: unknown = '') => {
   if (!ok) failed++;
 };
 
+const NO_DRIFT = { active: false, angle: 0 };
 const W = 1.96;
 const L = 4.45;
 /** drive the player north at `speed` past one other car; returns the scorer */
@@ -20,7 +21,7 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
     car.z += speed * dt;
     other.z += Math.cos(other.yaw) * other.v * dt;
     if (opts.touch && Math.abs(car.z - other.z) < 2) s.touched(1);
-    s.update(car, [other], { oncoming: false, slip: 0, boosting: false, dt });
+    s.update(car, [other], { oncoming: false, drift: NO_DRIFT, boosting: false, dt });
   }
   return s;
 }
@@ -71,13 +72,13 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
 {
   const s = new Scorer();
   const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 0, width: W, length: L };
-  for (let i = 0; i < 60 * (RULES.startTime + 1); i++) s.update(car, [], { oncoming: false, slip: 0, boosting: false, dt: 1 / 60 });
+  for (let i = 0; i < 60 * (RULES.startTime + 1); i++) s.update(car, [], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 60 });
   check('clock runs out', s.over === 'time' && s.time === 0);
 }
 {
   const s = new Scorer();
   const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 25, width: W, length: L };
-  for (let i = 0; i < 60 * 3; i++) s.update(car, [], { oncoming: true, slip: 0, boosting: false, dt: 1 / 60 });
+  for (let i = 0; i < 60 * 3; i++) s.update(car, [], { oncoming: true, drift: NO_DRIFT, boosting: false, dt: 1 / 60 });
   check('oncoming lane builds combo points and keeps the clock up', s.comboPoints > 100 && s.time > RULES.startTime - 3, { cp: s.comboPoints, t: s.time });
 }
 {
@@ -90,10 +91,54 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
   for (let t = 0; t < 4; t += 1 / 60) {
     car.z += 30 / 60;
     other.z += 10 / 60;
-    s.update(car, [other], { oncoming: false, slip: 0, boosting: true, dt: 1 / 60 });
+    s.update(car, [other], { oncoming: false, drift: NO_DRIFT, boosting: true, dt: 1 / 60 });
   }
   const e = s.events.find((x) => x.kind === 'near');
   check('boost multiplies near-miss points and drains', !!e && e.points > a.events.find((x) => x.kind === 'near')!.points && s.boost < 1, { e, boost: s.boost });
+}
+// drifting
+function drift(seconds: number, angle: number, after = 0.5) {
+  const s = new Scorer();
+  const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 25, width: W, length: L };
+  for (let t = 0; t < seconds; t += 1 / 60) s.update(car, [], { oncoming: false, drift: { active: true, angle }, boosting: false, dt: 1 / 60 });
+  for (let t = 0; t < after; t += 1 / 60) s.update(car, [], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 60 });
+  return s;
+}
+{
+  const s = drift(1.5, 30);
+  const e = s.events.find((x) => x.kind === 'drift');
+  check('a held slide scores one drift event when it ends', !!e && e.points > 0 && e.label === 'BIG DRIFT' && s.drifts === 1 && s.mult === 2, s.events);
+}
+{
+  const s = drift(0.4, 30);
+  check('a short wiggle is not a drift', !s.events.some((x) => x.kind === 'drift') && s.drifts === 0, s.events);
+}
+{
+  const a = drift(1.5, 20).events.find((x) => x.kind === 'drift')!.points;
+  const b = drift(1.5, 40).events.find((x) => x.kind === 'drift')!.points;
+  check('deeper angle scores more', b > a * 1.6, { a, b });
+}
+{
+  const s = new Scorer();
+  const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 25, width: W, length: L };
+  for (let t = 0; t < 1; t += 1 / 60) s.update(car, [], { oncoming: false, drift: { active: true, angle: 30 }, boosting: false, dt: 1 / 60 });
+  s.impact(6);
+  for (let t = 0; t < 0.5; t += 1 / 60) s.update(car, [], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 60 });
+  check('a scrape mid-drift loses the drift', !s.events.some((x) => x.kind === 'drift') && s.events.some((x) => x.kind === 'lost'), s.events);
+}
+{
+  // near miss while drifting is worth 1.5x
+  const s = new Scorer();
+  const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 30, width: W, length: L };
+  const other: OtherCar = { id: 1, x: W / 2 + 0.93 + 0.6, z: 40, yaw: 0, v: 10, width: 1.86, length: 4.65 };
+  for (let t = 0; t < 4; t += 1 / 60) {
+    car.z += 30 / 60;
+    other.z += 10 / 60;
+    s.update(car, [other], { oncoming: false, drift: { active: true, angle: 25 }, boosting: false, dt: 1 / 60 });
+  }
+  const e = s.events.find((x) => x.kind === 'near');
+  const plain = pass({ gap: 0.6 }).events.find((x) => x.kind === 'near')!.points;
+  check('near miss mid-drift is worth 1.5x and says so', !!e && e.points >= plain * 1.45 && !!e.sub?.includes('DRIFTING'), { e, plain });
 }
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

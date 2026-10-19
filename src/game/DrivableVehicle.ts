@@ -3,7 +3,7 @@ import { RAPIER, Physics, GROUP, groups } from '../engine/Physics';
 import { VEHICLES, VehicleSpec } from '../sim/vehicles';
 import type { Input } from '../engine/Input';
 import type { VehicleDrawable } from '../render/VehicleRenderer';
-import { clamp, damp } from '../core/math';
+import { clamp, damp, wrapAngle } from '../core/math';
 
 export type Ownership = 'player' | 'company' | 'taxi' | 'borrowed';
 
@@ -43,6 +43,19 @@ export class DrivableVehicle {
   powerMul = 1;
   topMul = 1;
   gripMul = 1;
+  /**
+   * Arcade drifting (Near Miss). Space, or a tap of the brake, while steering at speed kicks the back
+   * out. In the slide the direction of travel bends toward the nose at a fixed rate, so the angle settles
+   * at (yaw rate / that rate): steer into the slide to hold or deepen it, counter-steer to straighten.
+   */
+  driftAssist = false;
+  drifting = false;
+  /** angle between the nose and the direction of travel, degrees (positive: nose left of travel) */
+  slipAngle = 0;
+  private driftT = 0;
+  private settleT = 0;
+  private gripBack = 1;
+  private lastBack = false;
   private drawable: VehicleDrawable;
   private physics: Physics;
 
@@ -147,11 +160,12 @@ export class DrivableVehicle {
     let brk = 0;
     let str = 0;
     let hand = false;
+    let back = false;
     this.forwardSpeed = vc.currentVehicleSpeed();
     const v = this.forwardSpeed;
     if (active && input) {
       const fwd = input.down('KeyW') || input.down('ArrowUp');
-      const back = input.down('KeyS') || input.down('ArrowDown');
+      back = input.down('KeyS') || input.down('ArrowDown');
       str = (input.down('KeyA') || input.down('ArrowLeft') ? 1 : 0) - (input.down('KeyD') || input.down('ArrowRight') ? 1 : 0);
       hand = input.down('Space');
       if (fwd) {
@@ -166,6 +180,28 @@ export class DrivableVehicle {
     this.braking = brk > 0 || (!active && Math.abs(v) < 2);
     this.reversing = thr < 0 && v < 0.5;
     this.handbrake = hand;
+    // drift state
+    const lv0 = this.body.linvel();
+    const sp0 = Math.hypot(lv0.x, lv0.z);
+    const beta0 = sp0 > 2 ? wrapAngle(this.yaw - Math.atan2(lv0.x, lv0.z)) : 0;
+    this.slipAngle = (beta0 * 180) / Math.PI;
+    if (this.driftAssist && active) {
+      const kick = (hand || (back && !this.lastBack)) && str !== 0 && sp0 > 11 && v > 0;
+      if (!this.drifting && kick) {
+        this.drifting = true;
+        this.driftT = 0;
+        this.settleT = 0;
+        const av = this.body.angvel();
+        this.body.setAngvel({ x: av.x, y: av.y + str * 0.9, z: av.z }, true);
+      }
+      if (this.drifting) {
+        this.driftT += h;
+        this.settleT = Math.abs(beta0) < 0.12 && !hand ? this.settleT + h : 0;
+        if ((this.driftT > 0.35 && this.settleT > 0.2) || sp0 < 7) this.endDrift();
+      }
+      this.lastBack = back;
+    } else if (this.drifting) this.endDrift();
+    this.gripBack = Math.min(1, this.gripBack + h * 3);
     // steering: speed sensitive, smooth
     const maxSteer = s.steer / (1 + Math.abs(v) / 13);
     const target = str * maxSteer;
@@ -190,9 +226,11 @@ export class DrivableVehicle {
       let b = brk * s.brake;
       if (!active) b = s.brake * 0.6;
       if (thr === 0 && brk === 0 && active) b = 0.8; // engine braking
-      if (hand && !front) b = s.brake * 1.2;
+      if (hand && !front) b = this.drifting ? s.brake * 0.15 : s.brake * 1.2;
       vc.setWheelBrake(i, b);
-      vc.setWheelSideFrictionStiffness(i, hand && !front ? 0.35 : 1.0);
+      // in a drift the tires hand lateral control to the drift model; grip returns gradually after
+      const side = this.drifting ? 0.02 : (hand && !front ? 0.35 : 1.0) * (0.25 + 0.75 * this.gripBack);
+      vc.setWheelSideFrictionStiffness(i, side);
       vc.setWheelFrictionSlip(i, (hand && !front ? s.grip * 0.55 : s.grip) * this.gripMul);
     }
     vc.updateVehicle(h, undefined, groups(GROUP.VEHICLE, GROUP.STATIC | GROUP.DYNAMIC | GROUP.TRAFFIC), (col) => col.handle !== this.collider.handle);
@@ -205,6 +243,7 @@ export class DrivableVehicle {
       const f = k * sp;
       this.body.addForce({ x: -lv.x * f, y: -lv.y * f * 0.2 - sp * sp * 0.6, z: -lv.z * f }, true);
     }
+    if (this.drifting) this.driftStep(h, maxSteer, hand);
     // impact detection
     const dv = Math.hypot(lv.x - this.lastVel.x, lv.y - this.lastVel.y, lv.z - this.lastVel.z);
     if (dv > 4.5) {
@@ -231,6 +270,37 @@ export class DrivableVehicle {
       if (this.upsideT > 2.5) this.reset();
     } else this.upsideT = 0;
     if (this.pos.y < -20) this.reset(true);
+  }
+
+  /** world contact point of wheel i (0, 1 front; 2, 3 rear), or null while it is in the air */
+  wheelContact(i: number): { x: number; y: number; z: number } | null {
+    if (!this.vc.wheelIsInContact(i)) return null;
+    const p = this.vc.wheelContactPoint(i);
+    return p ? { x: p.x, y: p.y, z: p.z } : null;
+  }
+
+  private endDrift() {
+    this.drifting = false;
+    this.gripBack = 0;
+  }
+
+  private driftStep(h: number, maxSteer: number, hand: boolean) {
+    const lv = this.body.linvel();
+    const spd = Math.hypot(lv.x, lv.z);
+    const travel = Math.atan2(lv.x, lv.z);
+    const beta = wrapAngle(this.yaw - travel);
+    // travel bends toward the nose; the steady angle is (yaw rate / LAMBDA)
+    const LAMBDA = 1.5;
+    const nt = travel + beta * Math.min(1, LAMBDA * h);
+    const scrub = 1 - (0.03 + 0.1 * Math.sin(beta) ** 2 + (hand ? 0.3 : 0)) * h;
+    this.body.setLinvel({ x: Math.sin(nt) * spd * scrub, y: lv.y, z: Math.cos(nt) * spd * scrub }, true);
+    // yaw rate follows the steering, and is pulled back past ~55 degrees so the car doesn't spin
+    const steerN = maxSteer > 0 ? clamp(this.steer / maxSteer, -1, 1) : 0;
+    let target = steerN * 1.35;
+    const LIMIT = 0.95;
+    if (Math.abs(beta) > LIMIT) target -= Math.sign(beta) * (Math.abs(beta) - LIMIT) * 6;
+    const av = this.body.angvel();
+    this.body.setAngvel({ x: av.x, y: av.y + (target - av.y) * Math.min(1, 7 * h), z: av.z }, true);
   }
 
   reset(toRoad = false) {

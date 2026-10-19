@@ -3,7 +3,7 @@
 // A run lives on a draining clock. Risky driving refills it and builds a combo:
 //  - near miss: passing a car with less than 1.7 m of side clearance, faster than it, without touching
 //  - oncoming lane: driving against traffic
-//  - drift: sliding sideways at speed
+//  - drift: a slide held for a while, scored by angle, speed and length; passes made mid-drift count 1.5x
 // Every event raises the combo multiplier. The combo banks into the score after a few quiet seconds;
 // a scrape loses whatever is unbanked, and a big hit ends the run.
 
@@ -29,12 +29,12 @@ export interface OtherCar {
 
 export interface DriveContext {
   oncoming: boolean; // in a lane against traffic
-  slip: number; // sideways speed, m/s
+  drift: { active: boolean; angle: number }; // angle: degrees between nose and travel
   boosting: boolean;
   dt: number;
 }
 
-export type EventKind = 'near' | 'bank' | 'lost' | 'scrape' | 'bonus';
+export type EventKind = 'near' | 'drift' | 'bank' | 'lost' | 'scrape' | 'bonus';
 
 export interface ScoreEvent {
   kind: EventKind;
@@ -59,6 +59,9 @@ export const RULES = {
   scrapeTimePenalty: 3,
   wreckImpact: 11, // velocity change (m/s) that ends the run
   scrapeImpact: 4.5,
+  minDrift: 0.6, // seconds a slide must last to count as a drift
+  driftRate: 90, // points per second at 25 degrees and standing speed factor
+  driftPassMul: 1.5,
 };
 
 interface Track {
@@ -87,6 +90,14 @@ export class Scorer {
   distance = 0;
   oncomingSec = 0;
   driftSec = 0;
+  drifts = 0;
+  bestDrift = 0;
+  longestDrift = 0;
+  // the drift in progress
+  driftActive = false;
+  driftPoints = 0;
+  driftTime = 0;
+  driftMax = 0;
   events: ScoreEvent[] = [];
   private tracks = new Map<number, Track>();
   private t = 0;
@@ -117,21 +128,33 @@ export class Scorer {
     // boost
     if (ctx.boosting && this.boost > 0) this.boost = Math.max(0, this.boost - RULES.boostDrain * dt);
 
-    // continuous risk: oncoming lane and drifting
-    if (speed > RULES.minSpeed) {
-      if (ctx.oncoming) {
-        this.oncomingSec += dt;
-        this.addCombo(70 * speedFactor * dt, ctx.boosting, 1.2);
-        this.boost = Math.min(1, this.boost + 0.05 * dt);
-        this.time = Math.min(RULES.maxTime, this.time + 0.4 * dt);
-      }
-      if (ctx.slip > 3.5) {
-        this.driftSec += dt;
-        this.addCombo(55 * (ctx.slip / 4) * dt, ctx.boosting, 1.2);
-        this.boost = Math.min(1, this.boost + 0.06 * dt);
-        this.time = Math.min(RULES.maxTime, this.time + 0.3 * dt);
-      }
+    // continuous risk: oncoming lane
+    if (speed > RULES.minSpeed && ctx.oncoming) {
+      this.oncomingSec += dt;
+      this.addCombo(70 * speedFactor * dt, ctx.boosting, 1.2);
+      this.boost = Math.min(1, this.boost + 0.05 * dt);
+      this.time = Math.min(RULES.maxTime, this.time + 0.4 * dt);
     }
+
+    // drifting: points build while sliding (and are lost with the combo on a hit); the drift itself is
+    // one event when it ends
+    if (ctx.drift.active && speed > 8) {
+      if (!this.driftActive) {
+        this.driftActive = true;
+        this.driftPoints = 0;
+        this.driftTime = 0;
+        this.driftMax = 0;
+      }
+      const a = Math.min(60, Math.abs(ctx.drift.angle));
+      const pts = RULES.driftRate * (a / 25) * speedFactor * dt;
+      this.driftPoints += pts * (ctx.boosting ? RULES.boostMul : 1);
+      this.addCombo(pts, ctx.boosting, 1.5);
+      this.driftTime += dt;
+      this.driftSec += dt;
+      this.driftMax = Math.max(this.driftMax, a);
+      this.boost = Math.min(1, this.boost + 0.08 * (a / 25) * dt);
+      this.time = Math.min(RULES.maxTime, this.time + 0.35 * dt);
+    } else if (this.driftActive) this.endDrift();
 
     // near misses
     const fx = Math.sin(car.yaw);
@@ -195,6 +218,7 @@ export class Scorer {
     let pts = 100 * tier * speedFactor;
     if (oncoming) pts *= 2;
     else if (crossing) pts *= 1.5;
+    if (this.driftActive) pts *= RULES.driftPassMul;
     pts = Math.round(pts / 10) * 10;
     this.bump();
     this.addCombo(pts, boosting);
@@ -203,8 +227,22 @@ export class Scorer {
     this.boost = Math.min(1, this.boost + 0.07 * tier);
     this.time = Math.min(RULES.maxTime, this.time + 1.5 * tier);
     const label = tier === 3 ? 'INSANE' : tier === 2 ? 'CLOSE CALL' : 'NEAR MISS';
-    const sub = oncoming ? 'ONCOMING' : crossing ? 'CROSS TRAFFIC' : undefined;
+    const parts = [oncoming ? 'ONCOMING' : crossing ? 'CROSS TRAFFIC' : '', this.driftActive ? 'DRIFTING' : ''].filter(Boolean);
+    const sub = parts.length ? parts.join(' · ') : undefined;
     this.events.push({ kind: 'near', label, sub, points: Math.round(pts * (boosting ? RULES.boostMul : 1)), tier });
+  }
+
+  private endDrift() {
+    this.driftActive = false;
+    if (this.driftTime < RULES.minDrift) return;
+    const pts = Math.round(this.driftPoints);
+    this.drifts++;
+    this.bestDrift = Math.max(this.bestDrift, pts);
+    this.longestDrift = Math.max(this.longestDrift, this.driftTime);
+    this.bump();
+    this.comboT = Math.max(this.comboT, RULES.comboWindow);
+    const label = this.driftMax >= 40 ? 'MASSIVE DRIFT' : this.driftMax >= 28 ? 'BIG DRIFT' : 'DRIFT';
+    this.events.push({ kind: 'drift', label, sub: `${Math.round(this.driftMax)}° · ${this.driftTime.toFixed(1)} s`, points: pts });
   }
 
   /** a one-off bonus from the game layer (red light, etc.) */
@@ -241,6 +279,7 @@ export class Scorer {
     }
     if (dv < RULES.scrapeImpact) return 'none';
     const lost = Math.round(this.comboPoints * this.mult);
+    this.driftActive = false; // the drift's points went with the combo
     if (lost > 0) this.events.push({ kind: 'lost', label: 'COMBO LOST', points: -lost });
     else this.events.push({ kind: 'scrape', label: 'SCRAPE', points: 0 });
     this.resetCombo();
@@ -258,9 +297,13 @@ export class Scorer {
   end(reason: 'wrecked' | 'time') {
     if (this.over) return;
     this.over = reason;
-    // running out of time still banks the combo; a wreck loses it
-    if (reason === 'time') this.bank();
+    // running out of time still banks the combo (a drift in progress counts); a wreck loses it
+    if (reason === 'time') {
+      if (this.driftActive) this.endDrift();
+      this.bank();
+    }
     else if (this.comboPoints > 0) {
+      this.driftActive = false;
       this.events.push({ kind: 'lost', label: 'COMBO LOST', points: -Math.round(this.comboPoints * this.mult) });
       this.resetCombo();
     }

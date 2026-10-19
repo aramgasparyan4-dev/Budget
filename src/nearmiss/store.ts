@@ -23,6 +23,8 @@ export interface Hud {
   time: number; // seconds on the clock
   oncoming: boolean;
   drifting: boolean;
+  driftAngle: number; // degrees
+  driftPoints: number; // points in the drift so far
   countdown: number;
   street: string;
 }
@@ -38,6 +40,8 @@ export interface RunResult {
   seconds: number;
   oncomingSec: number;
   driftSec: number;
+  drifts: number;
+  bestDrift: number;
   closest: number | null;
   car: string;
   cond: string;
@@ -91,7 +95,7 @@ export const useNM = create<NMState>((set, get) => ({
   paused: false,
   carIndex: 0,
   cond: 'night',
-  hud: { speed: 0, score: 0, comboPoints: 0, mult: 1, comboT: 0, boost: 0, boosting: false, time: 0, oncoming: false, drifting: false, countdown: 0, street: '' },
+  hud: { speed: 0, score: 0, comboPoints: 0, mult: 1, comboT: 0, boost: 0, boosting: false, time: 0, oncoming: false, drifting: false, driftAngle: 0, driftPoints: 0, countdown: 0, street: '' },
   popups: [],
   result: null,
   best: loadBest(),
