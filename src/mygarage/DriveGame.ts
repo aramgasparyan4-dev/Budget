@@ -34,10 +34,10 @@ export const CITY_SEED = 20261019;
 const clear = (o: Partial<WeatherParams> = {}): WeatherParams => ({ cloud: 0.15, rain: 0, fog: 0, wet: 0, wind: 0.2, storm: 0, flash: 0, ...o });
 
 export const CONDITIONS: Record<string, { label: string; hour: number; weather: WeatherParams; grip: number }> = {
+  day: { label: 'Noon', hour: 12.5, weather: clear({ cloud: 0.25 }), grip: 1 },
+  dusk: { label: 'Golden hour', hour: 18.75, weather: clear({ cloud: 0.3 }), grip: 1 },
   night: { label: 'Midnight', hour: 0.4, weather: clear(), grip: 1 },
   rain: { label: 'Night rain', hour: 22.6, weather: clear({ cloud: 0.95, rain: 0.85, fog: 0.25, wet: 1, wind: 0.55, storm: 0.35 }), grip: 0.78 },
-  dusk: { label: 'Golden hour', hour: 18.75, weather: clear({ cloud: 0.3 }), grip: 1 },
-  day: { label: 'Noon', hour: 12.5, weather: clear({ cloud: 0.25 }), grip: 1 },
 };
 
 const BOOST_POWER = 1.8;
@@ -48,7 +48,7 @@ const SCORE_TRAFFIC = { maxVehicles: 160, spawnInterval: 0.03, spawnAttempts: 24
 /** traffic is always at rush-hour volume, whatever the light looks like */
 const TRAFFIC_HOUR = 17.6;
 
-export class NearMissGame {
+export class DriveGame {
   renderer!: THREE.WebGLRenderer;
   scene!: THREE.Scene;
   camera!: THREE.PerspectiveCamera;
@@ -120,7 +120,7 @@ export class NearMissGame {
     this.input.attach(renderer.domElement);
     renderer.info.autoReset = false;
     scene.add(this.vehR.group, this.smoke.points, this.engineSmoke.points, this.skids.mesh, this.showLight, this.showLight.target);
-    (window as unknown as { __nm: NearMissGame }).__nm = this;
+    (window as unknown as { __nm: DriveGame }).__nm = this;
     startBridge();
     const unlock = () => {
       this.audio.init();
@@ -332,6 +332,7 @@ export class NearMissGame {
     car.gripMul = setup.grip * this.condGrip(setup);
     car.brakeMul = setup.brake;
     car.driftAssist = true;
+    car.handlingAssist = true;
     this.skids.clear();
     this.smoke.clear();
     car.driven = true;
@@ -434,7 +435,7 @@ export class NearMissGame {
     const rank = st.record({ score: s.score, car: name, cond: this.cond.label, date: Date.now(), nearMisses: s.nearMisses, bestCombo: s.bestCombo });
     const coins = runCoins(s.score, setup);
     this.saveRun(coins, s.score);
-    hostBridge()?.send({ type: 'nearmiss:run', vehicleId: setup.vehicle.id, mode: 'score', score: s.score, coins, health: Math.round(s.health) });
+    hostBridge()?.send({ type: 'mygarage:run', vehicleId: setup.vehicle.id, mode: 'score', score: s.score, coins, health: Math.round(s.health) });
     st.set({
       result: {
         score: s.score,
@@ -475,7 +476,7 @@ export class NearMissGame {
     const record = st.recordRace(won, margin);
     const coins = raceCoins(won, mine !== null, margin, setup);
     this.saveRun(coins);
-    hostBridge()?.send({ type: 'nearmiss:run', vehicleId: setup.vehicle.id, mode: 'race', score: 0, coins, health: Math.round(s.health), won });
+    hostBridge()?.send({ type: 'mygarage:run', vehicleId: setup.vehicle.id, mode: 'race', score: 0, coins, health: Math.round(s.health), won });
     st.set({
       result: {
         score: s.score,
@@ -768,12 +769,8 @@ export class NearMissGame {
     if (this.attractSnap) this.camera.position.copy(want);
     else this.camera.position.lerp(want, 1 - Math.exp(-dt * 3));
     this.attractSnap = false;
-    // aim a little to the car's left so it sits right of centre, clear of the title column
-    const fx = spot.x - this.camera.position.x;
-    const fz = spot.z - this.camera.position.z;
-    const fl = Math.hypot(fx, fz) || 1;
-    const shift = this.camera.aspect > 1.3 ? 1.4 : 0;
-    this.camera.lookAt(spot.x + (fz / fl) * shift, 0.6, spot.z - (fx / fl) * shift);
+    // the car sits in the middle, between the two title cards
+    this.camera.lookAt(spot.x, 0.6, spot.z);
     // a key light just off the camera's shoulder, so the side you are looking at is always lit
     const b = a + 0.45;
     const lx = out[0] * Math.cos(b) + along[0] * Math.sin(b);
@@ -1048,4 +1045,4 @@ export class NearMissGame {
   }
 }
 
-export const nm = new NearMissGame();
+export const nm = new DriveGame();

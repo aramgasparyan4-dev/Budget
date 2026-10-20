@@ -1,7 +1,7 @@
 // Race progress rules, no physics: checkpoints in order, no credit off the route or for shortcuts,
 // wrong-way detection, finish. Run: npx tsx scripts/race-unit-test.ts
 import { generateCity } from '../src/world/CityGenerator';
-import { planRoute, Progress, compareProgress, freeSpot, laneSet } from '../src/nearmiss/race';
+import { planRoute, Progress, compareProgress, freeSpot, laneSet } from '../src/mygarage/race';
 
 const city = generateCity(20261019);
 let failed = 0;

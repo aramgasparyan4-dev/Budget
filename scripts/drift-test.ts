@@ -1,9 +1,10 @@
 // Headless drift handling check: the real DrivableVehicle on a flat Rapier ground.
-// Run: npx tsx scripts/drift-test.ts            (asserts, all Near Miss cars)
+// Run: npx tsx scripts/drift-test.ts            (asserts, all garage cars)
 //      npx tsx scripts/drift-test.ts 3 1 trace  (prints a trace for one car, assist on/off)
 import * as THREE from 'three';
 import { initRapier, Physics } from '../src/engine/Physics';
 import { DrivableVehicle } from '../src/game/DrivableVehicle';
+import { ARCHETYPES } from '../src/mygarage/garage/archetypes';
 
 await initRapier();
 const trace = process.argv[4] === 'trace';
@@ -14,6 +15,8 @@ function drive(type: number, assist: boolean) {
   physics.addStaticBox(0, -1, 0, 3000, 1, 3000, 0, undefined, 1.0);
   const car = new DrivableVehicle(physics, type, 0, 0.02, 0, 0, new THREE.Color(0xff0000), 'player');
   car.driftAssist = assist;
+  // as in the game: the turning help is on whenever the drift assist is
+  car.handlingAssist = assist;
   const keys = new Set<string>();
   const input = { down: (c: string) => keys.has(c), hit: () => false } as never;
   const h = 1 / 60;
@@ -29,7 +32,8 @@ function drive(type: number, assist: boolean) {
       t += h;
       const v = car.body.linvel();
       rows.push({ speed: Math.hypot(v.x, v.z) * 3.6, slip: car.slipAngle, drifting: car.drifting });
-      if (trace && i % 15 === 0) console.log(`${label.padEnd(14)} t=${t.toFixed(2)} ${(Math.hypot(v.x, v.z) * 3.6).toFixed(0)}km/h slip=${car.slipAngle.toFixed(0)}° drifting=${car.drifting}`);
+      if (trace && i % 15 === 0)
+        console.log(`${label.padEnd(14)} t=${t.toFixed(2)} ${(Math.hypot(v.x, v.z) * 3.6).toFixed(0)}km/h slip=${car.slipAngle.toFixed(0)}° drifting=${car.drifting}`);
     }
   };
   run(5, ['KeyW'], 'accelerate');
@@ -50,15 +54,20 @@ if (trace) {
   drive(Number(process.argv[2] ?? 3), process.argv[3] !== '0');
   process.exit(0);
 }
-for (const type of [3, 8, 4, 0]) {
-  const name = `type ${type}`;
+// every garage car (the ones MyGarage Drive players drive)
+for (const a of ARCHETYPES) {
+  const type = a.type;
+  const name = a.id;
   const log = drive(type, true);
   const hold = log.hold.slice(30); // after the slide has built up
   const minSlip = Math.min(...hold.map((r) => Math.abs(r.slip)));
   const maxSlip = Math.max(...hold.map((r) => Math.abs(r.slip)));
   const v0 = log.kick[0].speed;
   const vEnd = log.hold[log.hold.length - 1].speed;
-  check(`${name}: drift holds an angle while steering into it`, hold.every((r) => r.drifting) && minSlip > 15 && maxSlip < 45, { minSlip: +minSlip.toFixed(1), maxSlip: +maxSlip.toFixed(1) });
+  check(`${name}: drift holds an angle while steering into it`, hold.every((r) => r.drifting) && minSlip > 15 && maxSlip < 45, {
+    minSlip: +minSlip.toFixed(1),
+    maxSlip: +maxSlip.toFixed(1),
+  });
   check(`${name}: keeps most of its speed`, vEnd > v0 * 0.65, { v0: Math.round(v0), vEnd: Math.round(vEnd) });
   const out = log.straight[log.straight.length - 1];
   check(`${name}: counter-steer and straightening end the drift with grip back`, !out.drifting && Math.abs(out.slip) < 3, out);

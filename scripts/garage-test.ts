@@ -1,9 +1,9 @@
 // Garage rules, no rendering: which archetype a real car drives as, that each archetype really is
 // best at what it claims, damage, the economy, and parsing what a host page sends.
 // Run: npx tsx scripts/garage-test.ts
-import { ARCHETYPES, ARCHETYPE, ratings, zeroToHundred } from '../src/nearmiss/garage/archetypes';
-import { matchArchetype } from '../src/nearmiss/garage/catalog';
-import { parseVehicle, paintOf, tweaksOf, GarageVehicle } from '../src/nearmiss/garage/vehicle';
+import { ARCHETYPES, ARCHETYPE, ratings, zeroToHundred } from '../src/mygarage/garage/archetypes';
+import { matchArchetype } from '../src/mygarage/garage/catalog';
+import { parseVehicle, paintOf, tweaksOf, GarageVehicle } from '../src/mygarage/garage/vehicle';
 import {
   buyUpgrade,
   carSetup,
@@ -19,9 +19,9 @@ import {
   sanitizeSave,
   upgradeCost,
   withCar,
-} from '../src/nearmiss/garage/progress';
-import { decodeGarage, encodeGarage, parseImport, readHash } from '../src/nearmiss/garage/bridge';
-import { RULES, Scorer } from '../src/nearmiss/scoring';
+} from '../src/mygarage/garage/progress';
+import { decodeGarage, encodeGarage, parseImport, readHash } from '../src/mygarage/garage/bridge';
+import { RULES, Scorer } from '../src/mygarage/scoring';
 import { VEHICLES } from '../src/sim/vehicles';
 
 let failed = 0;

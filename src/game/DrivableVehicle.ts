@@ -49,6 +49,8 @@ export class DrivableVehicle {
    * at (yaw rate / that rate): steer into the slide to hold or deepen it, counter-steer to straighten.
    */
   driftAssist = false;
+  /** arcade help for turning (MyGarage Drive): more lock at speed, more grip, the car follows the wheel */
+  handlingAssist = false;
   /** analog controls for an AI driver; when set, the keyboard is ignored (steer +1 = full left) */
   aiInput: { throttle: number; brake: number; steer: number; handbrake: boolean } | null = null;
   /** brake force multiplier (upgrades) */
@@ -219,7 +221,9 @@ export class DrivableVehicle {
     } else if (this.drifting) this.endDrift();
     this.gripBack = Math.min(1, this.gripBack + h * 3);
     // steering: speed sensitive, smooth
-    const maxSteer = s.steer / (1 + Math.abs(v) / 13);
+    // the turning help stays out of drifts and handbrake turns, which keep their own feel
+    const assist = this.handlingAssist && !this.drifting && !hand;
+    const maxSteer = s.steer / (1 + Math.abs(v) / (assist ? 19 : 13));
     const target = (steerAnalog ?? str) * maxSteer;
     const rate = target === 0 ? 5 : 3.2;
     this.steer += clamp(target - this.steer, -rate * h, rate * h);
@@ -247,7 +251,7 @@ export class DrivableVehicle {
       // in a drift the tires hand lateral control to the drift model; grip returns gradually after
       const side = this.drifting ? 0.02 : (hand && !front ? 0.35 : 1.0) * (0.25 + 0.75 * this.gripBack);
       vc.setWheelSideFrictionStiffness(i, side);
-      vc.setWheelFrictionSlip(i, (hand && !front ? s.grip * 0.55 : s.grip) * this.gripMul);
+      vc.setWheelFrictionSlip(i, (hand && !front ? s.grip * 0.55 : s.grip) * this.gripMul * (assist ? 1.12 : 1));
     }
     vc.updateVehicle(h, undefined, groups(GROUP.VEHICLE, GROUP.STATIC | GROUP.DYNAMIC | GROUP.TRAFFIC), (col) => col.handle !== this.collider.handle);
     // aerodynamic drag + downforce
@@ -260,6 +264,7 @@ export class DrivableVehicle {
       this.body.addForce({ x: -lv.x * f, y: -lv.y * f * 0.2 - sp * sp * 0.6, z: -lv.z * f }, true);
     }
     if (this.drifting) this.driftStep(h, maxSteer, hand);
+    else if (assist) this.assistStep(h, v);
     // impact detection
     const dv = Math.hypot(lv.x - this.lastVel.x, lv.y - this.lastVel.y, lv.z - this.lastVel.z);
     if (dv > 4.5) {
@@ -298,6 +303,31 @@ export class DrivableVehicle {
   private endDrift() {
     this.drifting = false;
     this.gripBack = 0;
+  }
+
+  /**
+   * Turning help: when the car turns less than the wheel asks for (bicycle model, up to an arcade
+   * 30 m/s² of cornering), the missing rotation is added, and the direction of travel is turned by
+   * the same amount so it does not just slide; with the wheel straight any leftover rotation dies
+   * away. The tyres keep doing their own work. Never while drifting, on the handbrake or reversing.
+   */
+  private assistStep(h: number, v: number) {
+    const lv = this.body.linvel();
+    const sp = Math.hypot(lv.x, lv.z);
+    if (sp < 3 || v < 0.5 || this.upsideT > 0) return;
+    const av = this.body.angvel();
+    let y = av.y;
+    if (Math.abs(this.steer) > 0.01) {
+      const aMax = 30 * this.gripMul;
+      const want = clamp((v * Math.tan(this.steer)) / this.spec.wheelBase, -aMax / sp, aMax / sp);
+      if (Math.sign(y) !== Math.sign(want) || Math.abs(y) < Math.abs(want)) y += (want - y) * (1 - Math.exp(-7 * h));
+    } else y *= Math.exp(-2.5 * h);
+    const extra = y - av.y;
+    this.body.setAngvel({ x: av.x, y, z: av.z }, true);
+    if (Math.abs(extra) > 1e-4 && Math.abs(this.steer) > 0.01) {
+      const nt = Math.atan2(lv.x, lv.z) + extra * h;
+      this.body.setLinvel({ x: Math.sin(nt) * sp, y: lv.y, z: Math.cos(nt) * sp }, true);
+    }
   }
 
   private driftStep(h: number, maxSteer: number, hand: boolean) {

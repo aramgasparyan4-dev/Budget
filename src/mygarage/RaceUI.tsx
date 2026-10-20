@@ -1,9 +1,9 @@
 // Race-mode screens: the race HUD, its minimap, the floating RIVAL tag and the race results.
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { nm } from './NearMissGame';
+import { nm } from './DriveGame';
 import { useNM, RunResult } from './store';
-import { getMapCanvas, MAP_EXTENT, MAP_PX } from '../ui/mapRender';
+import { Badge, Label, StatGrid } from './ui';
 
 export const raceClock = (t: number) => {
   const m = Math.floor(t / 60);
@@ -13,10 +13,15 @@ export const raceClock = (t: number) => {
 
 const hex = (c: THREE.Color) => '#' + c.getHexString();
 const camDir = new THREE.Vector3();
+const BRAND = '#0074f8';
 
 /** the rival's colour as CSS, for tags and dots */
 function rivalColor() {
   return nm.race ? hex(nm.race.paint) : '#00c8ff';
+}
+
+function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <div className={`bg-paper/95 rounded-2xl lift ${className}`}>{children}</div>;
 }
 
 export function RaceHud() {
@@ -27,38 +32,42 @@ export function RaceHud() {
   return (
     <>
       {/* position, time, gap */}
-      <div className="absolute left-[max(24px,3vw)] top-6">
-        <div className="flex items-baseline gap-2">
-          <div id="race-position" className={`display font-black text-7xl leading-none shadow-text ${lead ? 'text-amber' : 'text-beam'}`}>
-            {lead ? '1ST' : '2ND'}
+      <Chip className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 min-w-44">
+        <div className="flex items-baseline gap-1.5">
+          <div id="race-position" className={`display text-5xl leading-none ${lead ? 'text-brand' : 'text-ink'}`}>
+            {lead ? '1st' : '2nd'}
           </div>
-          <div className="display font-bold text-xl text-white/50">/ 2</div>
+          <div className="text-sm font-medium text-muted">of 2</div>
         </div>
-        <div className="display font-bold text-4xl tabular-nums leading-none mt-1 shadow-text">{raceClock(r.time)}</div>
-        <div className={`mt-2 text-sm tabular-nums ${r.gap >= 0 ? 'text-amber' : 'text-white/70'}`}>
+        <div className="display text-2xl leading-tight mt-1">{raceClock(r.time)}</div>
+        <div className={`text-xs font-semibold tabular-nums ${r.gap >= 0 ? 'text-brand' : 'text-ink-2'}`}>
           {r.gap >= 0 ? `${r.gap} m ahead of the rival` : `${-r.gap} m behind the rival`}
         </div>
-        {r.left >= 0 && <div className="display font-black text-3xl text-brake throb mt-2 tabular-nums">Finish in {Math.ceil(r.left)} s</div>}
-      </div>
+        {r.left >= 0 && <div className="display text-lg text-hot throb mt-1">Finish in {Math.ceil(r.left)} s</div>}
+      </Chip>
 
       {/* checkpoints + where to go */}
-      <div className="absolute left-1/2 -translate-x-1/2 top-5 flex flex-col items-center">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-white/50">Checkpoint</div>
-        <div id="race-cp" className="display font-black text-5xl leading-none tabular-nums shadow-text">
-          {Math.min(r.checkpoint + 1, r.checkpoints)}
-          <span className="text-white/45 text-3xl"> / {r.checkpoints}</span>
+      <Chip className="absolute left-1/2 -translate-x-1/2 top-4 sm:top-6 px-5 py-2 flex items-center gap-4">
+        <div className="text-center">
+          <Label>Checkpoint</Label>
+          <div id="race-cp" className="display text-3xl leading-tight">
+            {Math.min(r.checkpoint + 1, r.checkpoints)}
+            <span className="text-muted text-xl"> / {r.checkpoints}</span>
+          </div>
         </div>
-        <svg width="54" height="54" viewBox="-27 -27 54 54" className="mt-2 drop-shadow" style={{ transform: `rotate(${r.arrow}deg)` }}>
-          <path d="M0 -22 L16 10 L0 2 L-16 10 Z" fill="#ffb000" stroke="#0b0c10" strokeWidth="2" />
-        </svg>
-        <div className="text-sm text-white/70 tabular-nums">{r.cpDist} m</div>
-      </div>
+        <div className="flex flex-col items-center">
+          <svg width="40" height="40" viewBox="-27 -27 54 54" style={{ transform: `rotate(${r.arrow}deg)` }}>
+            <path d="M0 -22 L16 10 L0 2 L-16 10 Z" fill={BRAND} />
+          </svg>
+          <div className="text-xs font-semibold text-ink-2 tabular-nums">{r.cpDist} m</div>
+        </div>
+      </Chip>
 
       {/* warnings */}
-      <div className="absolute left-1/2 -translate-x-1/2 top-[26%] flex flex-col items-center gap-1">
-        {r.stunned && <div className="display font-black text-5xl uppercase text-brake shadow-text">Crashed</div>}
-        {!r.stunned && r.wrongWay && <div className="display font-black text-5xl uppercase text-brake throb shadow-text">Wrong way</div>}
-        {!r.stunned && r.off && <div className="display font-bold text-2xl uppercase text-amber shadow-text">Off the route · T to get back</div>}
+      <div className="absolute left-1/2 -translate-x-1/2 top-[26%] flex flex-col items-center gap-2">
+        {r.stunned && <div className="rounded-full bg-hot text-white px-6 py-2 display text-3xl lift">Crashed</div>}
+        {!r.stunned && r.wrongWay && <div className="rounded-full bg-hot text-white px-6 py-2 display text-3xl lift throb">Wrong way</div>}
+        {!r.stunned && r.off && <div className="rounded-full bg-paper text-ink px-5 py-2 font-semibold lift">Off the route · T to get back</div>}
       </div>
 
       <RaceMap />
@@ -67,8 +76,8 @@ export function RaceHud() {
   );
 }
 
-/** rotating map: the route, its checkpoints, you and the rival */
-function RaceMap({ size = 190 }: { size?: number }) {
+/** rotating map, drawn light: streets in grey, the route in blue, gates, you and the rival */
+function RaceMap({ size = 180 }: { size?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let raf = 0;
@@ -89,7 +98,6 @@ function RaceMap({ size = 190 }: { size?: number }) {
         cv.height = size * dpr;
       }
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const k = MAP_PX / (MAP_EXTENT * 2);
       const zoom = 0.62; // screen px per metre
       const cf = nm.camera.getWorldDirection(camDir);
       const yaw = Math.atan2(cf.x, cf.z);
@@ -97,56 +105,58 @@ function RaceMap({ size = 190 }: { size?: number }) {
       g.clearRect(0, 0, size, size);
       g.save();
       g.beginPath();
-      g.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
+      g.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
       g.clip();
-      g.fillStyle = '#0c1016';
+      g.fillStyle = '#f8f8f8';
       g.fillRect(0, 0, size, size);
       g.translate(size / 2, size / 2);
       g.rotate(Math.PI + yaw);
-      g.scale(zoom / k, zoom / k);
-      const u = (pos.x + MAP_EXTENT) * k;
-      const v = (pos.z + MAP_EXTENT) * k;
-      g.globalAlpha = 0.85;
-      g.drawImage(getMapCanvas(city), -u, -v);
-      g.globalAlpha = 1;
-      const W = (x: number, z: number) => [(x + MAP_EXTENT) * k - u, (z + MAP_EXTENT) * k - v] as const;
-      const px = k / zoom; // one screen pixel in map units
+      g.scale(zoom, zoom);
+      g.translate(-pos.x, -pos.z);
+      const px = 1 / zoom; // one screen pixel in metres
+      // streets near us
+      g.strokeStyle = '#e1e2e6';
+      g.lineCap = 'square';
+      const R = size / zoom;
+      for (const s of city.segments) {
+        if (!s.exists) continue;
+        if (Math.max(Math.abs(s.x0 - pos.x), Math.abs(s.z0 - pos.z)) > R + s.length && Math.max(Math.abs(s.x1 - pos.x), Math.abs(s.z1 - pos.z)) > R + s.length) continue;
+        g.lineWidth = s.hw * 2;
+        g.beginPath();
+        g.moveTo(s.x0, s.z0);
+        g.lineTo(s.x1, s.z1);
+        g.stroke();
+      }
       // the route
-      g.strokeStyle = '#ffb000';
-      g.lineWidth = 4 * px;
+      g.strokeStyle = BRAND;
+      g.lineWidth = 5 * px;
       g.lineJoin = 'round';
+      g.lineCap = 'round';
       g.beginPath();
-      race.route.pts.forEach((p, i) => {
-        const [a, b] = W(p.x, p.z);
-        if (i) g.lineTo(a, b);
-        else g.moveTo(a, b);
-      });
+      race.route.pts.forEach((p, i) => (i ? g.lineTo(p.x, p.z) : g.moveTo(p.x, p.z)));
       g.stroke();
-      const dot = (x: number, z: number, r: number, fill: string, stroke?: string) => {
-        const [a, b] = W(x, z);
+      const dot = (x: number, z: number, r: number, fill: string, stroke = '#ffffff') => {
         g.fillStyle = fill;
         g.beginPath();
-        g.arc(a, b, r * px, 0, Math.PI * 2);
+        g.arc(x, z, r * px, 0, Math.PI * 2);
         g.fill();
-        if (stroke) {
-          g.strokeStyle = stroke;
-          g.lineWidth = 2 * px;
-          g.stroke();
-        }
+        g.strokeStyle = stroke;
+        g.lineWidth = 2 * px;
+        g.stroke();
       };
       race.route.checkpoints.forEach((c, i) => {
         if (i < race.player.next) return;
-        dot(c.x, c.z, i === race.player.next ? 6 : 3.5, c.finish ? '#f4f4f4' : i === race.player.next ? '#ffb000' : '#3b3f47', '#0b0c10');
+        dot(c.x, c.z, i === race.player.next ? 6 : 3.5, c.finish ? '#101014' : i === race.player.next ? BRAND : '#b7bac2');
       });
-      dot(race.rival.pos.x, race.rival.pos.z, 5.5, rivalColor(), '#0b0c10');
+      dot(race.rival.pos.x, race.rival.pos.z, 5.5, rivalColor());
       g.restore();
       // you: an arrow in the middle pointing the way the car faces
       g.save();
       g.translate(size / 2, size / 2);
       g.rotate(-(car.yaw - yaw));
-      g.fillStyle = hex(car.paint);
-      g.strokeStyle = '#f4f4f4';
-      g.lineWidth = 1.5;
+      g.fillStyle = '#101014';
+      g.strokeStyle = '#ffffff';
+      g.lineWidth = 2;
       g.beginPath();
       g.moveTo(0, -8);
       g.lineTo(6, 6);
@@ -161,8 +171,8 @@ function RaceMap({ size = 190 }: { size?: number }) {
     return () => cancelAnimationFrame(raf);
   }, [size]);
   return (
-    <div className="absolute right-[max(24px,3vw)] top-6">
-      <canvas id="race-map" ref={ref} style={{ width: size, height: size }} className="rounded-full border border-white/15" />
+    <div className="absolute right-4 sm:right-6 top-4 sm:top-6 rounded-full bg-paper p-1.5 lift">
+      <canvas id="race-map" ref={ref} style={{ width: size, height: size }} className="rounded-full block" />
     </div>
   );
 }
@@ -190,11 +200,15 @@ function RivalTag() {
     return () => cancelAnimationFrame(raf);
   }, []);
   return (
-    <div ref={ref} className="absolute left-0 top-0 opacity-0 flex flex-col items-center pointer-events-none" style={{ willChange: 'transform' }}>
-      <div className="display font-black text-lg uppercase px-2 leading-tight text-asphalt" style={{ background: rivalColor() }}>
+    <div
+      ref={ref}
+      className="absolute left-0 top-0 opacity-0 flex items-center gap-1 rounded-full bg-paper lift pl-1 pr-2.5 py-1 pointer-events-none"
+      style={{ willChange: 'transform' }}
+    >
+      <span className="rounded-full px-2 py-0.5 text-xs font-bold text-white" style={{ background: rivalColor() }}>
         Rival
-      </div>
-      <span ref={dist} className="text-xs text-white/80 shadow-text tabular-nums" />
+      </span>
+      <span ref={dist} className="text-xs font-semibold text-ink-2 tabular-nums" />
     </div>
   );
 }
@@ -219,33 +233,29 @@ export function RaceResults({ r }: { r: RunResult }) {
     <>
       <div className="flex items-end justify-between gap-6 flex-wrap">
         <div>
-          <div id="race-verdict" className={`display font-black text-7xl uppercase leading-none ${race.won ? 'text-amber' : 'text-brake'}`}>
+          <div id="race-verdict" className={`display text-5xl leading-none ${race.won ? 'text-brand' : 'text-hot'}`}>
             {race.won ? 'You win' : race.time === null ? 'Too slow' : 'You lose'}
           </div>
-          <div className="text-white/55 mt-2">
+          <div className="text-ink-2 mt-2">
             {r.car} · {r.cond} · won {stats2.wins} of {stats2.races}
           </div>
         </div>
         <div className="text-right">
-          <div className="display font-black text-8xl leading-none tabular-nums">
+          <div className="display text-6xl leading-none">
             {margin !== null ? Math.abs(margin).toFixed(1) : 'DNF'}
-            {margin !== null && <span className="text-4xl text-white/50"> s</span>}
+            {margin !== null && <span className="text-3xl text-muted"> s</span>}
           </div>
-          <div className="text-sm mt-1 text-white/60">
+          <div className="text-sm mt-1 text-muted">
             {margin === null ? 'Did not finish' : race.won ? 'ahead of the rival' : 'behind the rival'}
-            {race.record && <span className="text-amber font-semibold"> · biggest winning margin yet</span>}
+            {race.record && (
+              <Badge className="ml-2" tone="brand">
+                Biggest winning margin yet
+              </Badge>
+            )}
           </div>
         </div>
       </div>
-      <div className="dashes" />
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-6 gap-y-4">
-        {stats.map(([k, v]) => (
-          <div key={k}>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-white/45">{k}</div>
-            <div className="display font-bold text-3xl tabular-nums">{v}</div>
-          </div>
-        ))}
-      </div>
+      <StatGrid stats={stats} />
     </>
   );
 }

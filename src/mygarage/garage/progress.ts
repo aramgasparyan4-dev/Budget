@@ -191,6 +191,7 @@ export function finishRun(save: GarageSave, v: GarageVehicle, health: number, co
 
 // ------------------------------------------------------------------ storage
 
+// storage keys keep the game's first name (Near Miss) so existing saves carry over
 const KEY = 'near-miss-garage-v1';
 
 export function loadSave(): GarageSave {

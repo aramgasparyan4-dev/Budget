@@ -34,7 +34,7 @@ const DEMO = demoGarage();
 
 function commit(save: GarageSave) {
   storeSave(save);
-  bridge?.send({ type: 'nearmiss:progress', save });
+  bridge?.send({ type: 'mygarage:progress', save });
   return save;
 }
 

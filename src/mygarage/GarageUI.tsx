@@ -1,7 +1,8 @@
 // Garage screens: the car card on the title screen, the workshop (repairs and upgrades), the
 // garage list and the "add a vehicle" form, the garage part of the results, and touch controls.
+// Laid out like the list.am Garage: a white card per car on light grey, blue actions.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { nm } from './NearMissGame';
+import { nm } from './DriveGame';
 import { useNM } from './store';
 import { useGarage, hostBridge } from './garage/store';
 import { ARCHETYPES, ARCHETYPE, ratings, type ArchetypeId } from './garage/archetypes';
@@ -11,41 +12,28 @@ import { MAX_LEVEL, MIN_HEALTH, progressOf, repairCost, upgradeCost, UPGRADES } 
 import { RULES } from './scoring';
 import { VEHICLES } from '../sim/vehicles';
 import type { GarageResult } from './store';
+import { Badge, Bar, Button, Card, Coins, fmt, Label, Mark, Sheet } from './ui';
 
-const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
-export function Coins({ n, big = false }: { n: number; big?: boolean }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 tabular-nums ${big ? 'display font-black text-3xl' : 'font-semibold'}`}>
-      <span className={`${big ? 'w-4 h-4' : 'w-2.5 h-2.5'} rounded-full bg-amber shadow-[0_0_8px_rgba(255,176,0,0.7)]`} />
-      {fmt(n)}
-    </span>
-  );
+export function healthTone(h: number): 'ok' | 'warn' | 'hot' {
+  return h >= 60 ? 'ok' : h >= 35 ? 'warn' : 'hot';
 }
 
-function healthColor(h: number) {
-  return h >= 60 ? 'bg-[#4ade80]' : h >= 35 ? 'bg-amber' : 'bg-brake';
+function Swatch({ color }: { color: number }) {
+  return <span className="w-4 h-4 rounded-full shrink-0 border border-line" style={{ background: hex(color) }} />;
 }
 
-export function ConditionBar({ health, wide = false }: { health: number; wide?: boolean }) {
-  return (
-    <div className={`${wide ? 'w-full' : 'w-40'} h-2 bg-white/10 overflow-hidden`}>
-      <div className={`h-full ${healthColor(health)} transition-all`} style={{ width: `${Math.max(0, Math.min(100, health))}%` }} />
-    </div>
-  );
-}
-
-/** a 10-segment bar; segments earned by upgrades show in white after the base amber ones */
+/** a 10-segment bar; segments earned by upgrades show in light blue after the base ones */
 function StatBar({ label, base, total }: { label: string; base: number; total: number }) {
   const b = Math.round(Math.min(1, base) * 10);
   const t = Math.max(b, Math.round(Math.min(1, total) * 10));
   return (
     <div className="flex items-center gap-3">
-      <div className="w-20 shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/45 whitespace-nowrap">{label}</div>
+      <div className="w-20 shrink-0 text-xs text-muted whitespace-nowrap">{label}</div>
       <div className="flex-1 flex gap-[3px]">
         {Array.from({ length: 10 }, (_, i) => (
-          <div key={i} className={`h-1.5 flex-1 ${i < b ? 'bg-amber' : i < t ? 'bg-beam' : 'bg-white/10'}`} />
+          <div key={i} className={`h-1.5 flex-1 rounded-full ${i < b ? 'bg-brand' : i < t ? 'bg-brand/35' : 'bg-line'}`} />
         ))}
       </div>
     </div>
@@ -68,71 +56,98 @@ function useActive() {
   }, [save, host]);
 }
 
+/** "Repair · 900", or what the coins in hand will fix */
+export function RepairLabel({ cost, coins, health }: { cost: number; coins: number; health: number }) {
+  if (coins >= cost) return <>Repair · {fmt(cost)}</>;
+  const pts = Math.floor(coins / (cost / (100 - health)));
+  return (
+    <>
+      Fix {pts}% · {fmt(coins)}
+    </>
+  );
+}
+
 // ------------------------------------------------------------------ title card
 export function GarageCard() {
-  const { v, setup, list, save } = useActive();
+  const { v, setup, save } = useActive();
   const setPanel = useGarage((s) => s.setPanel);
   const notice = useGarage((s) => s.notice);
+  const own = useGarage.getState().ownCount();
+  const demo = v.id.startsWith('demo-');
   const a = setup.archetype;
   const r = ratings(a);
   const h = setup.progress.health;
   const cost = repairCost(a, h);
-  const own = useGarage.getState().ownCount();
-  const demo = v.id.startsWith('demo-');
+  const hits = hitsLeft(h, setup.damageTaken);
   return (
-    <div id="garage-card" className="flex flex-col gap-2.5 bg-asphalt/70 border border-white/10 p-4 backdrop-blur-sm">
-      <div className="flex items-center justify-between">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">{demo ? 'Test drive' : 'Your car'}</div>
-        <Coins n={save.coins} />
+    <Card id="garage-card" className="p-5 flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="display text-xl">My Garage</div>
+        <Button id="btn-garage" variant="tint" size="sm" onClick={() => setPanel('garage')}>
+          {own === 0 ? 'Add new vehicle' : `Garage · ${own}`}
+        </Button>
       </div>
+
+      <div className="rounded-xl bg-card p-4 flex flex-col gap-3">
+        <div className="flex items-start gap-3">
+          <Swatch color={paintOf(v.color, VEHICLES[a.type].palette[0])} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span id="garage-name" className="display text-lg leading-tight">
+                {displayName(v)}
+              </span>
+              <Badge tone={demo ? 'grey' : 'brand'}>{demo ? 'Test drive' : v.primary ? 'Primary' : 'Yours'}</Badge>
+            </div>
+            <div className="text-sm text-muted mt-0.5">
+              Drives as{' '}
+              <span id="garage-type" className="text-brand font-semibold">
+                {a.name}
+              </span>{' '}
+              · {a.best}
+            </div>
+          </div>
+        </div>
+        <div className="text-xs text-ink-2 leading-snug short:hidden">{a.perk}</div>
+
+        <div className="rounded-lg bg-paper p-3 flex flex-col gap-1.5">
+          <div className="flex items-center gap-3">
+            <Label className="w-20">Condition</Label>
+            <Bar value={h / 100} tone={healthTone(h)} className="flex-1 h-2" />
+            <span id="garage-health" className="text-sm font-semibold tabular-nums w-10 text-right">
+              {Math.round(h)}%
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted">
+              {h < MIN_HEALTH ? <span className="text-hot font-semibold">Too damaged to drive: repair it first</span> : `Can take ${hits} more big hit${hits === 1 ? '' : 's'}`}
+            </span>
+            {cost > 0 && (
+              <Button id="btn-repair" variant="primary" size="sm" className="ml-auto" onClick={() => useGarage.getState().repair()}>
+                <RepairLabel cost={cost} coins={save.coins} health={h} />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5 short:hidden">
+          <StatBar label="Top speed" base={r.top} total={r.top * setup.top} />
+          <StatBar label="Acceleration" base={r.accel} total={r.accel * setup.power} />
+          <StatBar label="Handling" base={r.handling} total={r.handling * setup.grip} />
+          <StatBar label="Toughness" base={r.toughness} total={(r.toughness * (1 / setup.damageTaken)) / a.perks.toughness} />
+        </div>
+      </div>
+
       <div className="flex items-center gap-2">
-        <span className="w-3 h-3 rounded-full shrink-0 border border-white/30" style={{ background: hex(paintOf(v.color, VEHICLES[a.type].palette[0])) }} />
-        <span id="garage-name" className="display font-black text-2xl uppercase leading-tight truncate">
-          {displayName(v)}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span id="garage-type" className="display font-bold uppercase text-sm px-2 bg-amber text-asphalt">
-          {a.name}
-        </span>
-        <span className="text-xs text-white/70">Best: {a.best}</span>
-      </div>
-      <div className="text-xs text-white/55 leading-snug short:hidden">{a.perk}</div>
-      <div className="flex items-center gap-3">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-white/45 w-20">Condition</div>
-        <ConditionBar health={h} />
-        <span id="garage-health" className="text-sm tabular-nums">
-          {Math.round(h)}%
-        </span>
-        {cost > 0 && (
-          <button id="btn-repair" onClick={() => useGarage.getState().repair()} className="ml-auto text-xs px-2 py-1 border border-white/20 hover:border-amber">
-            <RepairLabel cost={cost} coins={save.coins} health={h} />
-          </button>
-        )}
-      </div>
-      <div className="text-[11px] text-white/45 -mt-1">
-        {h < MIN_HEALTH ? (
-          <span className="text-brake">Too damaged to drive: repair it first</span>
-        ) : (
-          `Can take ${hitsLeft(h, setup.damageTaken)} more big hit${hitsLeft(h, setup.damageTaken) === 1 ? '' : 's'}`
-        )}
-      </div>
-      <div className="flex flex-col gap-1.5 short:hidden">
-        <StatBar label="Top speed" base={r.top} total={r.top * setup.top} />
-        <StatBar label="Accel" base={r.accel} total={r.accel * setup.power} />
-        <StatBar label="Handling" base={r.handling} total={r.handling * setup.grip} />
-        <StatBar label="Toughness" base={r.toughness} total={(r.toughness * (1 / setup.damageTaken)) / a.perks.toughness} />
-      </div>
-      <div className="flex gap-2 mt-1">
-        <button id="btn-workshop" onClick={() => setPanel('workshop')} className="display font-bold uppercase text-lg px-3 py-1.5 bg-beam text-asphalt hover:brightness-110">
+        <Button id="btn-workshop" variant="tint" onClick={() => setPanel('workshop')}>
           Workshop
-        </button>
-        <button id="btn-garage" onClick={() => setPanel('garage')} className="display font-bold uppercase text-lg px-3 py-1.5 border border-white/20 hover:border-white/50">
-          {own === 0 ? 'Add your car' : `Garage · ${own}`}
-        </button>
+        </Button>
+        {/* the header shows the wallet on wider screens */}
+        <span className="ml-auto inline-flex sm:hidden items-center h-8 px-3 rounded-full bg-mist">
+          <Coins n={save.coins} />
+        </span>
       </div>
-      {notice && <div className="text-xs text-amber">{notice}</div>}
-    </div>
+      {notice && <div className="text-sm text-brand">{notice}</div>}
+    </Card>
   );
 }
 
@@ -149,17 +164,9 @@ function Panel({ title, children, onClose, id }: { title: string; children: Reac
     return () => window.removeEventListener('keydown', k, { capture: true });
   }, [onClose]);
   return (
-    <div className="absolute inset-0 bg-asphalt/80 pointer-events-auto flex items-start sm:items-center justify-center overflow-y-auto p-4 rise" data-modal onClick={onClose}>
-      <div id={id} className="w-full max-w-xl bg-tarmac border border-white/10 p-5 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between gap-4">
-          <div className="display font-black text-3xl uppercase">{title}</div>
-          <button onClick={onClose} aria-label="Close" className="text-2xl text-white/60 hover:text-white px-2">
-            ×
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <Sheet id={id} title={title} onClose={onClose}>
+      {children}
+    </Sheet>
   );
 }
 
@@ -183,72 +190,71 @@ function Workshop() {
     <Panel id="workshop" title="Workshop" onClose={() => g.setPanel('none')}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <div className="display font-bold text-xl uppercase">{displayName(v)}</div>
-          <div className="text-xs text-white/55">{a.name}</div>
+          <div className="font-semibold">{displayName(v)}</div>
+          <div className="text-sm text-muted">{a.name}</div>
         </div>
-        <Coins n={save.coins} big />
+        <span className="inline-flex items-center h-10 px-4 rounded-full bg-mist">
+          <Coins n={save.coins} big />
+        </span>
       </div>
-      <div className="flex items-center gap-3 flex-wrap border-y border-white/10 py-3">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">Condition</div>
-        <ConditionBar health={h} />
-        <span className="tabular-nums">{Math.round(h)}%</span>
+      <div className="rounded-xl bg-card p-4 flex items-center gap-3 flex-wrap">
+        <Label>Condition</Label>
+        <Bar value={h / 100} tone={healthTone(h)} className="w-40 h-2" />
+        <span className="font-semibold tabular-nums">{Math.round(h)}%</span>
         <div className="ml-auto flex gap-2">
           {broke ? (
-            <button id="btn-patch" onClick={() => g.patch()} className="text-sm px-3 py-1.5 bg-amber text-asphalt font-semibold">
+            <Button id="btn-patch" size="sm" onClick={() => g.patch()}>
               Free patch-up
-            </button>
+            </Button>
           ) : (
-            <button id="btn-repair-full" disabled={cost === 0} onClick={() => g.repair()} className="text-sm px-3 py-1.5 bg-amber text-asphalt font-semibold disabled:opacity-30">
-              {cost === 0 ? 'Like new' : <>Repair · {fmt(cost)}</>}
-            </button>
+            <Button id="btn-repair-full" size="sm" disabled={cost === 0} onClick={() => g.repair()}>
+              {cost === 0 ? 'Like new' : <RepairLabel cost={cost} coins={save.coins} health={h} />}
+            </Button>
           )}
           {host && cost > 0 && (
-            <button
-              onClick={() => hostBridge()?.send({ type: 'nearmiss:services', vehicleId: v.id, make: v.make, model: v.model, year: v.year, category: 'repair' })}
-              className="text-sm px-3 py-1.5 border border-white/20 hover:border-white/50"
+            <Button
+              variant="tint"
+              size="sm"
+              onClick={() => hostBridge()?.send({ type: 'mygarage:services', vehicleId: v.id, make: v.make, model: v.model, year: v.year, category: 'repair' })}
             >
               Find a real mechanic
-            </button>
+            </Button>
           )}
         </div>
       </div>
-      <div className="flex flex-col divide-y divide-white/8">
+      <div className="flex flex-col divide-y divide-line">
         {UPGRADES.map((u) => {
           const lvl = setup.progress.upgrades[u.id];
           const c = upgradeCost(a, lvl);
           return (
-            <div key={u.id} className="flex items-center gap-3 py-2.5">
+            <div key={u.id} className="flex items-center gap-3 py-3">
               <div className="flex-1 min-w-0">
                 <div className="font-semibold">{u.name}</div>
-                <div className="text-xs text-white/50">{u.effect}</div>
+                <div className="text-sm text-muted">{u.effect}</div>
               </div>
               <div className="flex gap-1">
                 {Array.from({ length: MAX_LEVEL }, (_, i) => (
-                  <span key={i} className={`w-2.5 h-2.5 ${i < lvl ? 'bg-amber' : 'bg-white/12'}`} />
+                  <span key={i} className={`w-2.5 h-2.5 rounded-full ${i < lvl ? 'bg-brand' : 'bg-line'}`} />
                 ))}
               </div>
-              <button
-                id={`up-${u.id}`}
-                disabled={c === null || save.coins < c}
-                onClick={() => g.upgrade(u.id)}
-                className="w-28 text-sm px-2 py-1.5 border border-amber/60 text-amber hover:bg-amber hover:text-asphalt disabled:border-white/10 disabled:text-white/30 disabled:hover:bg-transparent"
-              >
+              <Button id={`up-${u.id}`} variant="tint" size="sm" className="w-28" disabled={c === null || save.coins < c} onClick={() => g.upgrade(u.id)}>
                 {c === null ? 'Maxed' : <>Buy · {fmt(c)}</>}
-              </button>
+              </Button>
             </div>
           );
         })}
       </div>
       {host && (
-        <button
-          onClick={() => hostBridge()?.send({ type: 'nearmiss:parts', vehicleId: v.id, make: v.make, model: v.model, year: v.year, category: 'performance' })}
-          className="self-start text-sm text-oncoming hover:underline"
+        <Button
+          variant="tint"
+          className="self-start"
+          onClick={() => hostBridge()?.send({ type: 'mygarage:parts', vehicleId: v.id, make: v.make, model: v.model, year: v.year, category: 'performance' })}
         >
-          Shop real parts that fit this car →
-        </button>
+          Go to parts that fit this car →
+        </Button>
       )}
-      {g.notice && <div className="text-sm text-amber">{g.notice}</div>}
-      <div className="text-xs text-white/40">
+      {g.notice && <div className="text-sm text-brand">{g.notice}</div>}
+      <div className="text-xs text-muted">
         Coins come from runs ({a.perks.cashMul > 1 ? `this car earns ${Math.round((setup.cashMul - 1) * 100)}% extra` : 'about 1 coin per 20 points'}) and races (400+ for a win).
       </div>
     </Panel>
@@ -266,46 +272,48 @@ function GarageList() {
     const p = progressOf(save, x);
     const on = x.id === active.id;
     return (
-      <div key={x.id} className={`flex items-center gap-3 p-2.5 border ${on ? 'border-amber bg-amber/10' : 'border-white/10'}`}>
-        <span className="w-3 h-3 rounded-full shrink-0 border border-white/30" style={{ background: hex(paintOf(x.color, VEHICLES[a.type].palette[0])) }} />
+      <div key={x.id} className={`flex items-center gap-3 p-3 rounded-xl ${on ? 'bg-brand-tint' : 'bg-card'}`}>
+        <Swatch color={paintOf(x.color, VEHICLES[a.type].palette[0])} />
         <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate">
+          <div className="font-semibold truncate flex items-center gap-2">
             {displayName(x)}
-            {x.primary && <span className="ml-2 text-[10px] uppercase px-1 bg-oncoming/20 text-oncoming">Primary</span>}
+            {x.primary && <Badge>Primary</Badge>}
           </div>
-          <div className="text-xs text-white/50">
+          <div className="text-sm text-muted">
             {a.name} · {Math.round(p.health)}%
           </div>
         </div>
         {x.source === 'local' && !x.id.startsWith('demo-') && (
-          <button onClick={() => g.removeVehicle(x.id)} className="text-xs text-white/40 hover:text-brake">
+          <Button variant="ghost" size="sm" onClick={() => g.removeVehicle(x.id)}>
             Remove
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           data-car={x.id}
+          variant={on ? 'tint' : 'primary'}
+          size="sm"
           onClick={() => {
             g.setActive(x.id);
             g.setPanel('none');
           }}
-          className={`text-sm px-3 py-1 ${on ? 'text-amber' : 'border border-white/20 hover:border-white/50'}`}
         >
           {on ? 'Driving' : 'Drive'}
-        </button>
+        </Button>
       </div>
     );
   };
   return (
-    <Panel id="garage-list" title="Garage" onClose={() => g.setPanel('none')}>
+    <Panel id="garage-list" title="My Garage" onClose={() => g.setPanel('none')}>
+      <div className="text-sm text-ink-2">Saved vehicles drive in the game. Each keeps its own condition and upgrades.</div>
       <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">{fromHost ? 'From your garage' : 'Your cars'}</div>
-        {mine.length ? mine.map(row) : <div className="text-sm text-white/55">No cars yet. Add yours and the game drives it, with its own condition and upgrades.</div>}
-        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45 mt-3">Test drive · one of each kind</div>
+        <Label>{fromHost ? 'From your Garage' : 'Your cars'}</Label>
+        {mine.length ? mine.map(row) : <div className="text-sm text-muted rounded-xl bg-card p-4">No cars yet. Add yours and the game drives it.</div>}
+        <Label className="mt-3">Test drive · one of each kind</Label>
         {demos.map(row)}
       </div>
-      <button id="btn-add-car" onClick={() => g.setPanel('add')} className="self-start display font-bold uppercase text-lg px-4 py-2 bg-amber text-asphalt">
-        + Add a vehicle
-      </button>
+      <Button id="btn-add-car" variant="tint" className="self-start" onClick={() => g.setPanel('add')}>
+        + Add new vehicle
+      </Button>
     </Panel>
   );
 }
@@ -331,13 +339,14 @@ function AddVehicle() {
     archetype: (f.archetype || undefined) as ArchetypeId | undefined,
   };
   const match = realMake && model ? archetypeOf(draft as GarageVehicle) : null;
-  const sel = 'w-full bg-asphalt border border-white/15 px-2 py-2 text-sm focus:border-amber outline-none';
-  const label = 'text-[10px] uppercase tracking-[0.18em] text-white/50 mb-1 block';
+  // the list.am form look: grey filled fields, no border, blue focus ring
+  const sel = 'w-full h-11 rounded-lg bg-mist px-3 text-[15px] text-ink border-0 outline-none focus:ring-2 focus:ring-brand';
+  const label = 'text-sm font-medium text-ink mb-1.5 block';
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   return (
     <Panel id="add-vehicle" title="Add a vehicle" onClose={() => g.setPanel('garage')}>
-      <div className="text-sm text-white/60">The same details as your garage. Only make and model are needed; the rest fine-tune how it drives.</div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="text-sm text-ink-2 -mt-2">Add your vehicle once and drive it in the game. Only make and model are needed; the rest fine-tune how it drives.</div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-4">
         <div className="col-span-2 sm:col-span-1">
           <label className={label}>Make</label>
           <select id="f-make" className={sel} value={make} onChange={(e) => setMake(e.target.value)}>
@@ -353,52 +362,47 @@ function AddVehicle() {
         </div>
         <div className="col-span-2 sm:col-span-1">
           <label className={label}>Model</label>
-          <input id="f-model" className={sel} list="f-models" placeholder="Model" value={model} onChange={(e) => setModel(e.target.value)} maxLength={40} />
+          <input id="f-model" className={sel} list="f-models" placeholder="Select model" value={model} onChange={(e) => setModel(e.target.value)} maxLength={40} />
           <datalist id="f-models">
             {models.map((m) => (
               <option key={m} value={m} />
             ))}
           </datalist>
         </div>
-        <div>
-          <label className={label}>Year</label>
+        <Field label="Year">
           <select id="f-year" className={sel} value={year} onChange={(e) => setYear(e.target.value)}>
-            <option value="">—</option>
+            <option value="">Select year</option>
             {YEARS.map((y) => (
               <option key={y}>{y}</option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className={label}>Color</label>
+        </Field>
+        <Field label="Color">
           <select id="f-color" className={sel} value={f.color} onChange={set('color')}>
             <option value="">—</option>
             {COLORS.map((c) => (
               <option key={c}>{c}</option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className={label}>Engine</label>
+        </Field>
+        <Field label="Engine">
           <select id="f-engine" className={sel} value={f.engine} onChange={set('engine')}>
             <option value="">—</option>
-            <option value="petrol">Petrol</option>
+            <option value="petrol">Gasoline</option>
             <option value="diesel">Diesel</option>
             <option value="hybrid">Hybrid</option>
             <option value="electric">Electric</option>
             <option value="gas">Gas (LPG / CNG)</option>
           </select>
-        </div>
-        <div>
-          <label className={label}>Gas equipment</label>
+        </Field>
+        <Field label="Gas equipment">
           <select className={sel} value={f.gasEquipment} onChange={set('gasEquipment')}>
             <option value="">—</option>
             <option value="no">No</option>
             <option value="yes">Yes</option>
           </select>
-        </div>
-        <div>
-          <label className={label}>Wheel size</label>
+        </Field>
+        <Field label="Wheel size">
           <select className={sel} value={f.wheelSize} onChange={set('wheelSize')}>
             <option value="">—</option>
             {Array.from({ length: 10 }, (_, i) => 13 + i).map((n) => (
@@ -407,32 +411,29 @@ function AddVehicle() {
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className={label}>Current condition</label>
+        </Field>
+        <Field label="Current condition">
           <select className={sel} value={f.condition} onChange={set('condition')}>
             <option value="">—</option>
             <option value="not_damaged">Not damaged</option>
             <option value="damaged">Damaged</option>
           </select>
-        </div>
-        <div>
-          <label className={label}>Steering wheel</label>
+        </Field>
+        <Field label="Steering wheel">
           <select className={sel} value={f.steeringWheel} onChange={set('steeringWheel')}>
             <option value="">—</option>
             <option value="left">Left</option>
             <option value="right">Right</option>
           </select>
-        </div>
-        <div>
-          <label className={label}>Headlights</label>
+        </Field>
+        <Field label="Headlights">
           <select className={sel} value={f.headlights} onChange={set('headlights')}>
             <option value="">—</option>
             <option value="halogen">Halogen</option>
             <option value="xenon">Xenon</option>
             <option value="led">LED</option>
           </select>
-        </div>
+        </Field>
         <div className="col-span-2">
           <label className={label}>Drives as</label>
           <select id="f-archetype" className={sel} value={f.archetype} onChange={set('archetype')}>
@@ -446,28 +447,38 @@ function AddVehicle() {
         </div>
       </div>
       {match && (
-        <div id="f-match" className="text-sm border-l-2 border-amber pl-3">
-          {makeName(realMake)} {model} drives as a <b>{ARCHETYPE[match.archetype].name}</b>. {ARCHETYPE[match.archetype].perk}
+        <div id="f-match" className="text-sm rounded-xl bg-brand-tint text-ink px-4 py-3">
+          {makeName(realMake)} {model} drives as a <b className="text-brand">{ARCHETYPE[match.archetype].name}</b>. {ARCHETYPE[match.archetype].perk}
         </div>
       )}
-      {g.notice && <div className="text-sm text-amber">{g.notice}</div>}
-      <div className="flex gap-2">
-        <button
+      {g.notice && <div className="text-sm text-brand">{g.notice}</div>}
+      {/* as in the Garage's "Confirm vehicle details": a grey button and a blue one, side by side */}
+      <div className="grid grid-cols-2 gap-3">
+        <Button variant="ghost" size="lg" className="bg-mist" onClick={() => g.setPanel('garage')}>
+          Back
+        </Button>
+        <Button
           id="btn-save-car"
+          size="lg"
           disabled={!realMake || !model}
           onClick={() => {
             const v = g.addVehicle({ make: makeName(realMake), model, year, ...f, archetype: f.archetype || undefined });
             if (v) g.setPanel('none');
           }}
-          className="display font-black uppercase text-xl px-5 py-2 bg-amber text-asphalt disabled:opacity-30"
         >
           Save vehicle
-        </button>
-        <button onClick={() => g.setPanel('garage')} className="px-4 py-2 border border-white/20">
-          Back
-        </button>
+        </Button>
       </div>
     </Panel>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-ink mb-1.5 block">{label}</label>
+      {children}
+    </div>
   );
 }
 
@@ -476,47 +487,35 @@ export function GarageResults({ g }: { g: GarageResult }) {
   const save = useGarage((s) => s.save);
   const { setup } = useActive();
   const cost = repairCost(setup.archetype, setup.progress.health);
+  const h = setup.progress.health;
   return (
-    <div id="garage-result" className="flex items-center gap-x-8 gap-y-3 flex-wrap border border-white/10 bg-white/[0.03] px-4 py-3">
+    <div id="garage-result" className="rounded-xl bg-card p-4 flex items-center gap-x-8 gap-y-3 flex-wrap">
       <div>
-        <div className="text-[10px] uppercase tracking-[0.22em] text-white/45">Coins earned</div>
-        <div className="display font-black text-3xl text-amber tabular-nums">+{fmt(g.coins)}</div>
+        <Label>Coins earned</Label>
+        <div className="display text-2xl text-brand">+{fmt(g.coins)}</div>
       </div>
       <div>
-        <div className="text-[10px] uppercase tracking-[0.22em] text-white/45">Wallet</div>
+        <Label>Wallet</Label>
         <Coins n={save.coins} big />
       </div>
       <div className="flex-1 min-w-48">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-          Condition {g.damage > 0 ? <span className="text-brake">−{g.damage}%</span> : <span className="text-[#4ade80]">no damage</span>}
-        </div>
+        <Label>Condition {g.damage > 0 ? <span className="text-hot font-semibold">−{g.damage}%</span> : <span className="text-ok font-semibold">no damage</span>}</Label>
         <div className="flex items-center gap-2 mt-1.5">
-          <ConditionBar health={setup.progress.health} wide />
-          <span className="tabular-nums text-sm">{Math.round(setup.progress.health)}%</span>
+          <Bar value={h / 100} tone={healthTone(h)} className="flex-1 h-2" />
+          <span className="tabular-nums text-sm font-semibold">{Math.round(h)}%</span>
         </div>
       </div>
       {cost > 0 && save.coins > 0 && (
-        <button id="btn-repair-result" onClick={() => useGarage.getState().repair()} className="text-sm px-3 py-2 border border-white/20 hover:border-amber">
-          <RepairLabel cost={cost} coins={save.coins} health={setup.progress.health} />
-        </button>
+        <Button id="btn-repair-result" size="sm" onClick={() => useGarage.getState().repair()}>
+          <RepairLabel cost={cost} coins={save.coins} health={h} />
+        </Button>
       )}
-      {setup.progress.health < MIN_HEALTH && cost > 0 && save.coins <= cost / 2 && (
-        <button id="btn-patch-result" onClick={() => useGarage.getState().patch()} className="text-sm px-3 py-2 bg-amber text-asphalt font-semibold">
+      {h < MIN_HEALTH && cost > 0 && save.coins <= cost / 2 && (
+        <Button id="btn-patch-result" variant="tint" size="sm" onClick={() => useGarage.getState().patch()}>
           Free patch-up
-        </button>
+        </Button>
       )}
     </div>
-  );
-}
-
-/** "Repair · 900", or what the coins in hand will fix */
-export function RepairLabel({ cost, coins, health }: { cost: number; coins: number; health: number }) {
-  if (coins >= cost) return <>Repair · {fmt(cost)}</>;
-  const pts = Math.floor(coins / (cost / (100 - health)));
-  return (
-    <>
-      Fix {pts}% · {fmt(coins)}
-    </>
   );
 }
 
@@ -567,14 +566,14 @@ export function TouchControls() {
     [],
   );
   if ((phase !== 'run' && phase !== 'countdown') || paused) return null;
-  const pad = 'rounded-full bg-white/10 border border-white/25 backdrop-blur-sm flex items-center justify-center display font-black uppercase text-beam/90';
+  const pad = 'rounded-full bg-paper/85 lift flex items-center justify-center font-bold text-ink';
   return (
     <div id="touch-controls" className="absolute inset-0 pointer-events-none">
       <div className="absolute left-4 bottom-4 flex gap-3">
-        <Hold id="t-left" code="KeyA" className={`${pad} w-20 h-20 text-3xl`}>
+        <Hold id="t-left" code="KeyA" className={`${pad} w-20 h-20 text-2xl`}>
           ◀
         </Hold>
-        <Hold id="t-right" code="KeyD" className={`${pad} w-20 h-20 text-3xl`}>
+        <Hold id="t-right" code="KeyD" className={`${pad} w-20 h-20 text-2xl`}>
           ▶
         </Hold>
       </div>
@@ -588,10 +587,10 @@ export function TouchControls() {
           </Hold>
         </div>
         <div className="flex flex-col gap-3 items-center">
-          <Hold id="t-boost" code="ShiftLeft" className={`${pad} w-14 h-14 text-xs bg-amber/25 border-amber/60`}>
+          <Hold id="t-boost" code="ShiftLeft" className={`${pad} w-14 h-14 text-xs !bg-brand-tint !text-brand`}>
             Boost
           </Hold>
-          <Hold id="t-gas" code="KeyW" className={`${pad} w-20 h-24 text-lg rounded-2xl`}>
+          <Hold id="t-gas" code="KeyW" className={`${pad} w-20 h-24 text-lg !rounded-2xl !bg-brand !text-white`}>
             Gas
           </Hold>
         </div>
@@ -622,10 +621,10 @@ export function RotateNotice() {
   }, []);
   if (!portrait || (phase !== 'run' && phase !== 'countdown')) return null;
   return (
-    <div className="absolute inset-0 bg-asphalt/95 flex flex-col items-center justify-center gap-3 text-center p-8 pointer-events-auto">
-      <div className="text-5xl">⟳</div>
-      <div className="display font-black text-3xl uppercase">Turn your phone sideways</div>
-      <div className="text-white/60 text-sm">The road needs the width.</div>
+    <div className="absolute inset-0 bg-paper flex flex-col items-center justify-center gap-3 text-center p-8 pointer-events-auto">
+      <Mark size={56} />
+      <div className="display text-2xl">Turn your phone sideways</div>
+      <div className="text-ink-2 text-sm">The road needs the width.</div>
     </div>
   );
 }

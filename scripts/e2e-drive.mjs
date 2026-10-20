@@ -1,11 +1,11 @@
 // End-to-end test for Near Miss in headless Chromium.
-// Usage: npm run dev (in another shell), then: node scripts/e2e-nearmiss.mjs
+// Usage: npm run dev (in another shell), then: node scripts/e2e-drive.mjs
 // Cars are placed with the traffic system's own spawn() so passes and crashes happen on cue; the game is
 // advanced with window.__nm.simulate() because software WebGL draws ~1 frame a second.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'fs';
 
-const URL = process.env.URL ?? 'http://localhost:5173/near-miss.html?preset=low';
+const URL = process.env.URL ?? 'http://localhost:5173/?preset=low';
 mkdirSync('scripts/out', { recursive: true });
 const browser = await chromium.launch({
   executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',

@@ -10,7 +10,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const logs = [];
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}\n${e.stack}`));
-await page.goto(process.env.URL ?? 'http://localhost:5173/');
+await page.goto(process.env.URL ?? 'http://localhost:5173/echo-city/');
 const t0 = Date.now();
 for (const a of actions) {
   if (a.wait) await page.waitForTimeout(a.wait);

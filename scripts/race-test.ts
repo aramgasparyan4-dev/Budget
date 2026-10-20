@@ -7,7 +7,7 @@ import { buildPropModels } from '../src/render/propModels';
 import { TrafficSystem } from '../src/sim/traffic/TrafficSystem';
 import { DrivableVehicle } from '../src/game/DrivableVehicle';
 import { VEHICLES } from '../src/sim/vehicles';
-import { freeSpot, planRoute, RACE_TRAFFIC, RivalDriver, Route } from '../src/nearmiss/race';
+import { freeSpot, planRoute, RACE_TRAFFIC, RivalDriver, Route } from '../src/mygarage/race';
 
 await initRapier();
 const SEED = 20261019;
@@ -49,7 +49,9 @@ for (let k = 0; k < races; k++) {
     ...RACE_TRAFFIC,
     spawnRadius: { ...RACE_TRAFFIC.spawnRadius },
   });
-  const cars = [3, 3].map((t, i) => new DrivableVehicle(physics, t, 0, 0.02, 0, 0, new THREE.Color(i ? 0x00c8ff : 0xff2a2a), 'player'));
+  // the rival's car in the game: the sports coupe archetype with the turning help on
+  const cars = [12, 12].map((t, i) => new DrivableVehicle(physics, t, 0, 0.02, 0, 0, new THREE.Color(i ? 0x00c8ff : 0xff2a2a), 'player'));
+  for (const c of cars) c.handlingAssist = true;
   const drivers = cars.map(() => new RivalDriver(route));
   drivers[0].lane = 2.25;
   drivers[1].lane = 5.75;

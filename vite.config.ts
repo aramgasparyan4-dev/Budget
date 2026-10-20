@@ -10,8 +10,8 @@ export default defineConfig({
     target: 'es2022',
     chunkSizeWarningLimit: 4000,
     rollupOptions: {
-      // two games share one engine: Echo City (index.html) and Near Miss (near-miss.html)
-      input: { main: resolve(__dirname, 'index.html'), nearMiss: resolve(__dirname, 'near-miss.html') },
+      // MyGarage Drive (index.html); Echo City (echo-city/) shares the engine until it becomes its own project
+      input: { main: resolve(__dirname, 'index.html'), echoCity: resolve(__dirname, 'echo-city/index.html') },
     },
   },
   server: { host: true, port: 5173 },

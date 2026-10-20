@@ -5,7 +5,7 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'fs';
 
-const URL = process.env.URL ?? 'http://localhost:5173/?preset=low';
+const URL = process.env.URL ?? 'http://localhost:5173/echo-city/?preset=low';
 mkdirSync('scripts/out', { recursive: true });
 const browser = await chromium.launch({
   executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',

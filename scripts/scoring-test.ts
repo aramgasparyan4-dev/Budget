@@ -1,5 +1,5 @@
-// Unit checks for Near Miss scoring: run with `npx tsx scripts/nearmiss-test.ts`
-import { Scorer, RULES, CarState, OtherCar } from '../src/nearmiss/scoring';
+// Unit checks for Near Miss scoring: run with `npx tsx scripts/scoring-test.ts`
+import { Scorer, RULES, CarState, OtherCar } from '../src/mygarage/scoring';
 
 let failed = 0;
 const check = (name: string, ok: boolean, info: unknown = '') => {

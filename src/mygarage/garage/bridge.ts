@@ -16,11 +16,11 @@ export interface GarageImport {
 }
 
 export type HostEvent =
-  | { type: 'nearmiss:ready'; version: 1 }
-  | { type: 'nearmiss:progress'; save: GarageSave }
-  | { type: 'nearmiss:run'; vehicleId: string; mode: 'score' | 'race'; score: number; coins: number; health: number; won?: boolean }
-  | { type: 'nearmiss:parts'; vehicleId: string; make: string; model: string; year?: number; category: string }
-  | { type: 'nearmiss:services'; vehicleId: string; make: string; model: string; year?: number; category: 'repair' };
+  | { type: 'mygarage:ready'; version: 1 }
+  | { type: 'mygarage:progress'; save: GarageSave }
+  | { type: 'mygarage:run'; vehicleId: string; mode: 'score' | 'race'; score: number; coins: number; health: number; won?: boolean }
+  | { type: 'mygarage:parts'; vehicleId: string; make: string; model: string; year?: number; category: string }
+  | { type: 'mygarage:services'; vehicleId: string; make: string; model: string; year?: number; category: 'repair' };
 
 const MAX_VEHICLES = 10;
 
@@ -104,7 +104,7 @@ export class HostBridge {
     if (window.parent !== window) {
       for (const o of this.allowed) {
         try {
-          window.parent.postMessage({ type: 'nearmiss:ready', version: 1 } satisfies HostEvent, o);
+          window.parent.postMessage({ type: 'mygarage:ready', version: 1 } satisfies HostEvent, o);
         } catch {
           /* not that origin */
         }

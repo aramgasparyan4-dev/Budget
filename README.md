@@ -1,165 +1,59 @@
-# Echo City
+# MyGarage Drive
 
-A 3D open-world urban life simulation that runs in a desktop browser. Everything — the city,
-the buildings, the 640 residents, the cars, the textures and the sound — is generated in code
-from a seed. There are no downloaded art or audio assets.
-
-You start with $250 and a studio apartment. Work, drive, make friends, buy a car, open a
-business. The residents have jobs, daily schedules, needs, personalities, memories of what
-you did, and relationships with you and with each other.
-
-This repo holds two games built on the same engine:
-
-- **Echo City** (`index.html`): the life simulation described below.
-- **MyGarage Drive** (`near-miss.html`): an arcade driving game in the same city where you drive
-  your own car, from a classifieds-site garage or added by hand. See [MyGarage Drive](#mygarage-drive).
+Drive your own car through a living city. An arcade driving game for the browser, built to plug
+into the "My Garage" feature on list.am: the car you saved in your garage is the car you drive,
+it gets damaged when you crash, and you repair and upgrade it with coins you earn on the road.
+Everything (the city, the traffic, the cars, the sound) is generated in code; there are no
+downloaded art or audio assets.
 
 ## Run it
 
 ```bash
 npm install
-npm run dev          # Echo City: http://localhost:5173 · MyGarage Drive: http://localhost:5173/near-miss.html
-npm run build        # type-check + production build of both games into dist/
+npm run dev          # http://localhost:5173
+npm run build        # type-check + production build into dist/
 npm run preview      # serve dist/
 ```
 
-Needs a WebGL2 browser (recent Chrome, Edge or Firefox). The game picks a graphics preset
-from your settings; `?preset=low|medium|high|ultra` in the URL overrides it.
+Needs a WebGL2 browser (recent Chrome, Edge, Firefox or Safari). `?preset=low|medium|high|ultra`
+in the URL overrides the graphics preset; `?touch=1` forces the on-screen controls.
 
-## Controls
+The repo also holds **Echo City** (`/echo-city/`), the 3D life simulation whose engine (city
+generator, traffic, physics, sky and weather) MyGarage Drive is built on. It will become its own
+project; until then it lives here unchanged. See [docs/ECHO-CITY.md](docs/ECHO-CITY.md).
 
-| Key | Action |
-| --- | --- |
-| W A S D | Move / drive |
-| Mouse | Look (click the game to capture the mouse; dragging also works) |
-| Shift | Sprint |
-| Ctrl / C | Walk slowly |
-| Space | Jump · handbrake |
-| E | Interact: talk, enter buildings, shop, work |
-| F | Enter / exit vehicle |
-| H | Horn |
-| Tab | Phone |
-| M | City map |
-| I | Bag |
-| 1–9 | Dialogue / mini-game choices |
-| Esc | Pause / close |
-| F3 | Performance overlay |
-| Mouse wheel | Camera distance |
+## How it works
 
-## What is in the game
-
-**City.** Deterministic seed-based generation of a 12×12 block grid (about 1.2 × 1.2 km) with six
-districts — Downtown, Maplewood (residential), Market Quarter (commercial), Ironworks
-(industrial), Bayview Heights (wealthy) and Neon Row (entertainment). Arterial and local roads
-with lane markings, crosswalks, traffic signals and stop signs, sidewalks, named streets and
-addresses; about 890 buildings and 560 businesses for the default seed, parks, plazas, parking
-lots, a harbour on the east bay and forested hills around the edge. Geometry is built per
-192 m chunk in a Web Worker; street detail (markings, props, signal heads, light pools) loads
-within a detail radius.
-
-**Rendering.** Three.js through React Three Fiber. Procedural facade shaders (windows, brick,
-siding, storefronts, neon) with lit windows at night, wet-road puddles, sky dome with sun, moon,
-stars and clouds, day/night lighting, shadows, fog, rain particles with splashes. Post-processing
-on MEDIUM and up: bloom, SMAA, ACES tone mapping, time-of-day colour grading, vignette; ambient
-occlusion on HIGH and ULTRA. Characters are shader-animated instanced humans (walk, run, sit, talk, wave, drive,
-dance and more).
-
-**Player.** Third-person capsule controller (Rapier) with sprint, stamina, jump, camera
-collision, adjustable sensitivity, field of view and camera distance. Hunger and energy needs.
-
-**Residents.** 640 NPCs simulated all the time, cheaply, away from the player, and shown as
-pedestrians, drivers or customers near the player. Each has traits (sociability, ambition,
-patience, confidence, kindness, risk, curiosity), needs, money, a home, often a job with shifts,
-a 24-hour schedule chosen by utility scoring that adapts to weather, appointments and events,
-goals, memories (type, participants, importance, emotional impact, decay over time) and
-relationships (friendship, trust, familiarity, romance, professional, rivalry) — with you and
-with each other. They meet, chat, argue, date, get hired and fired, buy cars, and text you.
-
-**Conversations.** Walk up to anyone and press E. Lines are generated from their personality,
-mood, job, relationship stage, memories of you, local news and gossip. Options include small
-talk, work, local news, asking for help or directions, offering help, inviting them out, gifts,
-flirting (once you know someone) and being rude (they remember). Optional: point Settings → Gameplay → Local LLM at an
-OpenAI-compatible endpoint (for example Ollama) and residents improvise replies; it falls back
-to the built-in system on any error or after 7 s.
-
-**Traffic.** Lane-based vehicles with an IDM car-following model, signal phases, stop-sign
-priority, turns through intersections, left-turn yielding, lane changes, parking manoeuvres,
-honking, density by time of day, and residents commuting by car. Nine vehicle types.
-
-**Driving.** Rapier ray-cast vehicles with suspension, engine curve, braking, handbrake,
-per-type mass, grip and top speed, chase camera, speedometer, collisions that NPC drivers
-remember. You can also take cars from traffic (a crime that witnesses remember).
-
-**Economy.** Every business has staff, wages, rent, stock, prices, reputation and daily
-profit/loss; prices react to demand; unprofitable businesses close and reopen under new
-management; a wholesale price index follows supply and demand. The 640 residents shop at real
-businesses; demand from the rest of the (unsimulated) city is modelled from staff on shift,
-reputation, price, district, time of day and weather.
-
-**Making money.** Food deliveries (orders come from residents who are actually at home and
-hungry), courier van routes, taxi shifts with hailing pedestrians, steady jobs with shifts
-played as short mini-games (barista, cashier, office, warehouse) and promotions, freelance gigs
-from a home PC, favours for residents, buying wholesale goods and selling them to shops that run
-low, and buying a storefront to run your own business (hire staff, set prices, renovate,
-market). Spend it on food, clothes, a car from Echo Motors, apartment upgrades or a bigger home.
-Wallet and bank are separate; rent is charged weekly.
-
-**Interiors.** Apartments, cafés, restaurants, shops, clothing stores, offices, the bank, the car
-dealership, bars, clubs, the courier depot, hotels, gyms and cinemas — each with staff and
-customers who are the actual residents present there.
-
-**Weather and time.** Sunny, cloudy, rainy, foggy and stormy weather with forecasts, wet roads,
-lightning and thunder. A full day lasts 48 real minutes at the default speed. Streetlights and
-windows come on at night; residents stay in when it pours.
-
-**Phone (Tab).** Maps with waypoints, Contacts (relationship, personality, memories, locate),
-Messages (including invitations you can accept), Bank, Jobs, News, Goals, Bag, Calendar,
-Home upgrades, Business management and Settings.
-
-**City events.** Traffic accidents, road construction, street gatherings, power outages,
-sales, public disputes you can step into, storm warnings and job tips — reported in the news.
-
-**Menus and saves.** Main menu with character creation and city seed, pause menu, settings
-(graphics presets LOW/MEDIUM/HIGH/ULTRA plus individual options, audio, controls, gameplay),
-controls and credits. Saves go to IndexedDB: an autosave (when you sleep and every 5 minutes)
-plus three manual slots with thumbnails. A save holds the player, money, inventory, seed, time,
-weather, every resident's state, relationships and memories, businesses, owned cars, your job,
-your business, objectives and settings.
-
-**Intro and goals.** An opening cinematic, then a tutorial (look, walk, go home, phone, take a
-delivery, deliver it, meet someone, earn $500) followed by longer life goals with rewards.
-
-## MyGarage Drive
-
-Drive your own car through city traffic. The car comes from a garage: the same details a
+The car comes from a garage: the same details a
 classifieds site's "My Garage" collects (make, model, year, colour, condition, engine, gas
 equipment, wheel size, steering wheel, headlights), either handed over by the host page or
 entered in the game's own "Add a vehicle" form. It is built to plug into the Garage feature on
-list.am; [docs/GARAGE-INTEGRATION.md](docs/GARAGE-INTEGRATION.md) is the spec for that. The
-page itself carries no host branding.
+list.am and is styled after it (list.am blue, white cards, rounded buttons, Inter type);
+[docs/GARAGE-INTEGRATION.md](docs/GARAGE-INTEGRATION.md) is the spec for the connection. The
+list.am logo is not included: drop the official asset into the header when it is approved.
 
 Two modes, picked on the title screen: **Free drive** (score attack against the clock) and
 **Race** (one-on-one against a rival in the same kind of car). Your free-drive high score and
 your race record (wins, races, biggest winning margin) show on the loading screen and the title
 screen. The title screen shows your car parked at a curb under a street lamp.
 
-### Your car
+## Your car
 
 The make and model pick one of ten kinds of car. Each has its own body, its own handling and one
 thing it is best at (checked by a unit test):
 
-| Kind | Best at | Perk | Examples |
-| --- | --- | --- | --- |
-| City compact | Cheapest to keep | Repairs and upgrades cost half | Polo, Yaris, i10, Matiz |
-| Family sedan | Earns the most | 20% more coins | Camry, Corolla, Elantra, Passat |
-| Executive | Longest boost | Nitro drains 35% slower | E-Class, 5 Series, A6 |
-| Sports coupe | Top speed and grip | The fastest car; fragile, dear to fix | 911, Mustang, M4 |
-| Hot hatch | Agility and drifting | Drifts score 50% more | Golf GTI, Civic Type R |
-| Crossover | All weather | Keeps most of its grip in the rain | RAV4, Tucson, Soueast DX5 |
-| Off-roader | Toughest | Takes three big hits | Land Cruiser, Patrol, Niva |
-| Pickup / van | Big points | Near misses worth 30% more | Hilux, L200, Sprinter |
-| Electric | Fastest off the line | Boost refills 40% faster | Tesla, BYD, Ioniq 5 |
-| Classic | Legend status | Every point counts 50% more | Lada 2107, Volga, W123 |
+| Kind         | Best at              | Perk                                  | Examples                        |
+| ------------ | -------------------- | ------------------------------------- | ------------------------------- |
+| City compact | Cheapest to keep     | Repairs and upgrades cost half        | Polo, Yaris, i10, Matiz         |
+| Family sedan | Earns the most       | 20% more coins                        | Camry, Corolla, Elantra, Passat |
+| Executive    | Longest boost        | Nitro drains 35% slower               | E-Class, 5 Series, A6           |
+| Sports coupe | Top speed and grip   | The fastest car; fragile, dear to fix | 911, Mustang, M4                |
+| Hot hatch    | Agility and drifting | Drifts score 50% more                 | Golf GTI, Civic Type R          |
+| Crossover    | All weather          | Keeps most of its grip in the rain    | RAV4, Tucson, Soueast DX5       |
+| Off-roader   | Toughest             | Takes three big hits                  | Land Cruiser, Patrol, Niva      |
+| Pickup / van | Big points           | Near misses worth 30% more            | Hilux, L200, Sprinter           |
+| Electric     | Fastest off the line | Boost refills 40% faster              | Tesla, BYD, Ioniq 5             |
+| Classic      | Legend status        | Every point counts 50% more           | Lada 2107, Volga, W123          |
 
 The catalogue (`src/nearmiss/garage/catalog.ts`) knows about 60 makes and their common models,
 in English and Russian spellings; anything it does not know is matched on model-name patterns
@@ -172,7 +66,7 @@ wheels add grip, the colour is the paint, and a car listed as damaged arrives at
 Without a car of your own there is a demo line-up, one of each kind, which stays available as
 test drives after you add yours.
 
-### Damage, coins, repairs, upgrades
+## Damage, coins, repairs, upgrades
 
 - **Condition (0-100%) stays with the car between runs.** A big hit costs about half of an
   average car (more for a harder crash, at most 70%), scrapes cost a few percent, and tougher
@@ -187,13 +81,13 @@ test drives after you add yours.
 - **Workshop:** six upgrades with five levels each: engine (+7% power a level), gearbox (+5% top
   speed), tires (+5% grip), brakes (+12%), body armour (-9% damage), nitro tank (slower drain,
   more boost at the start). Prices scale with the kind of car.
-- When a host page is connected, the workshop also offers "Find a real mechanic" and "Shop real
-  parts that fit this car", which ask the host to open its own listings for that car.
+- When a host page is connected, the workshop also offers "Find a real mechanic" and "Go to parts
+  that fit this car", which ask the host to open its own listings for that car.
 
 Everything is kept in this browser (localStorage), or on the player's account if the host page
 stores the progress the game sends it.
 
-### Free drive
+## Free drive
 
 Weave through dense city traffic as fast as you dare. Passing a car with less than 1.7 m of
 side clearance is a near miss (under 0.9 m is a close call, under 0.4 m is INSANE); oncoming
@@ -221,7 +115,7 @@ the car also ends it.
   you, and traffic gets denser the longer you survive.
 - **Scores:** your top 10 runs are kept in this browser (localStorage).
 
-### Race
+## Race
 
 A random 1.6-2.3 km route through the grid (legs of 2-5 blocks, left and right turns, never
 crossing itself), from a two-car grid on an avenue to a checkered finish gate. The rival drives
@@ -246,6 +140,11 @@ the gate you missed.
 - **HUD:** position, race clock, gap to the rival in metres, checkpoint count, an arrow and
   distance to the next gate, a rotating map with the route, gates and rival, and wrong-way and
   off-route warnings. Race traffic is a little lighter than free drive.
+
+Turning is helped: every car gets more steering lock at speed and a little more grip, and the
+car follows the wheel (when it turns less than the wheel asks, the missing rotation is added
+without making it slide). Turns are 15-30% tighter at 50-80 km/h than the raw physics, and the
+car settles straight after a flick. Drifts and handbrake turns are left alone.
 
 Controls: W A S D drive, Shift boost, Space + steer to drift, mouse to look, Esc pause,
 R restart (in a race: the same route again), T back on the route (race), Enter start.
@@ -279,10 +178,9 @@ src/
              Rapier physics wrapper, procedural Web Audio
   sim/       clock, weather, economy, NPC population + life simulation, pedestrians,
              sidewalk navigation, traffic, dialogue lines, LLM hook
-  game/      Game (engine loop), Session (one playthrough), player/camera/vehicle controllers,
-             interiors, jobs, dialogue, objectives, business, events, mini-games,
-             save system, menu flow
-  ui/        HUD, minimap, map, phone, dialogue, shops, menus, settings (React + Tailwind)
+  game/      shared: the drivable car and the camera; the rest is Echo City (Session, player,
+             interiors, jobs, dialogue, objectives, business, events, mini-games, saves, menus)
+  ui/        Echo City's HUD, minimap, map, phone, menus, settings (the map renderer is shared)
   state/     zustand stores and settings
   scene/     R3F canvas and post-processing
 ```
@@ -300,14 +198,14 @@ throttled HUD updates.
 
 ```bash
 npm run typecheck
-npm run test:sim     # headless 3-day simulation of all residents and the economy
-npm run test:unit    # scoring (24 checks), drift handling (16), race rules (13), garage (29)
+npm run test:unit    # scoring (24), drift (40), turning help (6), race rules (13), garage (29)
 npm run test:race    # the rival AI racing itself through real physics and traffic (a few minutes)
 npm run dev &        # then, in another shell:
-npm run test:e2e     # drives both games in headless Chromium (needs Playwright's Chromium)
+npm run test:e2e     # drives MyGarage Drive (and Echo City) in headless Chromium
+npm run test:sim     # Echo City: headless 3-day simulation of its residents and economy
 ```
 
-`scripts/e2e-nearmiss.mjs` (33 checks) covers the title screen with the parked car and garage
+`scripts/e2e-drive.mjs` (33 checks) covers the title screen with the parked car and garage
 card, adding a car with the garage form (a Soueast DX5 drives as a white crossover), buying an
 upgrade, picking a car and conditions, the countdown, a scripted near miss, combo banking, boost, oncoming driving, a drift (scored, with
 skid marks and smoke), pause, a first crash that damages the car and a second that wrecks it,
@@ -324,19 +222,12 @@ best at what it claims, the damage rules, the economy, and that hostile host pay
 saves are cleaned up.
 `scripts/race-test.ts` races two AI cars over six routes through the real city collision and
 traffic, and checks that they finish and how fast. `scripts/drift-test.ts` drives each
-Near Miss car in Rapier without a browser and checks that drifts hold an angle, keep speed
-and end cleanly, and that Echo City's cars (no drift assist) still grip. Like the Echo City suites it also passes against the production build.
+garage car in Rapier without a browser and checks that drifts hold an angle, keep speed and end
+cleanly, and that without the assists the cars still grip. `scripts/handling-test.ts` measures
+the turning help: turning radius with and without it at 50 and 80 km/h, slip, settling after a
+flick, and that drifting still works. The e2e suite also passes against the production build.
 
-`scripts/e2e.mjs` (21 checks) and `scripts/e2e-systems.mjs` (11 checks) dispatch real key and
-mouse events to the page and advance the game with `window.__echo.simulate()`. They cover:
-menu → character creation → intro, walking, sprinting, jumping, building collision, tutorial
-steps, entering/leaving buildings, phone and map, a full food delivery, talking to a resident,
-driving and braking, buying food, rain and night, save → quit → continue, pause, sleeping,
-multi-day simulation, switching to a new city seed, the bank, a full employment shift with
-mini-game and wages, a taxi fare, buying and driving a car, buying a business, save/load of
-job + car + business, city events, setting a map waypoint, and switching graphics presets
-mid-game — with zero runtime errors. Both suites also pass against the production build.
-Set `URL` and `CHROME` to point them somewhere else.
+Echo City's own suites are described in [docs/ECHO-CITY.md](docs/ECHO-CITY.md).
 
 ## Known limitations and what remains
 
@@ -349,20 +240,10 @@ Set `URL` and `CHROME` to point them somewhere else.
 - **Coins and upgrades are kept on the client.** That is fine while they only matter in the game;
   if they ever turn into something with real value (site bonus points, discounts), the host has
   to validate runs on its server, because a browser save can be edited.
-
 - **Performance was only measured with software rendering** (SwiftShader in a headless
-  container, ~1–2 fps for real frames). The game was not run on a real GPU while it was being
-  built, so actual frame rates per preset are unknown. If HIGH/ULTRA struggle, use MEDIUM or LOW
-  or lower the draw distance and densities.
+  container, ~1–2 fps for real frames). Actual frame rates on real GPUs and phones are unknown.
+  If it struggles, use MEDIUM or LOW or lower the draw distance.
 - **Audio is untested by ear.** It is synthesised with Web Audio and runs without errors, but
   levels and mix were not listened to.
-- **The local LLM dialogue hook was not tested against a real server.**
-- No street-name signs in the world (names appear on the HUD, minimap and map); no umbrellas;
-  no port cranes.
-- One city size; no streaming beyond the generated area.
-- Active food/courier/taxi jobs and city events are not saved (employment, business, cars,
-  relationships and everything else are).
-- The main JavaScript bundle is large (≈6.3 MB, 2.3 MB gzipped, much of it the Rapier
-  WebAssembly module); it is not code-split.
-- Desktop only: no touch or gamepad controls.
-- The economy is balanced against a 3–4 day headless run; very long play may still drift.
+- The JavaScript bundle is large (≈6 MB, ≈2.3 MB gzipped, much of it the Rapier WebAssembly
+  module); it is not code-split.

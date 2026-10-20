@@ -1,5 +1,5 @@
 // Build one game as a single self-contained HTML file (JS, CSS, fonts and the chunk worker inlined).
-// Usage: node scripts/build-single.mjs [near-miss.html|index.html] [out.html]
+// Usage: node scripts/build-single.mjs [index.html|echo-city/index.html] [out.html]
 // Google Fonts links in the page stay external: with no network the page falls back to the bundled Inter.
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync } from 'f
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 
-const page = process.argv[2] ?? 'near-miss.html';
+const page = process.argv[2] ?? 'index.html';
 const out = process.argv[3] ?? page.replace(/\.html$/, '.single.html');
 const dir = mkdtempSync(join(tmpdir(), 'single-'));
 

@@ -2,11 +2,11 @@
 
 How a site with a "My Garage" feature (saved vehicles per user, as on list.am) can let its users
 drive their own cars in the game. Everything here is implemented in
-`src/nearmiss/garage/bridge.ts` and covered by `scripts/garage-test.ts` and the e2e suite.
+`src/mygarage/garage/bridge.ts` and covered by `scripts/garage-test.ts` and the e2e suite.
 
 ## 1. Embed
 
-Host the built game (`npm run build`, then `dist/near-miss.html` and `dist/assets/`) on any
+Host the built game (`npm run build`, then `dist/index.html` and `dist/assets/`) on any
 origin and show it in an iframe, or link to it. Build with the host's origins allowed:
 
 ```bash
@@ -24,11 +24,11 @@ Either way works; both carry the same JSON.
 fragment. The fragment never reaches the game's server.
 
 ```
-https://game.example/near-miss.html#garage=eyJ2ZWhpY2xlcyI6W3siaWQiOiIxMjMiLCJtYWtlIjoiU291ZWFzdCIsIm1vZGVsIjoiRFg1IiwieWVhciI6MjAyNH1dfQ
+https://game.example/#garage=eyJ2ZWhpY2xlcyI6W3siaWQiOiIxMjMiLCJtYWtlIjoiU291ZWFzdCIsIm1vZGVsIjoiRFg1IiwieWVhciI6MjAyNH1dfQ
 ```
 
 **postMessage** (for an iframe, and to keep progress on the account): when the game loads it
-posts `{ type: 'nearmiss:ready', version: 1 }` to the parent; answer with
+posts `{ type: 'mygarage:ready', version: 1 }` to the parent; answer with
 
 ```js
 iframe.contentWindow.postMessage({ type: 'garage:vehicles', vehicles, progress }, 'https://game.example');
@@ -68,13 +68,13 @@ pass its records as they are.
 
 All are posted to the host origin only.
 
-| `type` | When | Fields |
-| --- | --- | --- |
-| `nearmiss:ready` | page loaded | `version` |
-| `nearmiss:progress` | after every change (run, repair, upgrade, car added) | `save`: coins, per-car condition and upgrades |
-| `nearmiss:run` | a run or race ended | `vehicleId`, `mode`, `score`, `coins`, `health`, `won?` |
-| `nearmiss:parts` | "Shop real parts that fit this car" in the workshop | `vehicleId`, `make`, `model`, `year`, `category` |
-| `nearmiss:services` | "Find a real mechanic" when the car is damaged | `vehicleId`, `make`, `model`, `year`, `category: 'repair'` |
+| `type`              | When                                                 | Fields                                                     |
+| ------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
+| `mygarage:ready`    | page loaded                                          | `version`                                                  |
+| `mygarage:progress` | after every change (run, repair, upgrade, car added) | `save`: coins, per-car condition and upgrades              |
+| `mygarage:run`      | a run or race ended                                  | `vehicleId`, `mode`, `score`, `coins`, `health`, `won?`    |
+| `mygarage:parts`    | "Go to parts that fit this car" in the workshop  | `vehicleId`, `make`, `model`, `year`, `category`           |
+| `mygarage:services` | "Find a real mechanic" when the car is damaged       | `vehicleId`, `make`, `model`, `year`, `category: 'repair'` |
 
 `parts` and `services` are the hooks back into the site: open the compatible-parts search or
 the repair services listing for that exact car. The two buttons only appear once a host has
@@ -83,11 +83,11 @@ connected by postMessage.
 ## 4. Things to decide on the host side
 
 - **Where progress lives.** By default it is in the browser (localStorage). Storing
-  `nearmiss:progress` on the account and passing it back as `progress` makes it follow the user
+  `mygarage:progress` on the account and passing it back as `progress` makes it follow the user
   across devices.
 - **Rewards.** Coins are client-side and can be edited in the browser. Fine for an in-game
   economy; if they are ever exchanged for something real (bonus points, discounts), score the
-  runs on the server instead of trusting `nearmiss:run`.
+  runs on the server instead of trusting `mygarage:run`.
 - **Body types.** If the garage's catalogue has a body type per model, sending `archetype`
   directly is more accurate than the game's own make/model matching.
 - **Branding.** The game page has no host branding; add it in the host's frame around it.

@@ -76,7 +76,7 @@ export const VEHICLES: VehicleSpec[] = [
     mass: 1600, engine: 7600, maxSpeed: 58, brake: 54, steer: 0.58, grip: 2.5, suspension: 36, price: 0, seats: 4,
     palette: [0x111827], traffic: 0, cruise: 1,
   },
-  // Near Miss garage archetypes: player cars only (never in traffic). See src/nearmiss/garage/archetypes.ts.
+  // Near Miss garage archetypes: player cars only (never in traffic). See src/mygarage/garage/archetypes.ts.
   {
     id: 9, key: 'g_compact', model: 'compact', name: 'City compact', length: 3.9, width: 1.74, height: 1.5, wheelBase: 2.5, track: 1.5, wheelRadius: 0.31,
     mass: 1050, engine: 4800, maxSpeed: 45, brake: 42, steer: 0.64, grip: 2.35, suspension: 30, price: 0, seats: 4, drive: 'fwd',

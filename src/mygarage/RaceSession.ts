@@ -1,5 +1,5 @@
 // One race against the rival: the route, the rival's car and driver, both cars' progress, the
-// checkpoint gates and the rules for who wins. NearMissGame owns it and drives the player's car.
+// checkpoint gates and the rules for who wins. DriveGame owns it and drives the player's car.
 import * as THREE from 'three';
 import type { World } from '../engine/World';
 import { DrivableVehicle } from '../game/DrivableVehicle';
@@ -35,8 +35,9 @@ interface Gate {
   finish: boolean;
 }
 
-const AMBER = new THREE.Color(0xffb000);
-const DIM = new THREE.Color(0x6b7280);
+/** list.am blue for the next gate */
+const AMBER = new THREE.Color(0x1a86ff);
+const DIM = new THREE.Color(0x9aa0aa);
 
 let checker: THREE.CanvasTexture | null = null;
 function checkerTexture() {
@@ -97,6 +98,7 @@ export class RaceSession {
     const start = this.gridPose(GRID.rival);
     this.rival = new DrivableVehicle(world.physics, carType, start.x, 0.02, start.z, start.yaw, this.paint, 'player', 'Rival');
     this.rival.headlights = true;
+    this.rival.handlingAssist = true;
     this.rival.onImpact = (dv) => this.rivalImpact(dv);
     this.driver = new RivalDriver(this.route);
     this.driver.reset(0, GRID.rival);

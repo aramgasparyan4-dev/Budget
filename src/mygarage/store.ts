@@ -105,6 +105,7 @@ export interface BestEntry {
   bestCombo: number;
 }
 
+// storage keys keep the game's first name (Near Miss) so existing saves carry over
 const BEST_KEY = 'near-miss-best-v1';
 const RACE_KEY = 'near-miss-race-v1';
 
@@ -156,7 +157,7 @@ export const useNM = create<NMState>((set, get) => ({
   progress: 0,
   progressText: '',
   paused: false,
-  cond: 'night',
+  cond: 'day',
   mode: 'score',
   hud: {
     speed: 0,
