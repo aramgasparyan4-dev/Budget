@@ -20,7 +20,9 @@ import type { Lane } from '../sim/traffic/RoadGraph';
 import { useStore } from '../state/store';
 import { clamp, damp } from '../core/math';
 import { Scorer, OtherCar } from './scoring';
-import { useNM, Phase } from './store';
+import { useNM, Phase, Mode } from './store';
+import { RACE_TRAFFIC } from './race';
+import { RaceSession, RIVAL_PAINT, RIVAL_FINISHED_GRACE } from './RaceSession';
 
 /** the same city as Echo City */
 export const CITY_SEED = 20261019;
@@ -43,6 +45,11 @@ export const CONDITIONS: Record<string, { label: string; hour: number; weather: 
 
 const BOOST_POWER = 1.8;
 const BOOST_TOP = 1.25;
+/** a damaged car (free drive, after the first big hit) */
+const DAMAGED_POWER = 0.8;
+const DAMAGED_TOP = 0.85;
+/** free drive: much denser than Echo City, spawning often and close in (never in plain view ahead) */
+const SCORE_TRAFFIC = { maxVehicles: 160, spawnInterval: 0.03, spawnAttempts: 24, spawnRadius: { min: 60, max: 280, despawn: 320 } };
 /** traffic is always at rush-hour volume, whatever the light looks like */
 const TRAFFIC_HOUR = 17.6;
 
@@ -57,10 +64,17 @@ export class NearMissGame {
   traffic: TrafficSystem | null = null;
   vehR = new VehicleRenderer(320);
   smoke = new TireSmoke(700);
+  /** black smoke from a damaged engine */
+  engineSmoke = new TireSmoke(240, 1);
   skids = new SkidMarks(3000);
   private smokeAcc = 0;
+  private engineSmokeAcc = 0;
   car: DrivableVehicle | null = null;
   scorer = new Scorer();
+  mode: Mode = 'score';
+  race: RaceSession | null = null;
+  /** where the floating RIVAL tag goes (CSS px), read by the UI every frame */
+  rivalTag: { x: number; y: number; dist: number } | null = null;
   phase: Phase = 'loading';
   paused = false;
   time = 0;
@@ -102,7 +116,7 @@ export class NearMissGame {
     this.cam = new CameraController(camera);
     this.input.attach(renderer.domElement);
     renderer.info.autoReset = false;
-    scene.add(this.vehR.group, this.smoke.points, this.skids.mesh);
+    scene.add(this.vehR.group, this.smoke.points, this.engineSmoke.points, this.skids.mesh);
     (window as unknown as { __nm: NearMissGame }).__nm = this;
     const unlock = () => {
       this.audio.init();
@@ -119,11 +133,7 @@ export class NearMissGame {
     this.world = await World.load(this.scene, CITY_SEED, settings, (p, t) => st.set({ progress: p, progressText: t }));
     this.applySettings();
     this.traffic = new TrafficSystem(this.world.city, this.world.physics, CITY_SEED);
-    // much denser than Echo City: spawn often and closer in (but never in plain view ahead)
-    this.traffic.maxVehicles = 160;
-    this.traffic.spawnInterval = 0.03;
-    this.traffic.spawnAttempts = 24;
-    this.traffic.spawnRadius = { min: 60, max: 280, despawn: 320 };
+    this.trafficPreset(SCORE_TRAFFIC);
     this.world.chunks.hooks.signalColor = this.traffic.signalColor;
     for (const l of this.traffic.graph.lanes) {
       const seg = this.world.city.segments[l.seg];
@@ -215,6 +225,10 @@ export class NearMissGame {
     tr.spawn(l.id, sAt);
   }
 
+  private trafficPreset(p: typeof SCORE_TRAFFIC) {
+    Object.assign(this.traffic!, { ...p, spawnRadius: { ...p.spawnRadius } });
+  }
+
   applySettings() {
     const s = useStore.getState().settings;
     this.world?.applySettings(s, this.renderer, this.camera);
@@ -242,6 +256,7 @@ export class NearMissGame {
   // ------------------------------------------------------------------ flow
   toTitle() {
     this.removeCar();
+    this.endRace();
     this.slowmo = 1;
     this.cam.mode = 'cinematic';
     this.setPhase('title');
@@ -274,14 +289,29 @@ export class NearMissGame {
     return { x, z, yaw };
   }
 
-  startRun() {
+  /** start a run in the mode picked on the title screen; `sameRoute` replays the last race's route */
+  startRun(sameRoute = false) {
     if (!this.world || !this.traffic) return;
     this.audio.init();
     this.removeCar();
     const def = this.carDef;
-    const start = this.pickStart();
-    // nothing parked on top of us or right in front
-    for (const v of [...this.traffic.vehicles]) if (Math.hypot(v.x - start.x, v.z - start.z) < 45) this.traffic.remove(v);
+    this.mode = useNM.getState().mode;
+    let start: { x: number; z: number; yaw: number };
+    if (this.mode === 'race') {
+      const seed = sameRoute && this.race ? this.race.seed : Math.floor(Math.random() * 1e9);
+      this.endRace();
+      this.trafficPreset(RACE_TRAFFIC);
+      const st = useNM.getState();
+      this.race = new RaceSession(this.world, this.traffic, this.scene, def.type, RIVAL_PAINT[st.carIndex] ?? RIVAL_PAINT[0], seed);
+      this.race.rival.gripMul = this.cond.grip;
+      start = this.race.grid();
+    } else {
+      this.endRace();
+      this.trafficPreset(SCORE_TRAFFIC);
+      start = this.pickStart();
+      // nothing parked on top of us or right in front
+      for (const v of [...this.traffic.vehicles]) if (Math.hypot(v.x - start.x, v.z - start.z) < 45) this.traffic.remove(v);
+    }
     const car = new DrivableVehicle(this.world.physics, def.type, start.x, 0.02, start.z, start.yaw, new THREE.Color(def.color), 'player', def.name);
     car.siren = def.siren;
     car.headlights = true;
@@ -292,7 +322,8 @@ export class NearMissGame {
     car.driven = true;
     car.onImpact = (dv) => this.onImpact(dv);
     this.car = car;
-    this.scorer = new Scorer();
+    this.scorer = new Scorer(this.mode);
+    this.rivalTag = null;
     this.lastInter = -1;
     this.flipT = 0;
     this.slowmo = 1;
@@ -307,9 +338,28 @@ export class NearMissGame {
     this.setPhase('countdown');
   }
 
+  /** R: the same again (a race replays its route) */
   retry() {
     if (this.phase === 'loading') return;
-    this.startRun();
+    this.startRun(true);
+  }
+
+  private endRace() {
+    this.race?.dispose();
+    this.race = null;
+    this.rivalTag = null;
+    useNM.getState().set({ race: null });
+  }
+
+  /** T in a race: back on the route where you left it (flipped, lost, wedged) */
+  backOnTrack() {
+    const car = this.car;
+    if (!this.race || !car || this.phase !== 'run' || this.race.playerTime !== null) return;
+    const yaw = this.race.resetPlayer(car);
+    this.cam.alignBehind(yaw);
+    this.cam.snap();
+    this.flipT = 0;
+    useNM.getState().pushPopup({ kind: 'scrape', label: 'BACK ON TRACK', points: 0 });
   }
 
   togglePause() {
@@ -332,6 +382,7 @@ export class NearMissGame {
     const s = this.scorer;
     const st = useNM.getState();
     const def = this.carDef;
+    if (this.race) return this.finishRace();
     const rank = st.record({ score: s.score, car: def.name, cond: this.cond.label, date: Date.now(), nearMisses: s.nearMisses, bestCombo: s.bestCombo });
     st.set({
       result: {
@@ -351,9 +402,49 @@ export class NearMissGame {
         car: def.name,
         cond: this.cond.label,
         rank,
+        mode: 'score',
       },
     });
     this.audio.engine(0, 0, 0, false);
+    this.setPhase('results');
+  }
+
+  /** the player crossed the line, or ran out of time after the rival did */
+  private finishRace() {
+    const race = this.race!;
+    const s = this.scorer;
+    const st = useNM.getState();
+    const def = this.carDef;
+    const mine = race.playerTime;
+    const won = mine !== null && (race.rivalTime === null || mine < race.rivalTime);
+    const rivalEstimated = race.rivalTime === null;
+    const rivalTime = race.rivalTime ?? (mine !== null ? mine + race.rivalSecondsLeft() : null);
+    const margin = won && rivalTime !== null ? rivalTime - mine : 0;
+    const record = st.recordRace(won, margin);
+    st.set({
+      result: {
+        score: s.score,
+        reason: 'time',
+        nearMisses: s.nearMisses,
+        bestCombo: s.bestCombo,
+        bestBank: s.bestBank,
+        topSpeed: Math.round(s.topSpeed),
+        distance: Math.round(s.distance),
+        seconds: Math.round(race.time),
+        oncomingSec: Math.round(s.oncomingSec),
+        driftSec: Math.round(s.driftSec),
+        drifts: s.drifts,
+        bestDrift: s.bestDrift,
+        closest: isFinite(s.closest) ? Math.round(s.closest * 100) / 100 : null,
+        car: def.name,
+        cond: this.cond.label,
+        rank: 0,
+        mode: 'race',
+        race: { won, time: mine, rivalTime, rivalEstimated, crashes: s.crashes, rivalCrashes: race.rivalCrashes, length: Math.round(race.route.length), record },
+      },
+    });
+    this.audio.engine(0, 0, 0, false);
+    this.audio.skid(0);
     this.setPhase('results');
   }
 
@@ -379,6 +470,21 @@ export class NearMissGame {
     this.audio.crash(Math.min(1, dv / 16));
     this.cam.shake = Math.min(1.6, dv * 0.09);
     if (r === 'wreck') this.wreck();
+    else if (r === 'crash' && this.race) {
+      // racing: a big hit stops you dead, then you carry on
+      this.car.stop();
+      this.race.stunT = 0.9;
+      this.flushEvents();
+    } else if (r === 'damage') this.damageCar();
+  }
+
+  /** free drive, first big hit: the car smokes, flashes its hazards and loses some pace */
+  private damageCar() {
+    const car = this.car!;
+    car.hazards = true;
+    car.paint.lerp(new THREE.Color(0x1d1d1f), 0.4);
+    this.beatT = 0.6;
+    this.flushEvents();
   }
 
   private wreck() {
@@ -424,11 +530,19 @@ export class NearMissGame {
     const driving = this.phase === 'run' && !this.paused;
     this.boosting = driving && !!car && (input.down('ShiftLeft') || input.down('ShiftRight')) && this.scorer.boost > 0.01 && car.forwardSpeed > 2;
     if (car) {
-      car.powerMul = this.boosting ? BOOST_POWER : 1;
-      car.topMul = this.boosting ? BOOST_TOP : 1;
+      const dmg = this.scorer.damaged;
+      car.powerMul = (this.boosting ? BOOST_POWER : 1) * (dmg ? DAMAGED_POWER : 1);
+      car.topMul = (this.boosting ? BOOST_TOP : 1) * (dmg ? DAMAGED_TOP : 1);
     }
+    const race = this.race;
+    const go = this.phase === 'run';
+    // stopped by a crash in a race: no control for a moment
+    const control = driving && !(race && race.stunT > 0);
     if (!this.paused) {
-      world.physics.advance(dt, (h) => car?.control(h, input, driving));
+      world.physics.advance(dt, (h) => {
+        car?.control(h, input, control);
+        race?.control(h, go);
+      });
     }
 
     // camera and the point everything streams around
@@ -463,20 +577,30 @@ export class NearMissGame {
     tr.density = this.phase === 'run' ? 1 + Math.min(0.4, this.scorer.elapsed / 150) : 0.9;
     tr.obstacles.length = 0;
     if (car) tr.obstacles.push({ x: car.pos.x, z: car.pos.z, r: car.spec.width * 0.6 + 0.4, kind: 'playerCar' });
+    if (race) tr.obstacles.push({ x: race.rival.pos.x, z: race.rival.pos.z, r: race.rival.spec.width * 0.6 + 0.4, kind: 'playerCar' });
     if (!this.paused) {
-      if (car && this.phase === 'run') this.direct(dt, car);
+      if (car && this.phase === 'run' && !race) this.direct(dt, car);
       tr.update(dt, this.focus, this.camFwd, TRAFFIC_HOUR);
-      tr.syncBodies(this.focus);
+      tr.syncBodies(this.focus, race?.rival.pos);
+    }
+
+    // the race: rival, checkpoints, positions
+    if (race && car && !this.paused && (this.phase === 'countdown' || this.phase === 'run')) {
+      race.update(dt, car, this.phase === 'run', this.camera);
+      this.raceEvents(race, car);
     }
 
     // scoring
     if (this.phase === 'run' && car && !this.paused) this.score(dt, car);
 
-    // flipped over counts as a wreck
+    // flipped over: a wreck in free drive, back on the route in a race
     if (car && this.phase === 'run') {
       const up = new THREE.Vector3(0, 1, 0).applyQuaternion(car.quat);
       this.flipT = up.y < 0.35 ? this.flipT + dt : 0;
-      if (this.flipT > 0.8) this.wreck();
+      if (this.flipT > 0.8) {
+        if (race) this.backOnTrack();
+        else this.wreck();
+      }
     }
 
     this.tireEffects(dt, car);
@@ -500,6 +624,33 @@ export class NearMissGame {
       this.hudT = 0.05;
       this.publish();
     }
+  }
+
+  private raceEvents(race: RaceSession, car: DrivableVehicle) {
+    const st = useNM.getState();
+    const n = race.route.checkpoints.length;
+    for (const e of race.events) {
+      if (e.kind === 'checkpoint') {
+        st.pushPopup({ kind: 'bonus', label: 'CHECKPOINT', sub: `${e.index + 1} / ${n}`, points: 0 });
+        this.audio.countdown(false);
+      } else if (e.kind === 'finish') {
+        this.audio.countdown(true);
+        this.finishRace();
+        return;
+      } else if (e.kind === 'rivalFinished') {
+        st.pushPopup({ kind: 'lost', label: 'RIVAL FINISHED', sub: `${RIVAL_FINISHED_GRACE} S TO GET HOME`, points: 0 });
+        this.audio.comboLost();
+      } else if (e.kind === 'rivalCrash') {
+        const d = race.rival.pos.distanceTo(car.pos);
+        if (d < 150) st.pushPopup({ kind: 'bonus', label: 'RIVAL CRASHED', points: 0 });
+        if (d < 80) this.audio.crash(Math.max(0.15, 0.8 - d / 100));
+      } else if (e.kind === 'lead') {
+        st.pushPopup({ kind: e.ahead ? 'bank' : 'lost', label: e.ahead ? 'TOOK THE LEAD' : 'LOST THE LEAD', points: 0 });
+        if (e.ahead) this.audio.combo(4);
+      }
+    }
+    // too slow: the rival has been home for a while
+    if (race.rivalTime !== null && race.playerTime === null && race.time - race.rivalTime > RIVAL_FINISHED_GRACE) this.finishRace();
   }
 
   private attractCam(dt: number) {
@@ -562,8 +713,11 @@ export class NearMissGame {
   /** popups and sounds for what the scorer just decided */
   private flushEvents() {
     const st = useNM.getState();
+    const racing = this.mode === 'race';
     for (const e of this.scorer.events) {
-      st.pushPopup({ kind: e.kind, label: e.label, sub: e.sub, points: e.points, tier: e.tier });
+      // in a race only the moments matter, not points or banking
+      if (racing && (e.kind === 'bank' || e.kind === 'lost')) continue;
+      st.pushPopup({ kind: e.kind, label: e.label, sub: e.sub, points: racing ? 0 : e.points, tier: e.tier });
       if (e.kind === 'near') {
         this.audio.whoosh(e.tier ?? 1, (Math.random() - 0.5) * 1.4);
         if (e.tier === 3) this.beatT = 0.4;
@@ -607,9 +761,23 @@ export class NearMissGame {
 
   /** smoke and skid marks from the rear tires while sliding (drifts and handbrake locks) */
   private tireEffects(dt: number, car: DrivableVehicle | null) {
-    if (dt > 0) this.smoke.update(dt);
+    if (dt > 0) {
+      this.smoke.update(dt);
+      this.engineSmoke.update(dt);
+    }
     this.smoke.setViewport(this.renderer.domElement.height, this.camera.fov);
+    this.engineSmoke.setViewport(this.renderer.domElement.height, this.camera.fov);
     if (!car || dt <= 0) return;
+    if (this.scorer.damaged) {
+      // from under the bonnet, thicker when slow
+      this.engineSmokeAcc += (16 + 22 / (1 + car.speed / 8)) * dt;
+      const f = new THREE.Vector3(0, 0.55, car.spec.length / 2 - 0.7).applyQuaternion(car.quat).add(car.pos);
+      const lv = car.body.linvel();
+      while (this.engineSmokeAcc >= 1) {
+        this.engineSmokeAcc -= 1;
+        this.engineSmoke.emit(f.x, f.y, f.z, lv.x * 0.6, lv.z * 0.6, 1.1);
+      }
+    }
     const sliding = (car.drifting || (car.handbrake && car.speed > 8)) && car.speed > 5;
     const lv = car.body.linvel();
     const intensity = car.drifting ? Math.min(1.4, Math.abs(car.slipAngle) / 25) : 0.5;
@@ -640,6 +808,7 @@ export class NearMissGame {
       r.push({ type: v.type, x: v.x, z: v.z, yaw: v.yaw, paint: v.paint, head: 0, brake: 0, wheelRot: 0, steer: 0 });
     }
     if (this.car) r.push(this.car.getDrawable(night));
+    if (this.race) r.push(this.race.rival.getDrawable(night));
     r.end();
   }
 
@@ -662,7 +831,42 @@ export class NearMissGame {
       driftPoints: Math.round(s.driftPoints),
       countdown: this.phase === 'countdown' ? Math.max(0, Math.ceil(3 - this.phaseT)) : 0,
       street: road.street,
+      damaged: s.damaged,
     });
+    const race = this.race;
+    if (race && car && (this.phase === 'countdown' || this.phase === 'run')) {
+      const g = race.guide();
+      const cf = new THREE.Vector3();
+      this.camera.getWorldDirection(cf);
+      const camYaw = Math.atan2(cf.x, cf.z);
+      const toYaw = Math.atan2(g.x - car.pos.x, g.z - car.pos.z);
+      useNM.getState().set({
+        race: {
+          position: race.position,
+          checkpoint: race.player.next,
+          checkpoints: race.route.checkpoints.length,
+          time: race.time,
+          gap: Math.round(race.player.s - race.rivalProgress.s),
+          rivalDist: Math.round(race.rival.pos.distanceTo(car.pos)),
+          arrow: Math.round((-wrapAngle(toYaw - camYaw) * 180) / Math.PI),
+          cpDist: Math.round(g.cpDist),
+          off: race.player.off > 18,
+          wrongWay: race.player.wrongWay,
+          rivalFinished: race.rivalTime !== null,
+          stunned: race.stunT > 0,
+          left: race.rivalTime !== null ? Math.max(0, RIVAL_FINISHED_GRACE - (race.time - race.rivalTime)) : -1,
+        },
+      });
+    }
+  }
+
+  /** screen position of the rival's tag; called every frame by the UI */
+  updateRivalTag(w: number, h: number) {
+    const race = this.race;
+    if (!race || !this.car || (this.phase !== 'countdown' && this.phase !== 'run')) return (this.rivalTag = null);
+    const p = race.tag(this.camera, w, h);
+    this.rivalTag = p ? { ...p, dist: race.rival.pos.distanceTo(this.car.pos) } : null;
+    return this.rivalTag;
   }
 
   afterRender() {

@@ -49,6 +49,10 @@ export class DrivableVehicle {
    * at (yaw rate / that rate): steer into the slide to hold or deepen it, counter-steer to straighten.
    */
   driftAssist = false;
+  /** analog controls for an AI driver; when set, the keyboard is ignored (steer +1 = full left) */
+  aiInput: { throttle: number; brake: number; steer: number; handbrake: boolean } | null = null;
+  /** flashing hazard lights (a damaged car) */
+  hazards = false;
   drifting = false;
   /** angle between the nose and the direction of travel, degrees (positive: nose left of travel) */
   slipAngle = 0;
@@ -163,7 +167,17 @@ export class DrivableVehicle {
     let back = false;
     this.forwardSpeed = vc.currentVehicleSpeed();
     const v = this.forwardSpeed;
-    if (active && input) {
+    let steerAnalog: number | null = null;
+    if (active && this.aiInput) {
+      const ai = this.aiInput;
+      steerAnalog = clamp(ai.steer, -1, 1);
+      str = Math.sign(steerAnalog);
+      hand = ai.handbrake;
+      if (ai.brake > 0.05) {
+        if (v > 1) brk = ai.brake;
+        else thr = -0.5 * ai.brake;
+      } else thr = clamp(ai.throttle, 0, 1);
+    } else if (active && input) {
       const fwd = input.down('KeyW') || input.down('ArrowUp');
       back = input.down('KeyS') || input.down('ArrowDown');
       str = (input.down('KeyA') || input.down('ArrowLeft') ? 1 : 0) - (input.down('KeyD') || input.down('ArrowRight') ? 1 : 0);
@@ -204,7 +218,7 @@ export class DrivableVehicle {
     this.gripBack = Math.min(1, this.gripBack + h * 3);
     // steering: speed sensitive, smooth
     const maxSteer = s.steer / (1 + Math.abs(v) / 13);
-    const target = str * maxSteer;
+    const target = (steerAnalog ?? str) * maxSteer;
     const rate = target === 0 ? 5 : 3.2;
     this.steer += clamp(target - this.steer, -rate * h, rate * h);
     // power-limited engine
@@ -311,7 +325,16 @@ export class DrivableVehicle {
     this.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.lastVel.set(0, 0, 0);
     this.upsideT = 0;
+  }
+
+  /** dead stop where it is (a racing crash): no velocity, no spin, no slide */
+  stop() {
+    this.body.setLinvel({ x: 0, y: Math.min(0, this.body.linvel().y), z: 0 }, true);
+    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.lastVel.set(0, 0, 0);
+    if (this.drifting) this.endDrift();
   }
 
   teleport(x: number, y: number, z: number, yaw: number) {
@@ -338,7 +361,7 @@ export class DrivableVehicle {
     d.head = this.headlights || night > 0.5 ? 1 : 0;
     d.brake = this.braking ? 1 : 0;
     d.siren = this.siren ? 1 : 0;
-    d.hazard = 0;
+    d.hazard = this.hazards ? 1 : 0;
     d.wheelRot = this.wheelRot;
     d.steer = this.steer;
     for (let i = 0; i < 4; i++) {

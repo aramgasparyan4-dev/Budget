@@ -5,7 +5,11 @@
 //  - oncoming lane: driving against traffic
 //  - drift: a slide held for a while, scored by angle, speed and length; passes made mid-drift count 1.5x
 // Every event raises the combo multiplier. The combo banks into the score after a few quiet seconds;
-// a scrape loses whatever is unbanked, and a big hit ends the run.
+// a scrape loses whatever is unbanked. The first big hit damages the car (combo lost, car slower);
+// the second ends the run.
+//
+// In a race there is no clock and nothing ends the run: a big hit just stops the car. Near misses and
+// drifts still pop up and still fill the boost bar, which is what makes risky driving pay off there.
 
 export interface CarState {
   x: number;
@@ -34,7 +38,7 @@ export interface DriveContext {
   dt: number;
 }
 
-export type EventKind = 'near' | 'drift' | 'bank' | 'lost' | 'scrape' | 'bonus';
+export type EventKind = 'near' | 'drift' | 'bank' | 'lost' | 'scrape' | 'bonus' | 'damage' | 'crash';
 
 export interface ScoreEvent {
   kind: EventKind;
@@ -57,8 +61,10 @@ export const RULES = {
   boostDrain: 0.24, // per second
   boostMul: 1.5,
   scrapeTimePenalty: 3,
-  wreckImpact: 11, // velocity change (m/s) that ends the run
+  wreckImpact: 11, // velocity change (m/s) of a big hit: damages the car, the second one ends the run
   scrapeImpact: 4.5,
+  damageGrace: 1.5, // seconds after the first big hit in which further hits are part of the same crash
+  damageTimePenalty: 5,
   minDrift: 0.6, // seconds a slide must last to count as a drift
   driftRate: 90, // points per second at 25 degrees and standing speed factor
   driftPassMul: 1.5,
@@ -72,6 +78,8 @@ interface Track {
 }
 
 export class Scorer {
+  constructor(readonly mode: 'score' | 'race' = 'score') {}
+
   score = 0;
   comboPoints = 0;
   mult = 1;
@@ -81,6 +89,11 @@ export class Scorer {
   time = RULES.startTime;
   elapsed = 0;
   over: null | 'wrecked' | 'time' = null;
+  /** free drive: took one big hit already */
+  damaged = false;
+  /** race: big hits taken */
+  crashes = 0;
+  private graceT = 0;
   // stats
   nearMisses = 0;
   closest = Infinity;
@@ -203,7 +216,10 @@ export class Scorer {
       if (this.comboT <= 0) this.bank();
     }
 
-    // the clock
+    if (this.graceT > 0) this.graceT -= dt;
+
+    // the clock (a race has none)
+    if (this.mode === 'race') return;
     this.time -= dt;
     if (this.time <= 0) {
       this.time = 0;
@@ -270,21 +286,41 @@ export class Scorer {
     this.comboT = 0;
   }
 
-  /** a collision; returns what it meant */
-  impact(dv: number): 'none' | 'scrape' | 'wreck' {
-    if (this.over) return 'none';
-    if (dv >= RULES.wreckImpact) {
+  /**
+   * A collision; returns what it meant. 'crash' (race): the car stops and carries on. 'damage' (free
+   * drive): the first big hit. 'wreck': the second one, the run is over.
+   */
+  impact(dv: number): 'none' | 'scrape' | 'crash' | 'damage' | 'wreck' {
+    if (this.over || dv < RULES.scrapeImpact) return 'none';
+    // the rest of a crash that just happened (bouncing off the car we hit) counts as part of it
+    if (this.graceT > 0) return 'none';
+    const big = dv >= RULES.wreckImpact;
+    if (big && this.mode === 'score' && this.damaged) {
       this.end('wrecked');
       return 'wreck';
     }
-    if (dv < RULES.scrapeImpact) return 'none';
     const lost = Math.round(this.comboPoints * this.mult);
     this.driftActive = false; // the drift's points went with the combo
+    this.resetCombo();
+    if (big && this.mode === 'race') {
+      this.crashes++;
+      this.graceT = RULES.damageGrace;
+      this.boost = Math.max(0, this.boost - 0.15);
+      this.events.push({ kind: 'crash', label: 'CRASHED', points: 0 });
+      return 'crash';
+    }
+    if (big) {
+      this.damaged = true;
+      this.graceT = RULES.damageGrace;
+      this.boost = Math.max(0, this.boost - 0.3);
+      this.time = Math.max(1, this.time - RULES.damageTimePenalty);
+      this.events.push({ kind: 'damage', label: 'CAR DAMAGED', sub: 'ONE MORE HIT ENDS IT', points: -lost });
+      return 'damage';
+    }
     if (lost > 0) this.events.push({ kind: 'lost', label: 'COMBO LOST', points: -lost });
     else this.events.push({ kind: 'scrape', label: 'SCRAPE', points: 0 });
-    this.resetCombo();
     this.boost = Math.max(0, this.boost - 0.2);
-    this.time = Math.max(0, this.time - RULES.scrapeTimePenalty);
+    if (this.mode === 'score') this.time = Math.max(0, this.time - RULES.scrapeTimePenalty);
     return 'scrape';
   }
 

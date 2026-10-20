@@ -751,12 +751,14 @@ export class TrafficSystem {
   }
 
   // ------------------------------------------------------------------ physics proxies
-  syncBodies(player: { x: number; z: number }) {
+  /** physics bodies for the cars near the player (and near `other`, e.g. a second driven car) */
+  syncBodies(player: { x: number; z: number }, other?: { x: number; z: number }) {
     if (!this.physics) return;
     const R = 75;
     const all = this.vehicles.concat(this.parked);
     for (const v of all) {
-      const d = Math.hypot(v.x - player.x, v.z - player.z);
+      let d = Math.hypot(v.x - player.x, v.z - player.z);
+      if (other) d = Math.min(d, Math.hypot(v.x - other.x, v.z - other.z));
       if (d < R) {
         if (!v.body) this.acquireBody(v);
         if (v.body) {

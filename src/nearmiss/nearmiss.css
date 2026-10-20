@@ -92,3 +92,13 @@ button:focus-visible {
   outline: 2px solid var(--color-amber);
   outline-offset: 2px;
 }
+
+/* free drive, one hit left: a slow red pulse at the screen edges */
+@keyframes damaged {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.8; }
+}
+.damaged-vignette {
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 59, 48, 0.32) 100%);
+  animation: damaged 1.6s ease-in-out infinite;
+}

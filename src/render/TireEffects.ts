@@ -12,7 +12,8 @@ export class TireSmoke {
   private ageAttr: THREE.BufferAttribute;
   private next = 0;
 
-  constructor(private capacity = 600) {
+  /** dark: 0 = tire smoke, 1 = black engine smoke */
+  constructor(private capacity = 600, dark = 0) {
     this.pos = new Float32Array(capacity * 3);
     this.vel = new Float32Array(capacity * 3);
     this.age = new Float32Array(capacity).fill(-1);
@@ -26,7 +27,7 @@ export class TireSmoke {
     const mat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      uniforms: { uScale: { value: 400 }, uNight: G.uNight },
+      uniforms: { uScale: { value: 400 }, uNight: G.uNight, uDark: { value: dark } },
       vertexShader: /* glsl */ `
         attribute float aAge;
         attribute float aSize;
@@ -40,6 +41,7 @@ export class TireSmoke {
         }`,
       fragmentShader: /* glsl */ `
         uniform float uNight;
+        uniform float uDark;
         varying float vAge;
         void main() {
           if (vAge < 0.0) discard;
@@ -47,7 +49,9 @@ export class TireSmoke {
           float r = length(p) * 2.0;
           float a = smoothstep(1.0, 0.2, r) * pow(1.0 - clamp(vAge, 0.0, 1.0), 1.6) * 0.42;
           vec3 c = mix(vec3(0.86, 0.87, 0.9), vec3(0.32, 0.34, 0.4), uNight);
-          gl_FragColor = vec4(c, a);
+          // engine smoke: sooty by day, a lighter grey at night so headlights and street lamps pick it up
+          c = mix(c, vec3(0.1, 0.1, 0.11), uDark * (1.0 - uNight * 0.55));
+          gl_FragColor = vec4(c, a * (1.0 + uDark * 0.5));
         }`,
     });
     this.points = new THREE.Points(geo, mat);

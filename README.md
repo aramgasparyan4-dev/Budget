@@ -130,13 +130,24 @@ delivery, deliver it, meet someone, earn $500) followed by longer life goals wit
 
 ## Near Miss
 
+Two modes, picked on the title screen: **Free drive** (score attack against the clock) and
+**Race** (one-on-one against a rival car). Your free-drive high score and your race record
+(wins, races, biggest winning margin) show on the loading screen and the title screen.
+
+### Free drive
+
 Weave through dense city traffic as fast as you dare. Passing a car with less than 1.7 m of
 side clearance is a near miss (under 0.9 m is a close call, under 0.4 m is INSANE); oncoming
 passes count double and crossing traffic one and a half times. Driving against traffic,
 drifts and running red lights also feed the combo. Every event raises the multiplier
 (up to x10); the combo banks into your score after four quiet seconds, and a scrape loses
 whatever hasn't banked. The clock starts at 40 seconds and drains; risky driving buys time
-back. A big hit ends the run.
+back.
+
+The car can take one big hit. The first one loses the combo and 5 seconds, and leaves the car
+damaged: black smoke from the bonnet, hazard lights, darker paint, 20% less power and 15% less
+top speed, and a DAMAGED marker on screen. The next big hit ends the run (a crash that bounces
+you into a second car within 1.5 s counts once). Rolling the car also ends it.
 
 - **Cars:** Volta GT (fast), Patrol Cruiser (heavy, lights on), Echo Cab (forgiving), Pixie
   Compact (small enough for gaps nothing else fits through).
@@ -154,14 +165,43 @@ back. A big hit ends the run.
   you, and traffic gets denser the longer you survive.
 - **Scores:** your top 10 runs are kept in this browser (localStorage).
 
+### Race
+
+A random 1.6-2.3 km route through the grid (legs of 2-5 blocks, left and right turns, never
+crossing itself), from a two-car grid on an avenue to a checkered finish gate. Both cars are
+the model you picked; the rival is painted to stand out from yours (cyan against the red and
+yellow cars, orange against the black and blue ones) and carries a floating RIVAL tag and a
+marker over its roof. Pass the checkpoint gates in order (the next one glows amber, the one
+after shows in grey); a shortcut down another street gains nothing until you go back through
+the gate you missed.
+
+- **Crashes don't end the race.** A big hit stops your car dead for just under a second, then
+  you carry on. The same goes for the rival. Rolling over or getting lost puts you back on the
+  route; T does it on demand.
+- **The rival** drives the route with its own AI: pure-pursuit steering on a lane, braking for
+  corners and for traffic it can't get round, overtaking through other lanes (including
+  oncoming ones on straights), watching for cars about to cross its path, and backing out of
+  dead ends. When it is stuck out of your sight it is put back on the route. It speeds up a
+  little when behind and eases off when ahead, so races stay close.
+- **Finish:** first over the line wins. If the rival gets home first you have 30 seconds to
+  finish. Results show both times (the rival's estimated from its pace if you beat it), the
+  margin, crashes on both sides, and your near misses and drifts. Near misses and drifts still
+  pop up during a race and still fill the boost bar, so risky driving pays off there too.
+- **HUD:** position, race clock, gap to the rival in metres, checkpoint count, an arrow and
+  distance to the next gate, a rotating map with the route, gates and rival, and wrong-way and
+  off-route warnings. Race traffic is a little lighter than free drive.
+
 Controls: W A S D drive, Shift boost, Space + steer to drift, mouse to look, Esc pause,
-R restart, Enter start, ← → pick a car.
+R restart (in a race: the same route again), T back on the route (race), Enter start,
+← → pick a car.
 
 It reuses Echo City's city generator, chunk renderer and shaders, sky and weather, Rapier car
 physics (with an arcade drift layer that only Near Miss switches on), traffic simulation,
 vehicle models and procedural audio. Its own code is in
-`src/nearmiss/` (about 1,500 lines): the scoring rules (`scoring.ts`, pure and unit-tested),
-the game loop and traffic director (`NearMissGame.ts`) and the interface (`App.tsx`).
+`src/nearmiss/` (about 3,600 lines): the scoring rules (`scoring.ts`, pure and unit-tested),
+routes, race progress and the rival's driver (`race.ts`, pure), one race with its rival car and
+gates (`RaceSession.ts`), the game loop and traffic director (`NearMissGame.ts`) and the
+interface (`App.tsx`, `RaceUI.tsx`).
 
 ## Architecture
 
@@ -197,15 +237,21 @@ throttled HUD updates.
 ```bash
 npm run typecheck
 npm run test:sim     # headless 3-day simulation of all residents and the economy
-npm run test:unit    # Near Miss scoring rules (18 checks) and drift handling (16 checks)
+npm run test:unit    # Near Miss scoring rules (24 checks), drift handling (16), race rules (13)
+npm run test:race    # the rival AI racing itself through real physics and traffic (a few minutes)
 npm run dev &        # then, in another shell:
 npm run test:e2e     # drives both games in headless Chromium (needs Playwright's Chromium)
 ```
 
-`scripts/e2e-nearmiss.mjs` (16 checks) covers the title screen, car and condition choice, the
+`scripts/e2e-nearmiss.mjs` (26 checks) covers the title screen, car and condition choice, the
 countdown, a scripted near miss, combo banking, boost, oncoming driving, a drift (scored, with
-skid marks and smoke), pause, a crash into a stopped car, the results screen and leaderboard,
-restart, running out of time and the rain grip penalty. `scripts/drift-test.ts` drives each
+skid marks and smoke), pause, a first crash that damages the car and a second that wrecks it,
+the results screen and leaderboard, restart, running out of time, the rain grip penalty, and
+the race: the grid and both colours, the rival driving off at GO, the race HUD, a crash that
+stops the car without ending the race, passing a checkpoint, T back on track, winning, losing
+after the rival finishes, and the high score on the loading screen after a reload.
+`scripts/race-test.ts` races two AI cars over six routes through the real city collision and
+traffic, and checks that they finish and how fast. `scripts/drift-test.ts` drives each
 Near Miss car in Rapier without a browser and checks that drifts hold an angle, keep speed
 and end cleanly, and that Echo City's cars (no drift assist) still grip. Like the Echo City suites it also passes against the production build.
 
