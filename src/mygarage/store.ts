@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { EventKind } from './scoring';
+import type { HighwayInfo } from './Highway';
 
 export type Phase = 'loading' | 'title' | 'countdown' | 'run' | 'wreck' | 'results';
 export type Mode = 'score' | 'highway' | 'race';
@@ -139,6 +140,8 @@ interface NMState {
   mode: Mode;
   hud: Hud;
   race: RaceHud | null;
+  /** highway: the zone and the next fork */
+  road: HighwayInfo | null;
   raceStats: RaceStats;
   popups: Popup[];
   result: RunResult | null;
@@ -185,6 +188,7 @@ export const useNM = create<NMState>((set, get) => ({
     distance: 0,
   },
   race: null,
+  road: null,
   raceStats: loadRace(),
   popups: [],
   result: null,

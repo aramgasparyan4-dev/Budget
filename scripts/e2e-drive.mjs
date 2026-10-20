@@ -787,7 +787,7 @@ await step('race: the rival finishing first and the player too slow is a loss', 
   return r;
 });
 
-await step('highway: no clock, traffic to weave through, near misses and crashes count', async () => {
+await step('highway: a winding road with no clock; near misses, crashes, forks and recentring', async () => {
   await ev(() => __t.g().toTitle());
   await page.waitForSelector('#mode-highway', { timeout: 20000 });
   await pickCar('demo-toyota-land-cruiser');
@@ -797,59 +797,82 @@ await step('highway: no clock, traffic to weave through, near misses and crashes
     const g = __t.g();
     const hw = g.highway;
     const car = g.car;
-    const go = (v) => {
-      car.body.setLinvel({ x: v, y: 0, z: 0 }, true);
-      car.lastVel.set(v, 0, 0);
+    // keep to a lane round the curves (analogue steering, like the race rival)
+    const drive = (seconds, lane, speed = 34, clearAhead = true) => {
+      for (let t = 0; t < seconds && g.phase === 'run'; t += 1 / 30) {
+        const you = hw.you;
+        const n = Math.floor(you.path.lanes(you.s) + 0.4);
+        const l = Math.min(lane, n - 1);
+        const p = you.path.pose(Math.min(you.path.length - 1, you.s + 18), 3.4 * (l + 0.5));
+        let err = Math.atan2(p.x - car.pos.x, p.z - car.pos.z) - car.yaw;
+        while (err > Math.PI) err -= 2 * Math.PI;
+        while (err < -Math.PI) err += 2 * Math.PI;
+        const v = car.forwardSpeed;
+        car.aiInput = { throttle: v < speed ? 1 : 0, brake: 0, steer: Math.max(-1, Math.min(1, err * 2.2)), handbrake: false };
+        if (clearAhead) for (const c of hw.traffic.cars) if (!c.oncoming && c.path === you.path && c.s > you.s - 10 && c.s - you.s < 70 && Math.abs(c.lat - you.lat) < 2.6) c.s += 150;
+        g.update(1 / 30);
+      }
     };
-    const clear = () => {
-      for (const c of [...hw.cars]) if (c.dir === 1 && Math.abs(c.x - car.pos.x) < 220) hw.cars.splice(hw.cars.indexOf(c), 1);
+    const clearNear = () => {
+      hw.traffic.cars = hw.traffic.cars.filter((c) => c.oncoming || Math.hypot(c.x - car.pos.x, c.z - car.pos.z) > 220);
+    };
+    // a car `ahead` metres on in a lane (a little further if that spot is not open: a taper, cones, the end of the path)
+    const place = (lane, ahead) => {
+      for (const d of [ahead, ahead + 12, ahead + 25, ahead - 8]) {
+        const at = hw.traffic.along(hw.you.path, hw.you.s + d);
+        const c = at && hw.traffic.spawn(at.path, at.s, lane);
+        if (c) return c;
+      }
+      return null;
     };
     __t.sim(3.3);
-    const start = { onHighway: g.onHighway, cars: hw.cars.length, z: car.pos.z, phase: g.phase };
-    // well past the time attack clock: still going
-    __t.down('KeyW');
-    clear();
-    __t.sim(4);
+    const start = { onHighway: g.onHighway, cars: hw.traffic.cars.length, z: car.pos.z, phase: g.phase, built: hw.built.size, cityHidden: !g.world.chunks.group.visible };
+    // well past the time attack clock: still going, round the bends, with the world brought back now and then
     const timeBefore = g.scorer.time;
-    for (let i = 0; i < 70; i++) {
-      clear();
-      __t.sim(1);
+    let rebased = 0;
+    let lastX = car.pos.x;
+    for (let i = 0; i < 80; i++) {
+      drive(1, 1);
+      if (Math.abs(car.pos.x - lastX) > 400) rebased++;
+      lastX = car.pos.x;
     }
-    const noClock = { phase: g.phase, elapsed: Math.round(g.scorer.elapsed), time: g.scorer.time, timeBefore, distance: Math.round(g.scorer.distance) };
-    // a slower car in the next lane: passing it close is a near miss
-    clear();
-    go(40);
-    const lane = Math.round((car.pos.z + 4600 - 1.8) / 3.4 - 0.5);
-    const c1 = hw.trySpawn(1, car.pos.x + 45, lane > 0 ? lane - 1 : lane + 1);
-    c1.vDes = c1.v = 15;
+    const noClock = { phase: g.phase, elapsed: Math.round(g.scorer.elapsed), time: g.scorer.time, timeBefore, distance: Math.round(g.scorer.distance), health: Math.round(g.scorer.health), rebased };
+    // a slower car in the next lane, passed close: a near miss
+    clearNear();
+    const you = hw.you;
+    const lane = Math.round(you.lat / 3.4 - 0.5);
+    let other = lane > 0 ? lane - 1 : lane + 1;
+    let c1 = place(other, 45);
+    if (!c1) {
+      other = lane > 0 && other !== lane + 1 ? lane + 1 : lane - 1;
+      c1 = place(other, 45);
+    }
+    c1.lat = c1.fromLat = 3.4 * (other + 0.5) + (other < lane ? 0.65 : -0.65);
+    c1.vDes = c1.v = 14;
     c1.cool = 99;
     const n0 = g.scorer.nearMisses;
-    __t.sim(3);
+    drive(3, lane, 34, false);
     const near = g.scorer.nearMisses - n0;
     // let the combo bank (a crash would lose it)
-    for (let i = 0; i < 5; i++) {
-      clear();
-      __t.sim(1);
-    }
+    drive(5, lane);
     const banked = g.scorer.score;
-    // a car stopped in our lane: a hard crash that damages the car and stops the other one
-    clear();
-    go(38);
-    const c2 = hw.trySpawn(1, car.pos.x + 30, lane);
-    c2.vDes = c2.v = 8;
+    // a slow car in our lane: a hard crash that damages the car and stops the other one
+    clearNear();
+    const c2 = place(lane, 35);
+    c2.vDes = c2.v = 6;
     c2.cool = 99;
     const h0 = g.scorer.health;
-    __t.sim(2.5);
-    __t.up('KeyW');
-    return { start, noClock, near, banked, crash: { h0, health: g.scorer.health, crashed: c2.crashed, phase: g.phase } };
+    drive(2.5, lane, 36, false);
+    car.aiInput = null;
+    return { start, noClock, near, banked, crash: { h0, health: Math.round(g.scorer.health), crashed: c2.crashed, phase: g.phase }, info: hw.info() };
   });
   await page.screenshot({ path: 'scripts/out/nm-e2e-highway.png' });
-  assert(r.start.onHighway && r.start.cars > 15 && r.start.z < -4000 && r.start.phase === 'run', JSON.stringify(r.start));
-  assert(r.noClock.phase === 'run' && r.noClock.elapsed > 70 && r.noClock.time === r.noClock.timeBefore && r.noClock.distance > 1500, JSON.stringify(r.noClock));
+  assert(r.start.onHighway && r.start.cars > 15 && r.start.z < -7000 && r.start.phase === 'run' && r.start.built > 2 && r.start.cityHidden, JSON.stringify(r.start));
+  assert(r.noClock.phase === 'run' && r.noClock.elapsed > 80 && r.noClock.time === r.noClock.timeBefore && r.noClock.distance > 2000 && r.noClock.health === 100 && r.noClock.rebased >= 1, JSON.stringify(r.noClock));
   assert(r.near >= 1 && r.banked > 0, 'near misses ' + r.near + ', banked ' + r.banked);
   assert(r.crash.health < r.crash.h0 && r.crash.crashed && r.crash.phase === 'run', JSON.stringify(r.crash));
-  const hud = await ev(() => !!document.querySelector('#hud-distance'));
-  assert(hud, 'distance on the HUD');
+  const hud = await ev(() => ({ distance: !!document.querySelector('#hud-distance'), map: !!document.querySelector('#highway-map') }));
+  assert(hud.distance && hud.map, 'highway HUD ' + JSON.stringify(hud));
   return r;
 });
 

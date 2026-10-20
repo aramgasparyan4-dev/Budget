@@ -14,7 +14,12 @@ const VARIANTS: Record<Variant, string> = {
   ghost: 'bg-transparent text-ink-2 hover:bg-mist hover:text-ink disabled:text-faint',
   alert: 'bg-alert text-white hover:brightness-95',
 };
-const SIZES = { sm: 'text-[13px] px-3 h-8 gap-1.5', md: 'text-[15px] px-4 h-10 gap-2', lg: 'text-base px-6 h-11 gap-2' };
+const SIZES = {
+  sm: 'text-[13px] font-medium px-3 h-8 gap-1.5 rounded-[10px]',
+  md: 'text-[15px] font-medium px-4 h-10 gap-2 rounded-[10px]',
+  lg: 'text-base font-medium px-6 h-11 gap-2 rounded-[10px]',
+  xl: 'text-[18px] font-semibold px-7 h-14 gap-2.5 rounded-[14px]',
+};
 
 export function Button({
   variant = 'primary',
@@ -26,7 +31,7 @@ export function Button({
   return (
     <button
       {...rest}
-      className={`inline-flex items-center justify-center font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed ${pill ? 'rounded-full' : 'rounded-[10px]'} ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center whitespace-nowrap transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${pill ? '!rounded-full' : ''} ${className}`}
     />
   );
 }

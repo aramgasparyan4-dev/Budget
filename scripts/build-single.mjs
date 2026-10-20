@@ -1,5 +1,5 @@
-// Build one game as a single self-contained HTML file (JS, CSS, fonts and the chunk worker inlined).
-// Usage: node scripts/build-single.mjs [index.html|echo-city/index.html] [out.html]
+// Build the game as a single self-contained HTML file (JS, CSS, fonts and the chunk worker inlined).
+// Usage: node scripts/build-single.mjs [index.html] [out.html]
 // Google Fonts links in the page stay external: with no network the page falls back to the bundled Inter.
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';

@@ -73,7 +73,7 @@ for (const a of ARCHETYPES) {
   check(`${name}: counter-steer and straightening end the drift with grip back`, !out.drifting && Math.abs(out.slip) < 3, out);
   const base = drive(type, false);
   const baseMax = Math.max(...base.hold.map((r) => Math.abs(r.slip)));
-  check(`${name}: without the assist (Echo City) the car still grips`, baseMax < 8 && !base.hold.some((r) => r.drifting), { baseMax: +baseMax.toFixed(1) });
+  check(`${name}: without the assists the car still grips`, baseMax < 8 && !base.hold.some((r) => r.drifting), { baseMax: +baseMax.toFixed(1) });
 }
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

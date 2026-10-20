@@ -385,5 +385,29 @@ function drift(seconds: number, angle: number, after = 0.5) {
   s.end('ended');
   check('highway: ending the drive banks the combo', s.over === 'ended' && unbanked > 0 && s.score > before && s.comboPoints === 0, { before, after: s.score, unbanked });
 }
+{
+  const wide = pass({ gap: 1.4, scorer: new Scorer('highway'), seconds: 3 });
+  const tight = pass({ gap: 1.0, scorer: new Scorer('highway'), seconds: 3 });
+  check('highway: a pass down the middle of the next lane is just driving; a close one counts', wide.nearMisses === 0 && tight.nearMisses === 1, { wide: wide.nearMisses, tight: tight.nearMisses });
+}
+{
+  // one car each side in quick succession
+  const s = new Scorer('highway');
+  const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 35, width: W, length: L };
+  const a: OtherCar = { id: 1, x: W / 2 + 0.93 + 0.5, z: 30, yaw: 0, v: 20, width: 1.86, length: 4.65 };
+  const b: OtherCar = { id: 2, x: -(W / 2 + 0.93 + 0.5), z: 36, yaw: 0, v: 20, width: 1.86, length: 4.65 };
+  for (let t = 0; t < 3; t += 1 / 60) {
+    car.z += 35 / 60;
+    a.z += 20 / 60;
+    b.z += 20 / 60;
+    s.update(car, [a, b], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 60 });
+  }
+  check('threading between two cars is a bonus', s.nearMisses === 2 && s.events.some((e) => e.label === 'THREADED'), s.events.map((e) => e.label));
+}
+{
+  const s = new Scorer('highway', { startBoost: 0 });
+  for (let i = 0; i < 60; i++) s.slipstream(1 / 30, false);
+  check('a slipstream refills the boost', s.boost > 0.15 && s.comboPoints > 0, { boost: s.boost, combo: s.comboPoints });
+}
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

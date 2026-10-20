@@ -267,7 +267,9 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
 
 export function buildWheelGeometry(): THREE.BufferGeometry {
   const b = new MeshBuilder(VEH_LAYOUT);
-  const rot: Xform = { tx: 0, ty: 0, tz: 0, ry: 0, rz: Math.PI / 2 };
+  // the cylinders' cap goes on the outside (+x): the face you see. (With +PI/2 it was on the inside, and
+  // from outside a wheel was an open tube you could see straight through.)
+  const rot: Xform = { tx: 0, ty: 0, tz: 0, ry: 0, rz: -Math.PI / 2 };
   addCylinder(b, 0, -0.13, 0, 1, 1, 0.26, 16, lin([0.05, 0.05, 0.05]), rot, 2);
   addCylinder(b, 0, -0.135, 0, 0.62, 0.62, 0.27, 10, lin([0.55, 0.56, 0.58]), rot, 5);
   // hub spokes (visible rotation)

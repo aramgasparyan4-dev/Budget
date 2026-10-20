@@ -1,9 +1,20 @@
 // Race-mode screens: the race HUD, its minimap, the floating RIVAL tag and the race results.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { nm } from './DriveGame';
 import { useNM, RunResult } from './store';
 import { Badge, Label, StatGrid } from './ui';
+
+/** the maps: big on a desktop, smaller on short screens (phones held sideways) */
+function useMapSize(fixed?: number) {
+  const [h, setH] = useState(() => window.innerHeight);
+  useEffect(() => {
+    const f = () => setH(window.innerHeight);
+    window.addEventListener('resize', f);
+    return () => window.removeEventListener('resize', f);
+  }, []);
+  return fixed ?? (h < 520 ? 150 : h < 760 ? 210 : 250);
+}
 
 export const raceClock = (t: number) => {
   const m = Math.floor(t / 60);
@@ -75,7 +86,8 @@ export function RaceHud() {
 }
 
 /** rotating map, drawn light: streets in grey, the route in blue, gates, you and the rival */
-function RaceMap({ size = 180 }: { size?: number }) {
+function RaceMap({ size: fixed }: { size?: number }) {
+  const size = useMapSize(fixed);
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let raf = 0;
@@ -244,5 +256,118 @@ export function RaceResults({ r }: { r: RunResult }) {
       </div>
       <StatGrid stats={stats} />
     </>
+  );
+}
+
+/** the highway map: the road ahead (both branches before a fork, with where they go), the traffic and you */
+export function HighwayMap({ size: fixed }: { size?: number }) {
+  const size = useMapSize(fixed);
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    const draw = (t: number) => {
+      raf = requestAnimationFrame(draw);
+      if (t - last < 50) return;
+      last = t;
+      const cv = ref.current;
+      const hw = nm.highway;
+      const car = nm.car;
+      if (!cv || !hw || !car || !nm.onHighway) return;
+      const g = cv.getContext('2d')!;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      if (cv.width !== size * dpr) {
+        cv.width = size * dpr;
+        cv.height = size * dpr;
+      }
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const zoom = 0.3; // px per metre: about 400 m across
+      const cf = nm.camera.getWorldDirection(camDir);
+      const yaw = Math.atan2(cf.x, cf.z);
+      const pos = car.pos;
+      g.clearRect(0, 0, size, size);
+      g.save();
+      g.beginPath();
+      g.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      g.clip();
+      g.fillStyle = '#fafafa';
+      g.fillRect(0, 0, size, size);
+      // you sit low on the map, so it shows more of the road ahead
+      g.translate(size / 2, size * 0.66);
+      g.rotate(Math.PI + yaw);
+      g.scale(zoom, zoom);
+      g.translate(-pos.x, -pos.z);
+      const px = 1 / zoom;
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      for (const l of hw.mapLines(pos.x, pos.z, size / zoom)) {
+        g.strokeStyle = l.mine ? '#d4d4d4' : '#e6e6e6';
+        g.lineWidth = Math.max(l.width + 2, 9 * px);
+        g.beginPath();
+        l.pts.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z)));
+        g.stroke();
+      }
+      for (const c of hw.traffic.cars) {
+        if (Math.abs(c.x - pos.x) > 450 || Math.abs(c.z - pos.z) > 450) continue;
+        g.fillStyle = c.crashed ? '#fd396b' : c.oncoming ? '#c7c7c7' : '#7a7a7a';
+        g.beginPath();
+        g.arc(c.x, c.z, 2.4 * px, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.restore();
+      // where the branches go
+      const road = useNM.getState().road;
+      const you = hw.you;
+      if (road?.fork && you?.path.children) {
+        g.save();
+        g.font = '600 11px Inter Variable, sans-serif';
+        g.textAlign = 'center';
+        you.path.children.forEach((c, i) => {
+          const q = c.pose(Math.min(c.length, 160), c.rightEdge(0) / 2);
+          // world to map
+          const dx = q.x - pos.x;
+          const dz = q.z - pos.z;
+          const a = Math.PI + yaw;
+          const mx = size / 2 + (dx * Math.cos(a) - dz * Math.sin(a)) * zoom;
+          const my = size * 0.66 + (dx * Math.sin(a) + dz * Math.cos(a)) * zoom;
+          const text = i === 0 ? road.fork!.left : road.fork!.right;
+          const w = g.measureText(text).width + 12;
+          const x = Math.max(w / 2 + 4, Math.min(size - w / 2 - 4, mx));
+          const y = Math.max(14, Math.min(size - 10, my));
+          g.fillStyle = '#ffffff';
+          g.strokeStyle = '#eaeaea';
+          g.beginPath();
+          g.roundRect(x - w / 2, y - 10, w, 20, 10);
+          g.fill();
+          g.stroke();
+          g.fillStyle = '#0077ff';
+          g.fillText(text, x, y + 4);
+        });
+        g.restore();
+      }
+      // you
+      g.save();
+      g.translate(size / 2, size * 0.66);
+      g.rotate(-(car.yaw - yaw));
+      g.fillStyle = '#0077ff';
+      g.strokeStyle = '#ffffff';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(0, -8);
+      g.lineTo(6, 6);
+      g.lineTo(0, 3);
+      g.lineTo(-6, 6);
+      g.closePath();
+      g.fill();
+      g.stroke();
+      g.restore();
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [size]);
+  return (
+    <div className="absolute right-4 sm:right-6 top-4 sm:top-6 rounded-full surface p-1">
+      <canvas id="highway-map" ref={ref} style={{ width: size, height: size }} className="rounded-full block" />
+    </div>
   );
 }

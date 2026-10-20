@@ -136,6 +136,11 @@ export function runCoins(score: number, s: CarSetup): number {
   return Math.round((score / 20) * s.cashMul);
 }
 
+/** coins for a highway drive: as a run up to 20,000 points, a quarter of that rate beyond (drives have no end) */
+export function highwayCoins(score: number, s: CarSetup): number {
+  return Math.round((Math.min(score, 20000) / 20 + Math.max(0, score - 20000) / 80) * s.cashMul);
+}
+
 /** coins for a race: a prize for winning (more for a big margin), something for finishing */
 export function raceCoins(won: boolean, finished: boolean, margin: number, s: CarSetup): number {
   const base = won ? 400 + Math.min(400, Math.max(0, margin) * 20) : finished ? 120 : 40;

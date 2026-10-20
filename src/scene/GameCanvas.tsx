@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { useStore } from '../state/store';
 import { ColorGrade } from './ColorGrade';
 
-/** what the canvas drives each frame: Echo City's Game or another game built on the same engine */
+/** what the canvas drives each frame */
 export interface CanvasEngine {
   attach(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera): void;
   update(dt: number): void;

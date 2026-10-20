@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CircleHelp, CloudRain, Moon, Play, Settings, Sun, Sunset, Trophy, Volume2, VolumeX, Zap, Car, RotateCcw, LogOut, Flag, Route, Timer } from 'lucide-react';
+import { CircleHelp, CloudRain, Moon, Music, Play, Settings, Sun, Sunset, Trophy, Volume2, VolumeX, Zap, Car, RotateCcw, LogOut, Flag, Route, Timer } from 'lucide-react';
 import { GameCanvas } from '../scene/GameCanvas';
 import { useStore } from '../state/store';
 import type { Preset } from '../state/settings';
 import { nm, CONDITIONS } from './DriveGame';
 import { useNM, type Mode, type Popup } from './store';
-import { RaceHud, RaceResults } from './RaceUI';
+import { HighwayMap, RaceHud, RaceResults } from './RaceUI';
 import { RULES } from './scoring';
 import { GarageCard, GaragePanels, GarageResults, isTouch, RotateNotice, TouchControls, healthTone } from './GarageUI';
 import { useGarage } from './garage/store';
@@ -171,6 +171,7 @@ function Help() {
 function SettingsMenu() {
   const preset = useStore((s) => s.settings.graphics.preset);
   const master = useStore((s) => s.settings.audio.master);
+  const music = useStore((s) => s.settings.audio.music);
   return (
     <Popover icon={<Settings size={20} strokeWidth={1.6} />} label="Settings">
       <Label className="mb-1.5">Graphics</Label>
@@ -185,13 +186,24 @@ function SettingsMenu() {
           </button>
         ))}
       </div>
-      <button
-        onClick={() => useStore.getState().updateSettings((s) => (s.audio.master = s.audio.master > 0 ? 0 : 0.8))}
-        className="mt-3 w-full h-9 rounded-[10px] bg-mist hover:bg-line flex items-center gap-2 px-3 text-[14px]"
-      >
-        {master > 0 ? <Volume2 size={16} strokeWidth={1.6} /> : <VolumeX size={16} strokeWidth={1.6} />}
-        Sound {master > 0 ? 'on' : 'off'}
-      </button>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          id="set-sound"
+          onClick={() => useStore.getState().updateSettings((s) => (s.audio.master = s.audio.master > 0 ? 0 : 0.8))}
+          className={`h-9 rounded-[10px] flex items-center gap-2 px-3 text-[14px] ${master > 0 ? 'bg-badge text-brand' : 'bg-mist text-ink-2 hover:bg-line'}`}
+        >
+          {master > 0 ? <Volume2 size={16} strokeWidth={1.6} /> : <VolumeX size={16} strokeWidth={1.6} />}
+          Sound
+        </button>
+        <button
+          id="set-music"
+          onClick={() => useStore.getState().updateSettings((s) => (s.audio.music = s.audio.music > 0 ? 0 : 0.55))}
+          className={`h-9 rounded-[10px] flex items-center gap-2 px-3 text-[14px] ${music > 0 ? 'bg-badge text-brand' : 'bg-mist text-ink-2 hover:bg-line'}`}
+        >
+          <Music size={16} strokeWidth={1.6} />
+          Music
+        </button>
+      </div>
     </Popover>
   );
 }
@@ -247,12 +259,6 @@ function Title() {
             <Help />
           </div>
           <SettingsMenu />
-          <span className="hidden sm:inline-flex ml-1">
-            <Button id="btn-drive" onClick={() => nm.startRun()} pill className="px-5">
-              <Play size={16} strokeWidth={2} fill="currentColor" />
-              {MODES[mode].go}
-            </Button>
-          </span>
         </div>
       </header>
 
@@ -265,16 +271,19 @@ function Title() {
           <div className="absolute left-4 sm:left-6 bottom-4 sm:bottom-6">
             <Conditions />
           </div>
-          {/* narrow screens: no room in the header */}
-          <div className="sm:hidden absolute right-4 bottom-4 pointer-events-auto">
-            <Button id="btn-drive-m" onClick={() => nm.startRun()} pill className="px-5">
-              <Play size={16} strokeWidth={2} fill="currentColor" />
+        </div>
+        <aside ref={aside} className="sm:w-[380px] lg:w-[420px] shrink-0 max-h-[62%] sm:max-h-none flex flex-col bg-paper border-t sm:border-t-0 sm:border-l border-line">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <GarageCard />
+          </div>
+          {/* the one big button: always in view at the foot of the sidebar */}
+          <div className="shrink-0 p-4 sm:px-6 sm:pb-6 sm:pt-4 border-t border-line">
+            <Button id="btn-drive" size="xl" className="w-full" onClick={() => nm.startRun()}>
+              <Play size={20} strokeWidth={2} fill="currentColor" />
               {MODES[mode].go}
+              <span className="text-white/70 font-normal">· {MODES[mode].label}</span>
             </Button>
           </div>
-        </div>
-        <aside ref={aside} className="sm:w-[360px] lg:w-[400px] shrink-0 max-h-[60%] sm:max-h-none overflow-y-auto bg-paper border-t sm:border-t-0 sm:border-l border-line">
-          <GarageCard />
         </aside>
       </div>
       <GaragePanels />
@@ -365,6 +374,7 @@ function Hud({ touch }: { touch: boolean }) {
 /** time attack and highway: the clock (or the distance), the score and the combo */
 function ScoreHud({ clock }: { clock: boolean }) {
   const h = useNM((s) => s.hud);
+  const road = useNM((s) => s.road);
   const low = h.time < 10;
   const comboFrac = Math.max(0, Math.min(1, h.comboT / RULES.comboWindow));
   return (
@@ -378,15 +388,29 @@ function ScoreHud({ clock }: { clock: boolean }) {
           <Bar value={h.time / RULES.maxTime} tone={low ? 'alert' : 'brand'} className="w-full mt-1" />
         </Chip>
       ) : (
-        <Chip id="hud-distance" className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 w-36">
+        <Chip id="hud-distance" className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 w-40">
           <div className="flex items-center gap-1.5 text-[12px] text-ink-2">
-            <Route size={13} strokeWidth={1.8} /> Distance
+            <Route size={13} strokeWidth={1.8} /> {road?.zone ?? 'Distance'}
           </div>
           <div className="display text-[32px] leading-tight">
             {(h.distance / 1000).toFixed(1)}
             <span className="text-[15px] font-medium text-muted"> km</span>
           </div>
         </Chip>
+      )}
+      {!clock && <HighwayMap />}
+      {!clock && road?.fork && (
+        <div id="hud-fork" className="absolute left-1/2 -translate-x-1/2 bottom-6 surface rounded-full h-10 pl-4 pr-1.5 flex items-center gap-3 text-[13px] whitespace-nowrap">
+          <span className="text-ink-2">Fork in {road.fork.dist} m</span>
+          <span className="flex items-center gap-1 rounded-full bg-mist h-7 px-3">
+            <span className="font-semibold">↖ {road.fork.left}</span>
+            <span className="text-muted">{road.fork.leftBusy}</span>
+          </span>
+          <span className="flex items-center gap-1 rounded-full bg-mist h-7 px-3">
+            <span className="text-muted">{road.fork.rightBusy}</span>
+            <span className="font-semibold">{road.fork.right} ↗</span>
+          </span>
+        </div>
       )}
 
       <div className="absolute left-1/2 -translate-x-1/2 top-4 sm:top-6 flex flex-col items-center gap-2">

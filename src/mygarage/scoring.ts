@@ -75,6 +75,8 @@ export const RULES = {
   minDrift: 0.6, // seconds a slide must last to count as a drift
   driftRate: 90, // points per second at 25 degrees and standing speed factor
   driftPassMul: 1.5,
+  highwayNearGap: 1.15, // a pass down the middle of the next highway lane leaves ~1.5 m: that is just driving
+  threadWindow: 0.6, // seconds between passes on either side that count as threading the needle
 };
 
 interface Track {
@@ -95,9 +97,11 @@ export interface ScorerOpts {
   boostGainMul: number;
   boostDrainMul: number;
   startBoost: number;
+  /** side clearance that still counts as a near miss (the highway's lanes are wide: tighter there) */
+  nearGap: number;
 }
 
-export const DEFAULT_OPTS: ScorerOpts = { health: 100, damageTaken: 1, scoreMul: 1, nearMul: 1, driftMul: 1, boostGainMul: 1, boostDrainMul: 1, startBoost: 0.35 };
+export const DEFAULT_OPTS: ScorerOpts = { health: 100, damageTaken: 1, scoreMul: 1, nearMul: 1, driftMul: 1, boostGainMul: 1, boostDrainMul: 1, startBoost: 0.35, nearGap: RULES.nearGap };
 
 export class Scorer {
   readonly opts: ScorerOpts;
@@ -110,7 +114,7 @@ export class Scorer {
     readonly mode: 'score' | 'race' | 'highway' = 'score',
     opts: Partial<ScorerOpts> = {},
   ) {
-    this.opts = { ...DEFAULT_OPTS, ...opts };
+    this.opts = { ...DEFAULT_OPTS, ...(mode === 'highway' ? { nearGap: RULES.highwayNearGap } : {}), ...opts };
     this.health = this.opts.health;
     this.boost = this.opts.startBoost;
   }
@@ -156,6 +160,8 @@ export class Scorer {
   events: ScoreEvent[] = [];
   private tracks = new Map<number, Track>();
   private t = 0;
+  private lastNearT = -10;
+  private lastNearSide = 0;
 
   /** the multiplier applies when the combo banks; boost multiplies points as they are earned */
   private addCombo(points: number, boosting: boolean, keepAlive = RULES.comboWindow) {
@@ -245,16 +251,28 @@ export class Scorer {
         const ovx = Math.sin(o.yaw) * o.v;
         const ovz = Math.cos(o.yaw) * o.v;
         const relSpeed = Math.hypot(car.vx - ovx, car.vz - ovz);
-        if (passed && !tr.touched && tr.minGap < RULES.nearGap && speed > RULES.minSpeed && relSpeed > RULES.minRelSpeed) {
+        if (passed && !tr.touched && tr.minGap < this.opts.nearGap && speed > RULES.minSpeed && relSpeed > RULES.minRelSpeed) {
           this.nearMiss(tr.minGap, Math.sin(o.yaw) * fx + Math.cos(o.yaw) * fz, speedFactor, ctx.boosting);
+          // a close pass on each side in quick succession: threading the needle
+          const side = Math.sign(lat) || 1;
+          if (this.t - this.lastNearT < RULES.threadWindow && side !== this.lastNearSide) {
+            const pts = Math.round((300 * speedFactor * this.opts.nearMul) / 10) * 10;
+            this.bump();
+            this.addCombo(pts, ctx.boosting);
+            this.events.push({ kind: 'bonus', label: 'THREADED', points: Math.round(pts * (ctx.boosting ? RULES.boostMul : 1)) });
+            this.lastNearT = -10;
+          } else {
+            this.lastNearT = this.t;
+            this.lastNearSide = side;
+          }
         }
       }
     }
     for (const [id, tr] of this.tracks) if (this.t - tr.lastSeen > 1) this.tracks.delete(id);
 
-    // combo banking
+    // combo banking (on the highway the combo window runs at half speed above 160 km/h)
     if (this.comboPoints > 0) {
-      this.comboT -= dt;
+      this.comboT -= this.mode === 'highway' && kmh > 160 ? dt * 0.5 : dt;
       if (this.comboT <= 0) this.bank();
     }
 
@@ -301,6 +319,13 @@ export class Scorer {
     this.comboT = Math.max(this.comboT, RULES.comboWindow);
     const label = this.driftMax >= 40 ? 'MASSIVE DRIFT' : this.driftMax >= 28 ? 'BIG DRIFT' : 'DRIFT';
     this.events.push({ kind: 'drift', label, sub: `${Math.round(this.driftMax)}° · ${this.driftTime.toFixed(1)} s`, points: pts });
+  }
+
+  /** sitting in a car's slipstream: the boost refills and the combo ticks over */
+  slipstream(dt: number, boosting: boolean) {
+    if (this.over) return;
+    this.gainBoost(0.11 * dt);
+    this.addCombo(40 * dt, boosting, 1.5);
   }
 
   /** a one-off bonus from the game layer (red light, etc.) */

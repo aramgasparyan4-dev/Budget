@@ -15,6 +15,7 @@ import {
   Gauge,
   Pause as PauseIcon,
   Plus,
+  Trash2,
   RotateCcw,
   Shield,
   ShieldCheck,
@@ -35,8 +36,10 @@ import { archetypeOf, paintOf, type GarageVehicle } from './garage/vehicle';
 import { MAX_LEVEL, MIN_HEALTH, progressOf, repairCost, upgradeCost, UPGRADES, type UpgradeId } from './garage/progress';
 import { RULES } from './scoring';
 import { VEHICLES } from '../sim/vehicles';
+import { engineFor } from '../engine/engineSound';
 import type { GarageResult } from './store';
 import { Badge, Bar, Button, Coins, fmt, IconButton, Label, Mark, Sheet, Tile, Tiles } from './ui';
+import { useCarThumb } from './thumbs';
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 const ICON = { size: 18, strokeWidth: 1.6 };
@@ -67,25 +70,6 @@ const UPGRADE_ICON: Record<UpgradeId, typeof Car> = {
   armor: ShieldCheck,
   nitro: Zap,
 };
-
-/** the round slot where list.am shows the make's logo: the make's initials on the car's paint */
-function MakeBadge({ make, color, size = 44 }: { make: string; color: number; size?: number }) {
-  const name = makeName(make);
-  const initials = name
-    .replace(/\(.*?\)/g, '')
-    .split(/[\s-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase();
-  return (
-    <div className="relative shrink-0 rounded-full bg-mist flex items-center justify-center font-bold text-ink-2 tracking-tight" style={{ width: size, height: size, fontSize: size * 0.3 }}>
-      {initials || '?'}
-      <span className="absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full border-2 border-paper" style={{ background: hex(color) }} />
-    </div>
-  );
-}
 
 /** big hits the car is sure to survive from its current condition (counting the hardest kind) */
 function hitsLeft(health: number, damageTaken: number) {
@@ -118,6 +102,23 @@ const paint = (v: GarageVehicle) => paintOf(v.color, VEHICLES[ARCHETYPE[archetyp
 const title = (v: GarageVehicle) => `${v.model}${v.year ? ` ${v.year}` : ''}`;
 
 // ------------------------------------------------------------------ sidebar
+/** the car's picture, rendered from its model (a light placeholder until it is ready) */
+export function CarImage({ v, health, className = '' }: { v: GarageVehicle; health?: number; className?: string }) {
+  const type = ARCHETYPE[archetypeOf(v).archetype].type;
+  const url = useCarThumb(type, paint(v), health);
+  return url ? <img src={url} alt="" draggable={false} className={`object-contain select-none ${className}`} /> : <div className={className} />;
+}
+
+function Stat({ icon, value, label }: { icon: ReactNode; value: ReactNode; label: string }) {
+  return (
+    <div className="rounded-[10px] bg-tile px-2.5 py-2 min-w-0">
+      <div className="flex items-center gap-1 text-ink-2">{icon}</div>
+      <div className="text-[14px] font-semibold tabular-nums truncate mt-0.5">{value}</div>
+      <div className="text-[11px] text-muted truncate">{label}</div>
+    </div>
+  );
+}
+
 export function GarageCard() {
   const { v, setup, save } = useActive();
   const setPanel = useGarage((s) => s.setPanel);
@@ -129,6 +130,7 @@ export function GarageCard() {
   const cost = repairCost(a, h);
   const hits = hitsLeft(h, setup.damageTaken);
   const Perk = PERK_ICON[a.id];
+  const damaged = h < RULES.damagedBelow;
   return (
     <div id="garage-card" className="p-5 sm:p-6 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
@@ -144,69 +146,82 @@ export function GarageCard() {
         </Button>
       </div>
 
-      <div className="rounded-2xl border border-line">
-        <div className="p-4 flex items-center gap-3">
-          <MakeBadge make={v.make} color={paint(v)} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <span id="garage-name" className="font-semibold text-[16px] truncate">
+      <div className="rounded-2xl border border-line overflow-hidden">
+        <button onClick={() => setPanel('garage')} aria-label="All cars" className="relative block w-full aspect-[2/1] bg-tile group">
+          <CarImage v={v} health={h} className="absolute inset-0 w-full h-full p-2 transition-transform group-hover:scale-[1.03]" />
+          <Badge tone={demo ? 'grey' : 'brand'} className="absolute left-3 top-3">
+            {demo ? 'Test drive' : v.primary ? 'Primary' : 'Yours'}
+          </Badge>
+          <span className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-md px-2 h-6 text-[13px] font-medium ${damaged ? 'bg-alert text-white' : 'bg-paper text-ink border border-line'}`}>
+            <Car size={13} strokeWidth={1.8} />
+            <span id="garage-health">{Math.round(h)}%</span>
+          </span>
+        </button>
+        <div className="p-4 flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div id="garage-name" className="font-semibold text-[17px] leading-tight truncate">
                 {title(v)}
-              </span>
-              <Badge tone={demo ? 'grey' : 'brand'} className="shrink-0">
-                {demo ? 'Test drive' : v.primary ? 'Primary' : 'Yours'}
-              </Badge>
+              </div>
+              <div className="text-[13px] text-ink-2 truncate mt-0.5">
+                <span id="garage-make">{makeName(v.make)}</span> ·{' '}
+                <span id="garage-type" className="text-brand">
+                  {a.name}
+                </span>
+              </div>
             </div>
-            <div className="text-[13px] text-ink-2 truncate">
-              <span id="garage-make">{makeName(v.make)}</span> ·{' '}
-              <span id="garage-type" className="text-brand">
-                {a.name}
-              </span>
-            </div>
+            <IconButton aria-label="Switch car" title="Switch car" onClick={() => setPanel('garage')} className="-mr-2 -mt-1">
+              <Ellipsis {...ICON} />
+            </IconButton>
           </div>
-          <IconButton aria-label="All cars" title="All cars" onClick={() => setPanel('garage')} className="-mr-2">
-            <Ellipsis {...ICON} />
-          </IconButton>
-        </div>
-        <div className="px-2 pb-2">
-          <Tiles>
-            <Tile label="Condition" id="garage-health" value={<span className={h < RULES.damagedBelow ? 'text-alert' : ''}>{Math.round(h)}%</span>} />
-            <Tile label="Survives" value={h < MIN_HEALTH ? '—' : `${hits} hard hit${hits === 1 ? '' : 's'}`} />
-            <Tile label="Top speed" value={`${topSpeedKmh(a.type, setup.top)} km/h`} />
-            <Tile label="0–100 km/h" value={`${zeroToHundred(a.type, setup.power).toFixed(1)} s`} />
-          </Tiles>
+          <div className="grid grid-cols-3 gap-2">
+            <Stat icon={<Gauge size={14} strokeWidth={1.8} />} value={`${topSpeedKmh(a.type, setup.top)}`} label="km/h top" />
+            <Stat icon={<Zap size={14} strokeWidth={1.8} />} value={`${zeroToHundred(a.type, setup.power).toFixed(1)} s`} label="0–100 km/h" />
+            <Stat icon={<Shield size={14} strokeWidth={1.8} />} value={h < MIN_HEALTH ? '—' : hits} label={hits === 1 ? 'hard hit' : 'hard hits'} />
+          </div>
+          <div className="flex items-center gap-2.5 text-[13px]">
+            <Perk size={16} strokeWidth={1.7} className="text-brand shrink-0" />
+            <span className="font-medium">{a.best}</span>
+            <span className="text-ink-2 truncate">· {a.perk}</span>
+          </div>
         </div>
       </div>
 
-      {h < MIN_HEALTH && (
-        <div className="flex items-center gap-2 text-[13px] text-alert font-medium">
-          <Wrench size={15} strokeWidth={1.8} /> Too damaged to drive
-        </div>
-      )}
       {cost > 0 && (
-        <Button id="btn-repair" onClick={() => useGarage.getState().repair()}>
-          <Wrench size={16} strokeWidth={1.8} />
-          <RepairLabel cost={cost} coins={save.coins} health={h} />
-        </Button>
+        <div className={`rounded-xl p-3 flex items-center gap-3 ${h < MIN_HEALTH ? 'bg-alert/10' : 'bg-tile'}`}>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-medium">{h < MIN_HEALTH ? 'Too damaged to drive' : damaged ? 'Damaged' : 'A few scratches'}</div>
+            <Bar value={h / 100} tone={healthTone(h)} className="w-full mt-1.5" />
+          </div>
+          <Button
+            id="btn-repair"
+            size="sm"
+            onClick={() => {
+              useGarage.getState().repair();
+              nm.audio.ui('buy');
+            }}
+          >
+            <Wrench size={15} strokeWidth={1.8} />
+            <RepairLabel cost={cost} coins={save.coins} health={h} />
+          </Button>
+        </div>
       )}
 
-      <div className="flex items-center gap-3 rounded-xl bg-tile px-4 py-3">
-        <Perk {...ICON} className="text-brand shrink-0" />
-        <div className="min-w-0">
-          <div className="text-[14px] font-medium">{a.best}</div>
-          <div className="text-[13px] text-ink-2">{a.perk}</div>
-        </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Button id="btn-workshop" variant="secondary" onClick={() => setPanel('workshop')}>
+          <Wrench size={16} strokeWidth={1.8} /> Workshop
+        </Button>
+        <Button variant="secondary" onClick={() => setPanel('garage')}>
+          <Car size={16} strokeWidth={1.8} /> Switch car
+        </Button>
       </div>
-
-      <Button id="btn-workshop" variant="secondary" onClick={() => setPanel('workshop')}>
-        <Wrench size={16} strokeWidth={1.8} /> Workshop
-      </Button>
       {notice && <div className="text-[13px] text-brand">{notice}</div>}
     </div>
   );
 }
 
 // ------------------------------------------------------------------ panels
-function Panel({ title, children, onClose, id }: { title: string; children: ReactNode; onClose: () => void; id: string }) {
+function Panel({ title, children, onClose, id, wide = false }: { title: string; children: ReactNode; onClose: () => void; id: string; wide?: boolean }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
@@ -218,7 +233,7 @@ function Panel({ title, children, onClose, id }: { title: string; children: Reac
     return () => window.removeEventListener('keydown', k, { capture: true });
   }, [onClose]);
   return (
-    <Sheet id={id} title={title} onClose={onClose}>
+    <Sheet id={id} title={title} onClose={onClose} wide={wide}>
       {children}
     </Sheet>
   );
@@ -243,7 +258,9 @@ function Workshop() {
   return (
     <Panel id="workshop" title="Workshop" onClose={() => g.setPanel('none')}>
       <div className="flex items-center gap-3">
-        <MakeBadge make={v.make} color={paint(v)} size={40} />
+        <div className="w-24 h-12 rounded-lg bg-tile shrink-0 relative overflow-hidden">
+          <CarImage v={v} health={h} className="absolute inset-0 w-full h-full" />
+        </div>
         <div className="min-w-0 flex-1">
           <div className="font-semibold truncate">{title(v)}</div>
           <div className="text-[13px] text-ink-2">{a.name}</div>
@@ -265,7 +282,15 @@ function Workshop() {
               Free patch-up
             </Button>
           ) : (
-            <Button id="btn-repair-full" size="sm" disabled={cost === 0} onClick={() => g.repair()}>
+            <Button
+              id="btn-repair-full"
+              size="sm"
+              disabled={cost === 0}
+              onClick={() => {
+                g.repair();
+                nm.audio.ui('buy');
+              }}
+            >
               {cost === 0 ? 'Like new' : <RepairLabel cost={cost} coins={save.coins} health={h} />}
             </Button>
           )}
@@ -302,7 +327,10 @@ function Workshop() {
                   </span>
                 </div>
               </div>
-              <Button id={`up-${u.id}`} variant="secondary" size="sm" className="w-24" disabled={c === null || save.coins < c} onClick={() => g.upgrade(u.id)}>
+              <Button id={`up-${u.id}`} variant="secondary" size="sm" className="w-24" disabled={c === null || save.coins < c} onClick={() => {
+                  g.upgrade(u.id);
+                  nm.audio.ui('buy');
+                }}>
                 {c === null ? 'Max' : <Coins n={c} />}
               </Button>
             </div>
@@ -329,55 +357,60 @@ function GarageList() {
   const fromHost = list.some((x) => x.source === 'host');
   const mine = list.filter((x) => !x.id.startsWith('demo-'));
   const demos = list.filter((x) => x.id.startsWith('demo-'));
-  const row = (x: GarageVehicle) => {
+  const card = (x: GarageVehicle) => {
     const a = ARCHETYPE[archetypeOf(x).archetype];
     const p = progressOf(save, x);
     const on = x.id === active.id;
     return (
-      <div key={x.id} className={`flex items-center gap-3 p-3 rounded-xl border ${on ? 'border-brand bg-badge/40' : 'border-line'}`}>
-        <MakeBadge make={x.make} color={paint(x)} size={40} />
-        <div className="flex-1 min-w-0">
-          <div className="font-medium truncate flex items-center gap-2">
-            <span className="truncate">
-              {makeName(x.make)} {title(x)}
-            </span>
-            {x.primary && <Badge className="shrink-0">Primary</Badge>}
-          </div>
-          <div className="text-[13px] text-ink-2">
-            {a.name} · <span className={p.health < RULES.damagedBelow ? 'text-alert' : ''}>{Math.round(p.health)}%</span>
-          </div>
-        </div>
-        {x.source === 'local' && !x.id.startsWith('demo-') && (
-          <Button variant="ghost" size="sm" onClick={() => g.removeVehicle(x.id)}>
-            Remove
-          </Button>
-        )}
-        <Button
+      <div key={x.id} className="relative">
+        <button
           data-car={x.id}
-          variant={on ? 'secondary' : 'primary'}
-          size="sm"
-          className="w-20"
           onClick={() => {
             nm.pickCar(x.id);
             g.setPanel('none');
           }}
+          className={`w-full text-left rounded-2xl border overflow-hidden transition-colors ${on ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-faint'}`}
         >
-          {on ? 'Driving' : 'Drive'}
-        </Button>
+          <div className="relative aspect-[2/1] bg-tile">
+            <CarImage v={x} health={p.health} className="absolute inset-0 w-full h-full p-1.5" />
+            {on && <Badge className="absolute left-2.5 top-2.5">Driving</Badge>}
+            {!on && x.primary && <Badge className="absolute left-2.5 top-2.5">Primary</Badge>}
+          </div>
+          <div className="px-3 py-2.5">
+            <div className="font-semibold text-[14px] truncate">
+              {makeName(x.make)} {title(x)}
+            </div>
+            <div className="text-[12px] text-ink-2 truncate">
+              {a.name} · <span className={p.health < RULES.damagedBelow ? 'text-alert' : ''}>{Math.round(p.health)}%</span>
+            </div>
+          </div>
+        </button>
+        {x.source === 'local' && !x.id.startsWith('demo-') && (
+          <IconButton aria-label="Remove" title="Remove" className="absolute right-1.5 top-1.5 bg-paper/90" onClick={() => g.removeVehicle(x.id)}>
+            <Trash2 size={16} strokeWidth={1.7} />
+          </IconButton>
+        )}
       </div>
     );
   };
   return (
-    <Panel id="garage-list" title="My cars" onClose={() => g.setPanel('none')}>
-      <div className="flex flex-col gap-2 max-h-[62vh] overflow-y-auto -mx-1 px-1">
+    <Panel id="garage-list" title="My cars" wide onClose={() => g.setPanel('none')}>
+      <div className="flex flex-col gap-3 max-h-[66vh] overflow-y-auto -mx-1 px-1">
         <Label>{fromHost ? 'From your Garage' : 'Yours'}</Label>
-        {mine.length ? mine.map(row) : <div className="text-[14px] text-muted rounded-xl bg-tile p-4">No cars yet</div>}
-        <Label className="mt-3">Test drive</Label>
-        {demos.map(row)}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {mine.map(card)}
+          <button
+            id="btn-add-car"
+            onClick={() => g.setPanel('add')}
+            className="rounded-2xl border border-dashed border-faint hover:border-brand hover:text-brand text-ink-2 flex flex-col items-center justify-center gap-1.5 min-h-[140px] transition-colors"
+          >
+            <Plus size={22} strokeWidth={1.6} />
+            <span className="text-[14px] font-medium">Add new vehicle</span>
+          </button>
+        </div>
+        <Label className="mt-2">Test drive</Label>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{demos.map(card)}</div>
       </div>
-      <Button id="btn-add-car" variant="secondary" className="self-start" onClick={() => g.setPanel('add')}>
-        <Plus size={16} strokeWidth={1.8} /> Add new vehicle
-      </Button>
     </Panel>
   );
 }
@@ -531,7 +564,7 @@ function AddVehicle() {
             const v = g.addVehicle({ make: makeName(realMake), model, year, ...f, archetype: f.archetype || undefined });
             if (v) {
               nm.audio.init();
-              nm.audio.pick(VEHICLES[g.setup().type]);
+              nm.audio.pick(engineFor(VEHICLES[g.setup().type]));
               g.setPanel('none');
             }
           }}
