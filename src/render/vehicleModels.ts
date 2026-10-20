@@ -18,6 +18,18 @@ const CHROME = lin([0.7, 0.72, 0.75]);
 const HEAD = lin([1, 0.97, 0.9]);
 const TAIL = lin([0.75, 0.04, 0.03]);
 const PLATE = lin([0.9, 0.9, 0.85]);
+/** contrast roof and stripes: the same whatever the paint */
+const ROOF = lin([0.93, 0.93, 0.91]);
+/** electric blue trim */
+const VOLT = lin([0.0, 0.45, 1.0]);
+
+/** black plastic cladding along the sills and round the bumpers (crossovers, hot hatches) */
+function cladding(b: MeshBuilder, spec: VehicleSpec, y: number, h: number) {
+  const L = spec.length / 2;
+  const hw = spec.width / 2;
+  for (const s of [-1, 1]) addBox(b, s * (hw + 0.01), y, 0, 0.04, h, spec.length - 0.3, TRIM, undefined, 2);
+  for (const z of [L + 0.02, -L - 0.02]) addBox(b, 0, y, z, spec.width - 0.1, h, 0.05, TRIM, undefined, 2);
+}
 
 /** profile (x along length, y up) extruded across width, oriented so length runs along +z */
 const ALONG: Xform = { tx: 0, ty: 0, tz: 0, ry: -Math.PI / 2 };
@@ -59,9 +71,10 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
     case 'compact': {
       body(b, spec, [[-L, y0], [L - 0.05, y0], [L, y0 + 0.3], [L - 0.25, y0 + 0.55], [L - 1.0, y0 + 0.68], [-L + 0.25, y0 + 0.72], [-L, y0 + 0.45]],
         [[L - 1.0, y0 + 0.68], [L - 1.7, y0 + 1.14], [-L + 0.5, y0 + 1.16], [-L + 0.15, y0 + 0.72]]);
-      addBox(b, 0, y0 + 1.15, -0.2, spec.width - 0.3, 0.06, 1.6, [1, 1, 1], undefined, 0);
+      // a contrast roof and mirror caps, like a city car
+      addBox(b, 0, y0 + 1.16, -0.2, spec.width - 0.26, 0.07, 1.68, ROOF, undefined, 2);
       lights(b, spec, y0 + 0.42, y0 + 0.5, L - 0.02, -L + 0.02);
-      mirrors(b, spec, y0 + 0.78, L - 1.15);
+      for (const sx of [-1, 1]) addBox(b, sx * (spec.width / 2 + 0.08), y0 + 0.78, L - 1.15, 0.17, 0.11, 0.15, ROOF, undefined, 2);
       break;
     }
     case 'sedan':
@@ -89,6 +102,9 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
         [[L - 1.1, y0 + 0.8], [L - 1.75, y0 + 1.38], [-L + 0.2, y0 + 1.4], [-L + 0.05, y0 + 0.84]]);
       addBox(b, 0, y0 + 1.41, -0.5, spec.width - 0.28, 0.06, 2.6, [1, 1, 1], undefined, 0);
       for (const s of [-1, 1]) addBox(b, s * (spec.width / 2 - 0.2), y0 + 1.47, -0.5, 0.05, 0.05, 2.4, CHROME, undefined, 5);
+      // black cladding round the bottom and silver skid plates
+      cladding(b, spec, y0 + 0.12, 0.26);
+      for (const z of [L + 0.05, -L - 0.05]) addBox(b, 0, y0 + 0.02, z, w * 0.5, 0.1, 0.05, CHROME, undefined, 5);
       lights(b, spec, y0 + 0.52, y0 + 0.62, L - 0.02, -L + 0.02);
       mirrors(b, spec, y0 + 0.92, L - 1.25);
       break;
@@ -97,8 +113,15 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
       body(b, spec, [[-L, y0 - 0.05], [L - 0.05, y0 - 0.05], [L + 0.02, y0 + 0.15], [L - 0.35, y0 + 0.36], [L - 1.6, y0 + 0.5], [-L + 0.4, y0 + 0.55], [-L, y0 + 0.4]],
         [[L - 1.6, y0 + 0.5], [L - 2.35, y0 + 0.86], [-L + 1.3, y0 + 0.84], [-L + 0.45, y0 + 0.55]], 0.18);
       addBox(b, 0, y0 + 0.86, -0.45, spec.width - 0.5, 0.05, 1.1, [1, 1, 1], undefined, 0);
-      addBox(b, 0, y0 + 0.78, -L + 0.2, spec.width - 0.3, 0.05, 0.35, TRIM, undefined, 2);
-      for (const s of [-1, 1]) addBox(b, s * 0.7, y0 + 0.68, -L + 0.25, 0.06, 0.18, 0.08, TRIM, undefined, 2);
+      // a tall rear wing, side intakes behind the doors and a bonnet scoop
+      addBox(b, 0, y0 + 0.98, -L + 0.28, spec.width - 0.12, 0.05, 0.42, TRIM, undefined, 2);
+      for (const s of [-1, 1]) {
+        addBox(b, s * 0.62, y0 + 0.75, -L + 0.3, 0.06, 0.42, 0.12, TRIM, undefined, 2);
+        addBox(b, s * (spec.width / 2 - 0.02), y0 + 0.98, -L + 0.28, 0.04, 0.16, 0.5, TRIM, undefined, 2);
+        addBox(b, s * (spec.width / 2 + 0.005), y0 + 0.3, -0.75, 0.02, 0.2, 0.6, TRIM, undefined, 2);
+      }
+      addBox(b, 0, y0 + 0.47, L - 1.0, 0.5, 0.06, 0.5, TRIM, undefined, 2);
+      addBox(b, 0, y0 - 0.06, L + 0.05, spec.width * 0.9, 0.04, 0.2, TRIM, undefined, 2);
       lights(b, spec, y0 + 0.2, y0 + 0.36, L - 0.04, -L + 0.02);
       mirrors(b, spec, y0 + 0.6, L - 1.75);
       break;
@@ -110,7 +133,12 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
       addBox(b, 0, y0 + 1.05, -0.3, w - 0.3, 0.06, 1.6, [1, 1, 1], undefined, 0);
       for (const sx of [-1, 1]) addBox(b, sx * (w / 2 - 0.1), y0 + 0.63, -0.25, 0.04, 0.04, 3.1, CHROME, undefined, 5);
       lights(b, spec, y0 + 0.36, y0 + 0.46, L - 0.02, -L + 0.02);
-      addBox(b, 0, y0 + 0.36, L + 0.01, 0.62, 0.26, 0.05, CHROME, undefined, 5);
+      // a big chrome grille, chrome sills and twin exhausts
+      addBox(b, 0, y0 + 0.34, L + 0.01, 0.72, 0.34, 0.05, CHROME, undefined, 5);
+      for (const sx of [-1, 1]) {
+        addBox(b, sx * (w / 2 + 0.005), y0 + 0.08, 0, 0.02, 0.06, spec.length - 1.7, CHROME, undefined, 5);
+        addBox(b, sx * 0.5, y0 - 0.02, -L - 0.03, 0.2, 0.09, 0.1, CHROME, undefined, 5);
+      }
       mirrors(b, spec, y0 + 0.7, L - 1.6);
       break;
     }
@@ -125,6 +153,10 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
         addBox(b, sx * (w / 2 + 0.005), y0 + 0.22, 0, 0.01, 0.08, spec.length - 1.2, lin([0.85, 0.08, 0.08]), undefined, 2);
       }
       lights(b, spec, y0 + 0.38, y0 + 0.52, L - 0.02, -L + 0.02);
+      // a body kit: splitter, side skirts, a wide black grille
+      addBox(b, 0, y0 - 0.05, L + 0.04, w * 0.94, 0.05, 0.16, TRIM, undefined, 2);
+      for (const sx of [-1, 1]) addBox(b, sx * (w / 2 + 0.01), y0 + 0.02, 0, 0.05, 0.1, spec.wheelBase - 0.7, TRIM, undefined, 2);
+      addBox(b, 0, y0 + 0.2, L + 0.01, w * 0.62, 0.2, 0.05, TRIM, undefined, 2);
       mirrors(b, spec, y0 + 0.74, L - 1.3);
       break;
     }
@@ -139,6 +171,11 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
       addCylinder(b, 0, -0.12, 0, 0.36, 0.36, 0.24, 12, lin([0.05, 0.05, 0.05]), { tx: 0, ty: y0 + 0.75, tz: -L - 0.13, ry: 0, rx: Math.PI / 2 }, 2);
       lights(b, spec, y0 + 0.6, y0 + 0.58, L - 0.02, -L + 0.02);
       for (const sx of [-1, 1]) addBox(b, sx * (w / 2 - 0.04), y0 + 0.05, 0, 0.08, 0.08, spec.wheelBase - 0.9, TRIM, undefined, 2);
+      // a snorkel up the right pillar, a light bar on the rack, wide arch flares
+      addBox(b, w / 2 + 0.06, y0 + 1.15, L - 1.02, 0.12, 0.95, 0.14, TRIM, undefined, 2);
+      addBox(b, w / 2 + 0.02, y0 + 1.6, L - 1.02, 0.14, 0.1, 0.24, TRIM, undefined, 2);
+      addBox(b, 0, y0 + 1.72, 0.72, w - 0.5, 0.11, 0.1, HEAD, undefined, 3);
+      for (const z of [spec.wheelBase / 2, -spec.wheelBase / 2]) for (const sx of [-1, 1]) addBox(b, sx * (w / 2 + 0.05), r + 0.42, z, 0.1, 0.12, r * 2.5, TRIM, undefined, 2);
       mirrors(b, spec, y0 + 0.98, L - 1.1);
       break;
     }
@@ -153,6 +190,9 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
       for (const sx of [-1, 1]) addBox(b, sx * (w / 2 - 0.05), y0 + 0.95, bedZ, 0.1, 0.24, bedL, [1, 1, 1], undefined, 0);
       addBox(b, 0, y0 + 0.95, -L + 0.05, w, 0.24, 0.1, [1, 1, 1], undefined, 0);
       addBox(b, 0, y0 + 0.95, L - 2.8, w, 0.24, 0.1, [1, 1, 1], undefined, 0);
+      // a roll bar behind the cab
+      for (const sx of [-1, 1]) addBox(b, sx * (w / 2 - 0.12), y0 + 1.2, L - 2.95, 0.09, 0.75, 0.09, TRIM, undefined, 2);
+      addBox(b, 0, y0 + 1.55, L - 2.95, w - 0.15, 0.09, 0.09, TRIM, undefined, 2);
       lights(b, spec, y0 + 0.6, y0 + 0.68, L - 0.02, -L + 0.02);
       mirrors(b, spec, y0 + 1.02, L - 1.25);
       break;
@@ -164,6 +204,10 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
       lights(b, spec, y0 + 0.38, y0 + 0.56, L - 0.06, -L + 0.02);
       addBox(b, 0, y0 + 0.43, L - 0.07, w * 0.8, 0.04, 0.06, HEAD, undefined, 3);
       addBox(b, 0, y0 + 0.6, -L + 0.03, w * 0.86, 0.05, 0.06, TAIL, undefined, 4);
+      // electric blue along the sills and under the light bar, a black glass roof
+      for (const sx of [-1, 1]) addBox(b, sx * (w / 2 + 0.01), y0 + 0.06, 0, 0.03, 0.07, spec.length - 1.4, VOLT, undefined, 2);
+      addBox(b, 0, y0 + 0.36, L - 0.05, w * 0.5, 0.025, 0.05, VOLT, undefined, 2);
+      addBox(b, 0, y0 + 1.03, -0.2, w - 0.42, 0.04, 1.9, GLASS, undefined, 1);
       mirrors(b, spec, y0 + 0.72, L - 1.45);
       break;
     }
@@ -176,6 +220,12 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
       addBox(b, 0, y0 + 0.4, L + 0.01, w * 0.52, 0.2, 0.04, CHROME, undefined, 5);
       addBox(b, 0, y0 + 0.12, L + 0.08, w * 1.02, 0.12, 0.1, CHROME, undefined, 5);
       addBox(b, 0, y0 + 0.14, -L - 0.08, w * 1.02, 0.12, 0.1, CHROME, undefined, 5);
+      // chrome down the sides and along the roof, round fog lamps under the bumper
+      for (const sx of [-1, 1]) {
+        addBox(b, sx * (w / 2 + 0.005), y0 + 0.42, 0, 0.02, 0.04, spec.length - 0.4, CHROME, undefined, 5);
+        addBox(b, sx * (w / 2 - 0.12), y0 + 1.13, -0.15, 0.03, 0.03, 1.6, CHROME, undefined, 5);
+        addCylinder(b, 0, 0, 0, 0.08, 0.08, 0.05, 10, HEAD, { tx: sx * 0.45, ty: y0 - 0.02, tz: L + 0.08, ry: 0, rx: Math.PI / 2 }, 3);
+      }
       mirrors(b, spec, y0 + 0.7, L - 1.15);
       break;
     }

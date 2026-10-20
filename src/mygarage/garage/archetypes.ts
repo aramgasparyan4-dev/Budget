@@ -35,7 +35,7 @@ export interface Archetype {
   type: number;
   /** what it is best at, one line */
   best: string;
-  /** the perk, one line */
+  /** the perk, a few words */
   perk: string;
   /** examples people will recognise */
   examples: string;
@@ -62,7 +62,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'City compact',
     type: 9,
     best: 'Cheapest to keep',
-    perk: 'Repairs and upgrades cost half. Small enough for gaps nothing else fits.',
+    perk: 'Half-price repairs and upgrades',
     examples: 'Polo, Yaris, Fit, Spark, Matiz, Smart',
     perks: P({ repairMul: 0.5, priceMul: 0.5 }),
   },
@@ -71,7 +71,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Family sedan',
     type: 10,
     best: 'Earns the most',
-    perk: '20% more coins from every run. Nothing to learn, nothing to fear.',
+    perk: '+20% coins from every drive',
     examples: 'Camry, Corolla, Elantra, Passat, Optima',
     perks: P({ cashMul: 1.2 }),
   },
@@ -80,7 +80,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Executive',
     type: 11,
     best: 'Longest boost',
-    perk: 'Nitro drains 35% slower. Fast, heavy and planted at speed.',
+    perk: 'Boost drains 35% slower',
     examples: 'E-Class, 5 Series, A6, GS, Genesis G80',
     perks: P({ boostDrainMul: 0.65, repairMul: 1.5, priceMul: 1.3, toughness: 1.1 }),
   },
@@ -89,7 +89,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Sports coupe',
     type: 12,
     best: 'Top speed and grip',
-    perk: 'The fastest car here and the most grip. Fragile and dear to fix.',
+    perk: 'Fastest, most grip, fragile',
     examples: '911, Mustang, Supra, Z4, AMG GT',
     perks: P({ toughness: 0.85, repairMul: 1.8, priceMul: 1.5 }),
   },
@@ -98,7 +98,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Hot hatch',
     type: 13,
     best: 'Agility and drifting',
-    perk: 'Drifts score 50% more. The sharpest steering of the lot.',
+    perk: '+50% drift points',
     examples: 'Golf GTI, Civic Type R, i30 N, Focus ST',
     perks: P({ driftMul: 1.5, priceMul: 1.1 }),
   },
@@ -107,7 +107,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Crossover',
     type: 14,
     best: 'All-weather all-rounder',
-    perk: 'All-wheel drive keeps most of its grip in the rain. Tougher than a car.',
+    perk: 'Keeps its grip in the rain',
     examples: 'RAV4, Tucson, Sportage, CR-V, Soueast DX5',
     perks: P({ toughness: 1.2, rainPenalty: 0.25 }),
   },
@@ -116,7 +116,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Off-roader',
     type: 15,
     best: 'Toughest',
-    perk: 'Takes three big hits before it is done. Heavy enough to shove traffic.',
+    perk: 'Takes the hardest hits',
     examples: 'Land Cruiser, Patrol, Pajero, Niva, G-Class',
     perks: P({ toughness: 1.7, rainPenalty: 0.4, priceMul: 1.1 }),
   },
@@ -125,7 +125,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Pickup / van',
     type: 16,
     best: 'Big target, big points',
-    perk: 'Near misses are worth 30% more because it is so wide. Built for knocks.',
+    perk: '+30% near-miss points',
     examples: 'Hilux, L200, Navara, Sprinter, Transit, Gazelle',
     perks: P({ nearMul: 1.3, toughness: 1.4, cashMul: 1.1 }),
   },
@@ -134,7 +134,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Electric',
     type: 17,
     best: 'Fastest off the line',
-    perk: 'Instant torque, and the boost refills 40% faster (regen).',
+    perk: 'Boost refills 40% faster',
     examples: 'Tesla, BYD, Zeekr, Leaf, ID.4, Ioniq 5',
     perks: P({ boostGainMul: 1.4, repairMul: 1.3, priceMul: 1.2, rainPenalty: 0.6 }),
   },
@@ -143,7 +143,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Classic',
     type: 18,
     best: 'Legend status',
-    perk: 'Every point counts 50% more: it is slow, so it is harder. Old steel takes knocks and is cheap to fix.',
+    perk: '+50% score, cheap to fix',
     examples: 'Lada 2107, Volga, Moskvich, W123, old Beetle',
     perks: P({ scoreMul: 1.5, repairMul: 0.6, priceMul: 0.8, toughness: 1.25 }),
   },
@@ -151,15 +151,20 @@ export const ARCHETYPES: Archetype[] = [
 
 export const ARCHETYPE: Record<ArchetypeId, Archetype> = Object.fromEntries(ARCHETYPES.map((a) => [a.id, a])) as Record<ArchetypeId, Archetype>;
 
+/** top speed in km/h (with the gearbox upgrade's multiplier) */
+export function topSpeedKmh(type: number, topMul = 1) {
+  return Math.round(VEHICLES[type].maxSpeed * 3.6 * topMul);
+}
+
 /** seconds from 0 to 100 km/h on the flat (same force curve and drag as DrivableVehicle) */
-export function zeroToHundred(type: number): number {
+export function zeroToHundred(type: number, powerMul = 1): number {
   const s = VEHICLES[type];
   const knee = s.maxSpeed * (s.torqueKnee ?? 0.32);
   const k = 0.36 * (s.width * s.height) * 0.5;
   let v = 0;
   let t = 0;
   while (v < 27.78 && t < 60) {
-    const f = s.engine * Math.min(1, knee / Math.max(v, 1)) - k * v * v;
+    const f = s.engine * powerMul * Math.min(1, knee / Math.max(v, 1)) - k * v * v;
     v += (f / s.mass) * 0.02;
     t += 0.02;
   }

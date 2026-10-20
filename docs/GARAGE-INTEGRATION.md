@@ -72,9 +72,11 @@ All are posted to the host origin only.
 | ------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
 | `mygarage:ready`    | page loaded                                          | `version`                                                  |
 | `mygarage:progress` | after every change (run, repair, upgrade, car added) | `save`: coins, per-car condition and upgrades              |
-| `mygarage:run`      | a run or race ended                                  | `vehicleId`, `mode`, `score`, `coins`, `health`, `won?`    |
-| `mygarage:parts`    | "Go to parts that fit this car" in the workshop  | `vehicleId`, `make`, `model`, `year`, `category`           |
-| `mygarage:services` | "Find a real mechanic" when the car is damaged       | `vehicleId`, `make`, `model`, `year`, `category: 'repair'` |
+| `mygarage:run`      | a run, highway drive or race ended                   | `vehicleId`, `mode`, `score`, `coins`, `health`, `won?`    |
+| `mygarage:parts`    | "Parts for this car" in the workshop                 | `vehicleId`, `make`, `model`, `year`, `category`           |
+| `mygarage:services` | "Find a mechanic" when the car is damaged            | `vehicleId`, `make`, `model`, `year`, `category: 'repair'` |
+
+`mode` is `'score'` (time attack), `'highway'` or `'race'`.
 
 `parts` and `services` are the hooks back into the site: open the compatible-parts search or
 the repair services listing for that exact car. The two buttons only appear once a host has

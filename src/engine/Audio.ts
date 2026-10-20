@@ -1,4 +1,5 @@
 // Fully procedural Web Audio: no audio assets required.
+import { clamp } from '../core/math';
 
 type Bus = 'music' | 'sfx' | 'amb';
 
@@ -253,6 +254,54 @@ export class AudioEngine {
   carDoor() {
     this.burst(0.12, 300, 1, 0.25, 'lowpass');
     this.blip(90, 0.12, 'sine', 0.2, 50);
+  }
+
+  /** a car picked in a garage: the door, then a short rev that sounds like the car (an electric
+   *  car whines up instead; big heavy ones are lower, light quick ones higher and sharper) */
+  pick(spec: { mass: number; engine: number; maxSpeed: number; model?: string; key: string }) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    this.carDoor();
+    const t = ctx.currentTime + 0.16;
+    const ev = (spec.model ?? spec.key) === 'ev';
+    if (ev) {
+      this.blip(420, 0.55, 'sine', 0.06, 1500, 'sfx', 0.16);
+      this.blip(840, 0.45, 'sine', 0.025, 3000, 'sfx', 0.18);
+      return;
+    }
+    // idle pitch from how heavy the car is, rev height from its power to weight
+    const idle = clamp(70 - (spec.mass - 1200) / 40, 34, 78);
+    const rev = idle * clamp(2.2 + (spec.engine / spec.mass) * 0.35, 2.4, 4.2);
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(idle, t);
+    o.frequency.exponentialRampToValueAtTime(rev, t + 0.16);
+    o.frequency.exponentialRampToValueAtTime(idle * 1.1, t + 0.7);
+    const sub = ctx.createOscillator();
+    sub.type = 'square';
+    sub.frequency.setValueAtTime(idle / 2, t);
+    sub.frequency.exponentialRampToValueAtTime(rev / 2, t + 0.16);
+    sub.frequency.exponentialRampToValueAtTime(idle * 0.55, t + 0.7);
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.Q.value = 2;
+    f.frequency.setValueAtTime(420, t);
+    f.frequency.exponentialRampToValueAtTime(1800 + rev * 4, t + 0.16);
+    f.frequency.exponentialRampToValueAtTime(380, t + 0.75);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.13, t + 0.04);
+    g.gain.setValueAtTime(0.13, t + 0.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
+    const sg = ctx.createGain();
+    sg.gain.value = 0.5;
+    o.connect(f);
+    sub.connect(sg).connect(f);
+    f.connect(g).connect(this.buses.sfx);
+    for (const x of [o, sub]) {
+      x.start(t);
+      x.stop(t + 0.9);
+    }
   }
 
   engineStart() {

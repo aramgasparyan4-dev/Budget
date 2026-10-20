@@ -27,6 +27,7 @@ import { useGarage, hostBridge, startBridge } from './garage/store';
 import { CarSetup, damageFactor, MIN_HEALTH, raceCoins, repairCost, runCoins } from './garage/progress';
 import { displayName, paintOf } from './garage/vehicle';
 import type { ParkingSpot } from '../world/types';
+import { Highway } from './Highway';
 
 /** the same city as Echo City */
 export const CITY_SEED = 20261019;
@@ -68,6 +69,13 @@ export class DriveGame {
   scorer = new Scorer();
   mode: Mode = 'score';
   race: RaceSession | null = null;
+  /** the motorway for highway mode (built the first time it is needed) */
+  highway: Highway | null = null;
+  /** a highway drive (or its results) is on: the city is left as it was */
+  onHighway = false;
+  /** CSS px of the screen the title screen's sidebar covers: the parked car is centred in the rest */
+  viewInset = { right: 0, bottom: 0 };
+  private viewShifted = false;
   /** where the floating RIVAL tag goes (CSS px), read by the UI every frame */
   rivalTag: { x: number; y: number; dist: number } | null = null;
   phase: Phase = 'loading';
@@ -262,6 +270,7 @@ export class DriveGame {
     this.saveRun(0);
     this.removeCar();
     this.endRace();
+    this.leaveHighway();
     this.slowmo = 1;
     this.cam.mode = 'cinematic';
     this.setPhase('title');
@@ -314,13 +323,22 @@ export class DriveGame {
     if (this.mode === 'race') {
       const seed = sameRoute && this.race ? this.race.seed : Math.floor(Math.random() * 1e9);
       this.endRace();
+      this.leaveHighway();
       this.trafficPreset(RACE_TRAFFIC);
       // the rival drives the same kind of car, in a colour that stands out from yours
       this.race = new RaceSession(this.world, this.traffic, this.scene, setup.type, rivalPaintFor(this.basePaint), seed);
       this.race.rival.gripMul = this.condGrip(setup);
       start = this.race.grid();
+    } else if (this.mode === 'highway') {
+      this.endRace();
+      this.highway ??= new Highway(this.scene, this.world.physics);
+      this.onHighway = true;
+      start = this.highway.startPose();
+      this.highway.begin(start.x);
+      this.focus.set(start.x, 0, start.z);
     } else {
       this.endRace();
+      this.leaveHighway();
       this.trafficPreset(SCORE_TRAFFIC);
       start = this.pickStart();
       // nothing parked on top of us or right in front
@@ -392,6 +410,42 @@ export class DriveGame {
     this.startRun(true);
   }
 
+  private leaveHighway() {
+    this.highway?.end();
+    this.onHighway = false;
+  }
+
+  /** shift the car, the traffic and the camera along the highway (see Highway: keeps numbers small) */
+  private shiftWorld(dx: number) {
+    const car = this.car!;
+    const t = car.body.translation();
+    car.body.setTranslation({ x: t.x + dx, y: t.y, z: t.z }, true);
+    car.pos.x += dx;
+    this.highway!.shift(dx);
+    this.cam.shift(dx, 0);
+    this.focus.x += dx;
+    this.skids.clear();
+    this.smoke.clear();
+    this.engineSmoke.clear();
+  }
+
+  /** highway: stop here, bank the combo and collect the coins */
+  endHighway() {
+    if (!this.onHighway || (this.phase !== 'run' && this.phase !== 'countdown')) return;
+    this.scorer.end('ended');
+    this.flushEvents();
+    this.finish();
+  }
+
+  /** a car picked in the garage: make it the active one, with a rev to say so */
+  pickCar(id: string) {
+    const g = useGarage.getState();
+    if (g.active().id === id) return;
+    g.setActive(id);
+    this.audio.init();
+    this.audio.pick(VEHICLES[g.setup().type]);
+  }
+
   private endRace() {
     this.race?.dispose();
     this.race = null;
@@ -432,10 +486,11 @@ export class DriveGame {
     if (this.race) return this.finishRace();
     const setup = this.setup!;
     const name = displayName(setup.vehicle);
-    const rank = st.record({ score: s.score, car: name, cond: this.cond.label, date: Date.now(), nearMisses: s.nearMisses, bestCombo: s.bestCombo });
+    const mode = this.mode === 'highway' ? 'highway' : 'score';
+    const rank = st.record({ score: s.score, car: name, cond: this.cond.label, date: Date.now(), nearMisses: s.nearMisses, bestCombo: s.bestCombo }, mode);
     const coins = runCoins(s.score, setup);
     this.saveRun(coins, s.score);
-    hostBridge()?.send({ type: 'mygarage:run', vehicleId: setup.vehicle.id, mode: 'score', score: s.score, coins, health: Math.round(s.health) });
+    hostBridge()?.send({ type: 'mygarage:run', vehicleId: setup.vehicle.id, mode, score: s.score, coins, health: Math.round(s.health) });
     st.set({
       result: {
         score: s.score,
@@ -454,7 +509,7 @@ export class DriveGame {
         car: name,
         cond: this.cond.label,
         rank,
-        mode: 'score',
+        mode,
         garage: this.garageResult(coins),
       },
     });
@@ -515,6 +570,14 @@ export class DriveGame {
   private onImpact(dv: number) {
     if (this.phase !== 'run' || !this.car || !this.traffic) return;
     const p = this.car.pos;
+    if (this.onHighway) {
+      const hc = this.highway!.nearest(p.x, p.z, 7);
+      if (hc) {
+        this.scorer.touched(hc.id);
+        this.highway!.crash(hc, p.z, dv);
+      }
+      return this.impactResult(dv);
+    }
     let hit: TVehicle | null = null;
     let bd = 7;
     for (const tv of this.traffic.vehicles) {
@@ -528,6 +591,11 @@ export class DriveGame {
       this.scorer.touched(hit.id);
       if (hit.state !== 'crash') this.traffic.crash(hit, 10);
     }
+    this.impactResult(dv);
+  }
+
+  private impactResult(dv: number) {
+    if (!this.car) return;
     const r = this.scorer.impact(dv);
     if (r === 'none') return;
     this.audio.crash(Math.min(1, dv / 16));
@@ -603,8 +671,13 @@ export class DriveGame {
         race?.control(h, go);
       });
     }
+    if (this.onHighway && car) {
+      const dx = this.highway!.wrapShift(car.pos.x);
+      if (dx) this.shiftWorld(dx);
+    }
 
     // camera and the point everything streams around
+    if (this.viewShifted && this.phase !== 'title') this.setViewShift(0, 0);
     if (car && (this.phase === 'countdown' || this.phase === 'run')) {
       this.cam.handleMouse(input, true);
       this.cam.baseFov = damp(this.cam.baseFov, this.baseFov + (this.boosting ? 12 : 0), 5, rawDt);
@@ -617,10 +690,12 @@ export class DriveGame {
       }
       this.cam.update(rawDt, car.pos, world.physics, { heading, speed: car.speed });
       this.focus.copy(car.pos);
-    } else if (car && this.phase === 'wreck') {
-      this.orbit += rawDt * 0.5;
+    } else if (car && (this.phase === 'wreck' || (this.phase === 'results' && this.onHighway))) {
+      // a slow circle round the car (after a highway drive too: the results show over it)
+      this.orbit += rawDt * (this.phase === 'wreck' ? 0.5 : 0.18);
       const p = car.pos;
-      this.camera.position.lerp(new THREE.Vector3(p.x + Math.sin(this.orbit) * 9, p.y + 3.2, p.z + Math.cos(this.orbit) * 9), 1 - Math.exp(-rawDt * 3));
+      const rad = this.phase === 'wreck' ? 9 : 10.5;
+      this.camera.position.lerp(new THREE.Vector3(p.x + Math.sin(this.orbit) * rad, p.y + 3.2, p.z + Math.cos(this.orbit) * rad), 1 - Math.exp(-rawDt * 3));
       this.camera.lookAt(p.x, p.y + 0.5, p.z);
       this.focus.copy(p);
     } else {
@@ -633,16 +708,27 @@ export class DriveGame {
     this.camera.getWorldDirection(cf);
     this.camFwd.set(cf.x, cf.z).normalize();
 
-    // traffic (denser the longer you survive)
+    // traffic (denser the longer you survive); on the highway the city is left as it was
     const tr = this.traffic;
-    tr.density = this.phase === 'run' ? 1 + Math.min(0.4, this.scorer.elapsed / 150) : 0.9;
-    tr.obstacles.length = 0;
-    if (car) tr.obstacles.push({ x: car.pos.x, z: car.pos.z, r: car.spec.width * 0.6 + 0.4, kind: 'playerCar' });
-    if (race) tr.obstacles.push({ x: race.rival.pos.x, z: race.rival.pos.z, r: race.rival.spec.width * 0.6 + 0.4, kind: 'playerCar' });
-    if (!this.paused) {
-      if (car && this.phase === 'run' && !race) this.direct(dt, car);
-      tr.update(dt, this.focus, this.camFwd, TRAFFIC_HOUR);
-      tr.syncBodies(this.focus, race?.rival.pos);
+    const hw = this.onHighway ? this.highway! : null;
+    if (hw) {
+      if (!this.paused) {
+        const lv = car?.body.linvel();
+        const player = car && lv && this.phase !== 'results' ? { x: car.pos.x, z: car.pos.z, v: lv.x, len: car.spec.length, width: car.spec.width } : null;
+        hw.update(dt, player, this.focus.x);
+        if (car) hw.syncBodies(car.pos.x, car.pos.z);
+      }
+      hw.follow(this.focus.x, this.camera, (this.scene.fog as THREE.FogExp2 | null)?.color ?? null);
+    } else {
+      tr.density = this.phase === 'run' ? 1 + Math.min(0.4, this.scorer.elapsed / 150) : 0.9;
+      tr.obstacles.length = 0;
+      if (car) tr.obstacles.push({ x: car.pos.x, z: car.pos.z, r: car.spec.width * 0.6 + 0.4, kind: 'playerCar' });
+      if (race) tr.obstacles.push({ x: race.rival.pos.x, z: race.rival.pos.z, r: race.rival.spec.width * 0.6 + 0.4, kind: 'playerCar' });
+      if (!this.paused) {
+        if (car && this.phase === 'run' && !race) this.direct(dt, car);
+        tr.update(dt, this.focus, this.camFwd, TRAFFIC_HOUR);
+        tr.syncBodies(this.focus, race?.rival.pos);
+      }
     }
 
     // the race: rival, checkpoints, positions
@@ -671,7 +757,7 @@ export class DriveGame {
     // sound
     if (this.audio.ready) {
       this.audio.updateAmbience(rawDt, {
-        traffic: Math.min(1, tr.vehicles.length / 60),
+        traffic: Math.min(1, (hw ? hw.cars.length : tr.vehicles.length) / 60),
         rain: cond.weather.rain,
         wind: cond.weather.wind,
         crowd: 0,
@@ -765,7 +851,9 @@ export class DriveGame {
     const a = Math.sin(this.time * 0.16) * 1.05;
     const dx = out[0] * Math.cos(a) + along[0] * Math.sin(a);
     const dz = out[1] * Math.cos(a) + along[1] * Math.sin(a);
-    const want = new THREE.Vector3(spot.x + dx * 8.2, 2.5, spot.z + dz * 8.2);
+    // further back on tall, narrow screens so the whole car fits across
+    const rad = 8.2 * Math.max(1, 1.1 / Math.max(0.3, this.camera.aspect));
+    const want = new THREE.Vector3(spot.x + dx * rad, 2.5 + (rad - 8.2) * 0.12, spot.z + dz * rad);
     if (this.attractSnap) this.camera.position.copy(want);
     else this.camera.position.lerp(want, 1 - Math.exp(-dt * 3));
     this.attractSnap = false;
@@ -779,7 +867,7 @@ export class DriveGame {
     this.showLight.target.position.set(spot.x, 0.5, spot.z);
     this.showLight.intensity = 40 + 190 * G.uNight.value;
     this.camera.fov = damp(this.camera.fov, 52, 3, dt);
-    this.camera.updateProjectionMatrix();
+    this.setViewShift(this.viewInset.right / 2, this.viewInset.bottom / 2);
     this.focus.set(spot.x, 0, spot.z);
     // a damaged car smokes on the title screen too: a reminder to fix it
     const g = useGarage.getState();
@@ -793,6 +881,20 @@ export class DriveGame {
       }
     }
     return true;
+  }
+
+  /** move the picture's centre left / up by (x, y) CSS px (0, 0: back to normal) */
+  private setViewShift(x: number, y: number) {
+    const el = this.renderer.domElement;
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    if ((x || y) && w > 0 && h > 0) {
+      this.camera.setViewOffset(w, h, x, y, w, h);
+      this.viewShifted = true;
+    } else if (this.viewShifted) {
+      this.camera.clearViewOffset();
+      this.viewShifted = false;
+    } else this.camera.updateProjectionMatrix();
   }
 
   private attractCam(dt: number) {
@@ -829,12 +931,15 @@ export class DriveGame {
     const yaw = car.yaw;
     const lv = car.body.linvel();
     const others: OtherCar[] = [];
-    for (const v of tr.vehicles) {
-      if (Math.abs(v.x - car.pos.x) > 32 || Math.abs(v.z - car.pos.z) > 32) continue;
-      const spec = VEHICLES[v.type];
-      others.push({ id: v.id, x: v.x, z: v.z, yaw: v.yaw, v: v.v, width: spec.width, length: spec.length });
+    if (this.onHighway) this.highway!.others(car.pos.x, car.pos.z, others);
+    else {
+      for (const v of tr.vehicles) {
+        if (Math.abs(v.x - car.pos.x) > 32 || Math.abs(v.z - car.pos.z) > 32) continue;
+        const spec = VEHICLES[v.type];
+        others.push({ id: v.id, x: v.x, z: v.z, yaw: v.yaw, v: v.v, width: spec.width, length: spec.length });
+      }
     }
-    const road = this.roadInfo(car.pos.x, car.pos.z, yaw);
+    const road = this.onHighway ? { oncoming: false, street: '' } : this.roadInfo(car.pos.x, car.pos.z, yaw);
     this.scorer.update({ x: car.pos.x, z: car.pos.z, yaw, vx: lv.x, vz: lv.z, width: car.spec.width, length: car.spec.length }, others, {
       oncoming: road.oncoming,
       drift: { active: car.drifting, angle: Math.abs(car.slipAngle) },
@@ -842,7 +947,7 @@ export class DriveGame {
       dt,
     });
     // running a red light
-    const it = this.intersectionAt(car.pos.x, car.pos.z);
+    const it = this.onHighway ? -1 : this.intersectionAt(car.pos.x, car.pos.z);
     if (it >= 0 && it !== this.lastInter && car.speed > 14) {
       const inter = this.world!.city.intersections[it];
       const axis = Math.abs(Math.cos(yaw)) > Math.abs(Math.sin(yaw)) ? 'v' : 'h';
@@ -943,7 +1048,8 @@ export class DriveGame {
     const draw = useStore.getState().settings.graphics.drawDistance;
     const lights = night > 0.4 || this.cond.weather.rain > 0.5 ? 1 : 0;
     r.begin();
-    for (const v of this.traffic!.vehicles) {
+    if (this.onHighway) this.highway!.draw(r, lights, this.focus.x, draw);
+    else for (const v of this.traffic!.vehicles) {
       if (Math.hypot(v.x - this.focus.x, v.z - this.focus.z) > draw) continue;
       r.push({
         type: v.type,
@@ -959,7 +1065,7 @@ export class DriveGame {
         steer: clamp(v.yawRate * 8, -0.5, 0.5),
       });
     }
-    for (const v of this.traffic!.parked) {
+    if (!this.onHighway) for (const v of this.traffic!.parked) {
       if (Math.hypot(v.x - this.focus.x, v.z - this.focus.z) > draw) continue;
       r.push({ type: v.type, x: v.x, z: v.z, yaw: v.yaw, paint: v.paint, head: 0, brake: 0, wheelRot: 0, steer: 0 });
     }
@@ -978,7 +1084,7 @@ export class DriveGame {
   private publish() {
     const s = this.scorer;
     const car = this.car;
-    const road = car && this.world ? this.roadInfo(car.pos.x, car.pos.z, car.yaw) : { oncoming: false, street: '' };
+    const road = car && this.world && !this.onHighway ? this.roadInfo(car.pos.x, car.pos.z, car.yaw) : { oncoming: false, street: '' };
     useNM.getState().setHud({
       speed: car ? Math.round(Math.abs(car.forwardSpeed) * 3.6) : 0,
       score: s.score,
@@ -997,6 +1103,7 @@ export class DriveGame {
       damaged: s.damaged,
       health: s.health,
       lastHit: s.health <= RULES.bigHitCap * s.opts.damageTaken,
+      distance: s.distance,
     });
     const race = this.race;
     if (race && car && (this.phase === 'countdown' || this.phase === 'run')) {

@@ -11,6 +11,7 @@
 //
 // In a race there is no clock and nothing ends the run: a big hit just stops the car. Near misses and
 // drifts still pop up and still fill the boost bar, which is what makes risky driving pay off there.
+// On the highway there is no clock either: the drive lasts until the car is wrecked or you end it.
 
 export interface CarState {
   x: number;
@@ -106,7 +107,7 @@ export class Scorer {
   damageTaken = 0;
 
   constructor(
-    readonly mode: 'score' | 'race' = 'score',
+    readonly mode: 'score' | 'race' | 'highway' = 'score',
     opts: Partial<ScorerOpts> = {},
   ) {
     this.opts = { ...DEFAULT_OPTS, ...opts };
@@ -131,7 +132,7 @@ export class Scorer {
   boost = 0.35;
   time = RULES.startTime;
   elapsed = 0;
-  over: null | 'wrecked' | 'time' = null;
+  over: null | 'wrecked' | 'time' | 'ended' = null;
   /** race: big hits taken */
   crashes = 0;
   private graceT = 0;
@@ -259,8 +260,8 @@ export class Scorer {
 
     if (this.graceT > 0) this.graceT -= dt;
 
-    // the clock (a race has none)
-    if (this.mode === 'race') return;
+    // the clock (only time attack has one)
+    if (this.mode !== 'score') return;
     this.time -= dt;
     if (this.time <= 0) {
       this.time = 0;
@@ -343,7 +344,7 @@ export class Scorer {
     this.damageTaken += before - this.health;
     const lost = Math.round(this.comboPoints * this.mult * this.opts.scoreMul);
     this.driftActive = false; // the drift's points went with the combo
-    if (this.mode === 'score' && this.health <= 0) {
+    if (this.mode !== 'race' && this.health <= 0) {
       this.end('wrecked');
       return 'wreck';
     }
@@ -359,7 +360,7 @@ export class Scorer {
     if (big) {
       this.graceT = RULES.damageGrace;
       this.boost = Math.max(0, this.boost - 0.3);
-      this.time = Math.max(1, this.time - RULES.damageTimePenalty);
+      if (this.mode === 'score') this.time = Math.max(1, this.time - RULES.damageTimePenalty);
       this.events.push({ kind: 'damage', label: 'CAR DAMAGED', sub: left, points: -lost });
       return 'damage';
     }
@@ -376,11 +377,12 @@ export class Scorer {
     if (tr) tr.touched = true;
   }
 
-  end(reason: 'wrecked' | 'time') {
+  end(reason: 'wrecked' | 'time' | 'ended') {
     if (this.over) return;
     this.over = reason;
-    // running out of time still banks the combo (a drift in progress counts); a wreck loses it
-    if (reason === 'time') {
+    // running out of time (or ending a highway drive) still banks the combo, a drift in progress
+    // included; a wreck loses it
+    if (reason !== 'wrecked') {
       if (this.driftActive) this.endDrift();
       this.bank();
     } else if (this.comboPoints > 0) {

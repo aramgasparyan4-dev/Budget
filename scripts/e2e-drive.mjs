@@ -101,7 +101,8 @@ window.__t = {
 
 /** pick a car from the garage panel by id (demo cars: demo-bmw-m4, demo-toyota-camry, ...) */
 async function pickCar(id) {
-  await page.click('#btn-garage');
+  // the "…" on the car card always opens the list of cars
+  await page.click('button[aria-label="All cars"]');
   await page.click(`[data-car="${id}"]`);
   await page.waitForTimeout(300);
 }
@@ -133,8 +134,9 @@ await step('title: your car parked at the curb, with its garage card', async () 
 });
 
 await step('add your own car with the garage form: it drives as the right type', async () => {
+  // with no cars of your own, "Add new vehicle" opens the form straight away
   await page.click('#btn-garage');
-  await page.click('#btn-add-car');
+  if (!(await page.$('#f-make'))) await page.click('#btn-add-car');
   await page.selectOption('#f-make', 'soueast');
   await page.fill('#f-model', 'DX5');
   await page.selectOption('#f-year', '2024');
@@ -785,6 +787,93 @@ await step('race: the rival finishing first and the player too slow is a loss', 
   return r;
 });
 
+await step('highway: no clock, traffic to weave through, near misses and crashes count', async () => {
+  await ev(() => __t.g().toTitle());
+  await page.waitForSelector('#mode-highway', { timeout: 20000 });
+  await pickCar('demo-toyota-land-cruiser');
+  await page.click('#mode-highway');
+  await page.click('#btn-drive');
+  const r = await ev(() => {
+    const g = __t.g();
+    const hw = g.highway;
+    const car = g.car;
+    const go = (v) => {
+      car.body.setLinvel({ x: v, y: 0, z: 0 }, true);
+      car.lastVel.set(v, 0, 0);
+    };
+    const clear = () => {
+      for (const c of [...hw.cars]) if (c.dir === 1 && Math.abs(c.x - car.pos.x) < 220) hw.cars.splice(hw.cars.indexOf(c), 1);
+    };
+    __t.sim(3.3);
+    const start = { onHighway: g.onHighway, cars: hw.cars.length, z: car.pos.z, phase: g.phase };
+    // well past the time attack clock: still going
+    __t.down('KeyW');
+    clear();
+    __t.sim(4);
+    const timeBefore = g.scorer.time;
+    for (let i = 0; i < 70; i++) {
+      clear();
+      __t.sim(1);
+    }
+    const noClock = { phase: g.phase, elapsed: Math.round(g.scorer.elapsed), time: g.scorer.time, timeBefore, distance: Math.round(g.scorer.distance) };
+    // a slower car in the next lane: passing it close is a near miss
+    clear();
+    go(40);
+    const lane = Math.round((car.pos.z + 4600 - 1.8) / 3.4 - 0.5);
+    const c1 = hw.trySpawn(1, car.pos.x + 45, lane > 0 ? lane - 1 : lane + 1);
+    c1.vDes = c1.v = 15;
+    c1.cool = 99;
+    const n0 = g.scorer.nearMisses;
+    __t.sim(3);
+    const near = g.scorer.nearMisses - n0;
+    // let the combo bank (a crash would lose it)
+    for (let i = 0; i < 5; i++) {
+      clear();
+      __t.sim(1);
+    }
+    const banked = g.scorer.score;
+    // a car stopped in our lane: a hard crash that damages the car and stops the other one
+    clear();
+    go(38);
+    const c2 = hw.trySpawn(1, car.pos.x + 30, lane);
+    c2.vDes = c2.v = 8;
+    c2.cool = 99;
+    const h0 = g.scorer.health;
+    __t.sim(2.5);
+    __t.up('KeyW');
+    return { start, noClock, near, banked, crash: { h0, health: g.scorer.health, crashed: c2.crashed, phase: g.phase } };
+  });
+  await page.screenshot({ path: 'scripts/out/nm-e2e-highway.png' });
+  assert(r.start.onHighway && r.start.cars > 15 && r.start.z < -4000 && r.start.phase === 'run', JSON.stringify(r.start));
+  assert(r.noClock.phase === 'run' && r.noClock.elapsed > 70 && r.noClock.time === r.noClock.timeBefore && r.noClock.distance > 1500, JSON.stringify(r.noClock));
+  assert(r.near >= 1 && r.banked > 0, 'near misses ' + r.near + ', banked ' + r.banked);
+  assert(r.crash.health < r.crash.h0 && r.crash.crashed && r.crash.phase === 'run', JSON.stringify(r.crash));
+  const hud = await ev(() => !!document.querySelector('#hud-distance'));
+  assert(hud, 'distance on the HUD');
+  return r;
+});
+
+await step('highway: End drive banks the combo, pays coins and keeps its own best', async () => {
+  await ev(() => __t.g().togglePause());
+  await page.waitForSelector('#btn-end', { timeout: 10000 });
+  const coins0 = await ev(() => window.__garage.getState().save.coins);
+  await page.click('#btn-end');
+  await page.waitForSelector('#btn-again', { timeout: 10000 });
+  const r = await ev(() => ({
+    result: __t.st().result,
+    best: __t.st().bestHighway.length,
+    coins: window.__garage.getState().save.coins,
+    title: document.querySelector('#results')?.textContent,
+  }));
+  await page.screenshot({ path: 'scripts/out/nm-e2e-highway-results.png' });
+  assert(r.result.mode === 'highway' && r.result.reason === 'ended' && r.result.score > 0 && r.best >= 1 && r.coins > coins0 && /Drive over/.test(r.title), JSON.stringify({ ...r, title: r.title?.slice(0, 40) }));
+  await page.click('#btn-title');
+  const back = await ev(() => ({ onHighway: __t.g().onHighway, phase: __t.g().phase, showroom: !!__t.g().showroom, hidden: !__t.g().highway.group.visible }));
+  assert(!back.onHighway && back.phase === 'title' && back.hidden, JSON.stringify(back));
+  await ev(() => __t.st().set({ mode: 'score' }));
+  return { score: r.result.score, coins: r.coins - coins0, back };
+});
+
 await step('high score shows on the loading screen after a reload', async () => {
   const best = await ev(() => __t.st().best[0]?.score ?? 0);
   await page.reload();
@@ -819,12 +908,13 @@ await step("a host link (#garage=...) brings the player's own cars, primary firs
       .vehicles()
       .map((v) => v.make + ' ' + v.model),
     name: document.querySelector('#garage-name')?.textContent,
+    make: document.querySelector('#garage-make')?.textContent,
     type: document.querySelector('#garage-type')?.textContent,
     health: window.__garage.getState().setup().progress.health,
     cashMul: window.__garage.getState().setup().cashMul,
   }));
   // host cars plus the one added in this browser earlier
-  assert(r.cars.includes('Toyota Camry') && r.cars.includes('Lada (VAZ) 2107') && r.name === 'Lada (VAZ) 2107 2003' && r.type === 'Classic', JSON.stringify(r));
+  assert(r.cars.includes('Toyota Camry') && r.cars.includes('Lada (VAZ) 2107') && r.name === '2107 2003' && r.make === 'Lada (VAZ)' && r.type === 'Classic', JSON.stringify(r));
   assert(r.health === 60 && r.cashMul > 1, 'garage details: ' + JSON.stringify(r));
   return r;
 });

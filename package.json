@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "ECHO CITY \u2014 a 3D open-world urban life simulation for the browser",
+  "description": "ECHO CITY — a 3D open-world urban life simulation for the browser",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -21,6 +21,7 @@
     "@react-three/fiber": "^9.8.2",
     "@react-three/postprocessing": "^3.2.0",
     "idb": "^8.0.4",
+    "lucide-react": "^1.60.0",
     "postprocessing": "^6.39.5",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

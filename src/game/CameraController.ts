@@ -133,6 +133,14 @@ export class CameraController {
     cam.updateProjectionMatrix();
   }
 
+  /** move the camera and everything it is following by (dx, dz): the world was shifted under it */
+  shift(dx: number, dz: number) {
+    for (const v of [this.pivot, this.look, this.lookSmoothed, this.camera.position]) {
+      v.x += dx;
+      v.z += dz;
+    }
+  }
+
   /** Aim the third-person yaw so the camera sits behind a heading. */
   alignBehind(heading: number) {
     this.yaw = heading;

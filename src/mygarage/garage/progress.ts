@@ -17,12 +17,12 @@ export interface Upgrade {
 }
 
 export const UPGRADES: Upgrade[] = [
-  { id: 'engine', name: 'Engine tune', effect: '+7% power per level', parts: 'engine' },
-  { id: 'gearing', name: 'Gearbox', effect: '+5% top speed per level', parts: 'transmission' },
-  { id: 'tires', name: 'Tires', effect: '+5% grip per level', parts: 'tires' },
-  { id: 'brakes', name: 'Brakes', effect: '+12% braking per level', parts: 'brakes' },
-  { id: 'armor', name: 'Body armour', effect: '-9% damage per level', parts: 'body' },
-  { id: 'nitro', name: 'Nitro tank', effect: '-10% boost drain, more boost at the start', parts: 'turbo' },
+  { id: 'engine', name: 'Engine tune', effect: '+7% power', parts: 'engine' },
+  { id: 'gearing', name: 'Gearbox', effect: '+5% top speed', parts: 'transmission' },
+  { id: 'tires', name: 'Tires', effect: '+5% grip', parts: 'tires' },
+  { id: 'brakes', name: 'Brakes', effect: '+12% braking', parts: 'brakes' },
+  { id: 'armor', name: 'Body armour', effect: '−9% damage', parts: 'body' },
+  { id: 'nitro', name: 'Nitro tank', effect: '−10% boost drain', parts: 'turbo' },
 ];
 
 export const MAX_LEVEL = 5;

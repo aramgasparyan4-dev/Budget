@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { EventKind } from './scoring';
 
 export type Phase = 'loading' | 'title' | 'countdown' | 'run' | 'wreck' | 'results';
-export type Mode = 'score' | 'race';
+export type Mode = 'score' | 'highway' | 'race';
 
 export interface Popup {
   id: number;
@@ -31,6 +31,7 @@ export interface Hud {
   damaged: boolean;
   health: number; // car condition 0-100
   lastHit: boolean; // one more big hit wrecks it
+  distance: number; // metres driven this run
 }
 
 export interface RaceHud {
@@ -68,7 +69,7 @@ export interface RaceStats {
 
 export interface RunResult {
   score: number;
-  reason: 'wrecked' | 'time';
+  reason: 'wrecked' | 'time' | 'ended';
   nearMisses: number;
   bestCombo: number;
   bestBank: number;
@@ -108,6 +109,7 @@ export interface BestEntry {
 // storage keys keep the game's first name (Near Miss) so existing saves carry over
 const BEST_KEY = 'near-miss-best-v1';
 const RACE_KEY = 'near-miss-race-v1';
+const HIGHWAY_KEY = 'mygarage-highway-best-v1';
 
 function loadRace(): RaceStats {
   try {
@@ -119,9 +121,9 @@ function loadRace(): RaceStats {
   return { races: 0, wins: 0, bestMargin: 0 };
 }
 
-function loadBest(): BestEntry[] {
+function loadBest(key: string): BestEntry[] {
   try {
-    const raw = localStorage.getItem(BEST_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as BestEntry[]) : [];
   } catch {
     return [];
@@ -140,12 +142,15 @@ interface NMState {
   raceStats: RaceStats;
   popups: Popup[];
   result: RunResult | null;
+  /** time attack top 10 */
   best: BestEntry[];
+  /** highway top 10 (drives have no time limit, so they get their own list) */
+  bestHighway: BestEntry[];
   set: (p: Partial<NMState>) => void;
   setHud: (h: Hud) => void;
   pushPopup: (p: Omit<Popup, 'id'>) => void;
-  /** add a finished run to the local top 10; returns its 1-based rank or 0 */
-  record: (e: BestEntry) => number;
+  /** add a finished run to the local top 10 for its mode; returns its 1-based rank or 0 */
+  record: (e: BestEntry, mode?: 'score' | 'highway') => number;
   /** count a finished race; returns true if the winning margin is a new best */
   recordRace: (won: boolean, margin: number) => boolean;
 }
@@ -177,12 +182,14 @@ export const useNM = create<NMState>((set, get) => ({
     damaged: false,
     health: 100,
     lastHit: false,
+    distance: 0,
   },
   race: null,
   raceStats: loadRace(),
   popups: [],
   result: null,
-  best: loadBest(),
+  best: loadBest(BEST_KEY),
+  bestHighway: loadBest(HIGHWAY_KEY),
   set: (p) => set(p),
   setHud: (hud) => set({ hud }),
   pushPopup: (p) => {
@@ -191,13 +198,14 @@ export const useNM = create<NMState>((set, get) => ({
     const long = p.kind === 'bank' || p.kind === 'lost' || p.kind === 'damage' || p.kind === 'crash';
     setTimeout(() => set({ popups: get().popups.filter((x) => x.id !== item.id) }), long ? 2200 : 1400);
   },
-  record: (e) => {
+  record: (e, mode = 'score') => {
     // a run that scored nothing is not a "personal best"
     if (e.score <= 0) return 0;
-    const list = [...get().best, e].sort((a, b) => b.score - a.score).slice(0, 10);
-    set({ best: list });
+    const field = mode === 'highway' ? 'bestHighway' : 'best';
+    const list = [...get()[field], e].sort((a, b) => b.score - a.score).slice(0, 10);
+    set({ [field]: list });
     try {
-      localStorage.setItem(BEST_KEY, JSON.stringify(list));
+      localStorage.setItem(mode === 'highway' ? HIGHWAY_KEY : BEST_KEY, JSON.stringify(list));
     } catch {
       /* storage unavailable: scores last for this visit only */
     }

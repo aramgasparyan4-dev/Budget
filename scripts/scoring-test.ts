@@ -362,5 +362,28 @@ function drift(seconds: number, angle: number, after = 0.5) {
   const plain = pass({ gap: 0.6 }).events.find((x) => x.kind === 'near')!.points;
   check('near miss mid-drift is worth 1.5x and says so', !!e && e.points >= plain * 1.45 && !!e.sub?.includes('DRIFTING'), { e, plain });
 }
+// highway: no clock, a drive ends when you end it or the car is wrecked
+{
+  const s = new Scorer('highway');
+  const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 40, width: W, length: L };
+  for (let t = 0; t < RULES.maxTime * 3; t += 1 / 30) s.update(car, [], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 30 });
+  check('highway: no clock, the drive goes on', s.over === null && s.elapsed > RULES.maxTime * 2.9, { over: s.over, elapsed: s.elapsed });
+  const r1 = s.impact(RULES.wreckImpact + 1);
+  check('highway: a big hit damages the car without costing time', r1 === 'damage' && s.health < 100 && s.time === RULES.startTime, { r1, health: s.health, time: s.time });
+}
+{
+  const s = new Scorer('highway');
+  s.impact(RULES.wreckImpact + 2);
+  for (let t = 0; t < 2; t += 1 / 30) s.update({ x: 0, z: 0, yaw: 0, vx: 0, vz: 30, width: W, length: L }, [], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 30 });
+  const r2 = s.impact(RULES.wreckImpact + 6);
+  check('highway: the second big hit wrecks an average car', r2 === 'wreck' && s.over === 'wrecked', { r2, over: s.over });
+}
+{
+  const s = pass({ gap: 0.6, scorer: new Scorer('highway'), seconds: 3.2 });
+  const before = s.score;
+  const unbanked = s.comboPoints;
+  s.end('ended');
+  check('highway: ending the drive banks the combo', s.over === 'ended' && unbanked > 0 && s.score > before && s.comboPoints === 0, { before, after: s.score, unbanked });
+}
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

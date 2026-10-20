@@ -1,29 +1,28 @@
 @import 'tailwindcss';
 
-/* MyGarage Drive, styled after list.am: white surfaces, light grey cards and fields, one strong
-   blue for actions, a pale blue tint for secondary actions and badges, near-black for the top
-   strip, a pink-red for alerts. Type is Inter throughout, bold for headings and numbers. */
+/* MyGarage Drive, styled after list.am (values taken from the site): white pages, near-black
+   text, hairline borders, #F4F4F4 grey for secondary buttons and fields, #FAFAFA for detail
+   panels, one blue (#0077FF) for the main action, links and badges, and the pink-red of the
+   "NEW" badge for damage. Flat surfaces: borders, not drop shadows. */
 
 /* phones held sideways: very little height */
 @custom-variant short (@media (max-height: 560px));
 
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --color-brand: #0074f8;
-  --color-brand-dark: #005fd1;
-  --color-brand-tint: #e8f0fc;
-  --color-brand-soft: #dcecfc;
-  --color-ink: #1d1c1f;
-  --color-ink-2: #4a4a52;
-  --color-muted: #85858f;
-  --color-line: #e6e6ea;
+  --color-brand: #0077ff;
+  --color-brand-dark: #0066db;
+  --color-badge: #e0edff;
+  --color-ink: #0d0d0d;
+  --color-ink-2: #5b5a5c;
+  --color-muted: #7a7a7a;
+  --color-faint: #c7c7c7;
+  --color-line: #eaeaea;
   --color-paper: #ffffff;
   --color-mist: #f4f4f4;
-  --color-card: #f8f8f8;
-  --color-night: #101014;
-  --color-hot: #fc3c6c;
-  --color-ok: #12b76a;
-  --color-warn: #f79009;
+  --color-tile: #fafafa;
+  --color-night: #070609;
+  --color-alert: #fd396b;
 }
 
 :root {
@@ -40,47 +39,46 @@ body,
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
 
-/* headings and numbers: heavy, tight, figures lined up */
+/* headings and figures */
 .display {
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
-/* text straight on the 3D view (countdown, rival tag distance) */
-.on-scene {
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.35),
-    0 2px 16px rgba(0, 0, 0, 0.35);
+/* a surface on top of the 3D view: hairline border, the faintest lift */
+.surface {
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  box-shadow: 0 1px 2px rgba(13, 13, 13, 0.04);
 }
 
-.lift {
+/* menus and sheets */
+.float {
   box-shadow:
-    0 1px 2px rgba(16, 16, 20, 0.06),
-    0 8px 28px rgba(16, 16, 20, 0.12);
+    0 0 0 1px rgba(13, 13, 13, 0.04),
+    0 8px 32px rgba(13, 13, 13, 0.12);
 }
 
 @keyframes pop {
   0% {
-    transform: translateY(14px) scale(0.9);
+    transform: translateY(10px);
     opacity: 0;
   }
-  16% {
-    transform: translateY(0) scale(1.04);
+  14% {
+    transform: translateY(0);
     opacity: 1;
-  }
-  28% {
-    transform: scale(1);
   }
   80% {
     opacity: 1;
   }
   100% {
-    transform: translateY(-16px);
+    transform: translateY(-10px);
     opacity: 0;
   }
 }
@@ -93,7 +91,7 @@ body,
 
 @keyframes count {
   0% {
-    transform: scale(1.6);
+    transform: scale(1.3);
     opacity: 0;
   }
   25% {
@@ -101,7 +99,6 @@ body,
     opacity: 1;
   }
   100% {
-    transform: scale(0.92);
     opacity: 0.9;
   }
 }
@@ -111,7 +108,7 @@ body,
 
 @keyframes rise {
   from {
-    transform: translateY(12px);
+    transform: translateY(8px);
     opacity: 0;
   }
   to {
@@ -120,7 +117,7 @@ body,
   }
 }
 .rise {
-  animation: rise 0.35s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  animation: rise 0.25s ease-out both;
 }
 
 @keyframes throb {
@@ -133,27 +130,27 @@ body,
   }
 }
 .throb {
-  animation: throb 0.7s ease-in-out infinite;
+  animation: throb 0.8s ease-in-out infinite;
 }
 
-/* speed streaks at the screen edges while boosting */
+/* boost: a faint blue edge */
 .streaks {
-  background: radial-gradient(ellipse at center, transparent 58%, rgba(0, 116, 248, 0.14) 85%, rgba(0, 116, 248, 0.26) 100%);
+  background: radial-gradient(ellipse at center, transparent 62%, rgba(0, 119, 255, 0.16) 100%);
 }
 
-/* damaged car: a slow red pulse at the screen edges */
+/* damaged car: a slow red edge */
 @keyframes damaged {
   0%,
   100% {
-    opacity: 0.3;
+    opacity: 0.25;
   }
   50% {
-    opacity: 0.75;
+    opacity: 0.6;
   }
 }
 .damaged-vignette {
-  background: radial-gradient(ellipse at center, transparent 58%, rgba(252, 60, 108, 0.3) 100%);
-  animation: damaged 1.6s ease-in-out infinite;
+  background: radial-gradient(ellipse at center, transparent 62%, rgba(253, 57, 107, 0.28) 100%);
+  animation: damaged 1.8s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -176,7 +173,7 @@ input:focus-visible {
 
 select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%2385858f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%237a7a7a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 32px;

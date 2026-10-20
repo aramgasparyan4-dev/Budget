@@ -1,41 +1,88 @@
-// Garage screens: the car card on the title screen, the workshop (repairs and upgrades), the
-// garage list and the "add a vehicle" form, the garage part of the results, and touch controls.
-// Laid out like the list.am Garage: a white card per car on light grey, blue actions.
-import { useEffect, useMemo, useRef, useState } from 'react';
+// Garage screens: the car card in the title sidebar, the workshop (repairs and upgrades), the car
+// list and the "add new vehicle" form, the garage part of the results, and touch controls. Laid
+// out like the list.am Garage: white, hairline borders, grey tiles of details, one blue action.
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  BatteryCharging,
+  Banknote,
+  ChevronDown,
+  CloudRain,
+  Coins as CoinsIcon,
+  Crown,
+  Disc,
+  Ellipsis,
+  Flame,
+  Gauge,
+  Pause as PauseIcon,
+  Plus,
+  RotateCcw,
+  Shield,
+  ShieldCheck,
+  Sparkles,
+  Wind,
+  Wrench,
+  Zap,
+  Car,
+  CircleGauge,
+  Cog,
+} from 'lucide-react';
 import { nm } from './DriveGame';
 import { useNM } from './store';
 import { useGarage, hostBridge } from './garage/store';
-import { ARCHETYPES, ARCHETYPE, ratings, type ArchetypeId } from './garage/archetypes';
+import { ARCHETYPES, ARCHETYPE, topSpeedKmh, zeroToHundred, type ArchetypeId } from './garage/archetypes';
 import { knownMakes, knownModels, makeName } from './garage/catalog';
-import { archetypeOf, displayName, paintOf, type GarageVehicle } from './garage/vehicle';
-import { MAX_LEVEL, MIN_HEALTH, progressOf, repairCost, upgradeCost, UPGRADES } from './garage/progress';
+import { archetypeOf, paintOf, type GarageVehicle } from './garage/vehicle';
+import { MAX_LEVEL, MIN_HEALTH, progressOf, repairCost, upgradeCost, UPGRADES, type UpgradeId } from './garage/progress';
 import { RULES } from './scoring';
 import { VEHICLES } from '../sim/vehicles';
 import type { GarageResult } from './store';
-import { Badge, Bar, Button, Card, Coins, fmt, Label, Mark, Sheet } from './ui';
+import { Badge, Bar, Button, Coins, fmt, IconButton, Label, Mark, Sheet, Tile, Tiles } from './ui';
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
+const ICON = { size: 18, strokeWidth: 1.6 };
 
-export function healthTone(h: number): 'ok' | 'warn' | 'hot' {
-  return h >= 60 ? 'ok' : h >= 35 ? 'warn' : 'hot';
+/** condition bars: red once the car counts as damaged */
+export function healthTone(h: number): 'brand' | 'alert' {
+  return h < RULES.damagedBelow ? 'alert' : 'brand';
 }
 
-function Swatch({ color }: { color: number }) {
-  return <span className="w-4 h-4 rounded-full shrink-0 border border-line" style={{ background: hex(color) }} />;
-}
+const PERK_ICON: Record<ArchetypeId, typeof Car> = {
+  compact: Banknote,
+  sedan: CoinsIcon,
+  exec: Zap,
+  sports: Gauge,
+  hatch: Wind,
+  crossover: CloudRain,
+  offroad: Shield,
+  utility: Sparkles,
+  ev: BatteryCharging,
+  classic: Crown,
+};
 
-/** a 10-segment bar; segments earned by upgrades show in light blue after the base ones */
-function StatBar({ label, base, total }: { label: string; base: number; total: number }) {
-  const b = Math.round(Math.min(1, base) * 10);
-  const t = Math.max(b, Math.round(Math.min(1, total) * 10));
+const UPGRADE_ICON: Record<UpgradeId, typeof Car> = {
+  engine: Flame,
+  gearing: Cog,
+  tires: Disc,
+  brakes: CircleGauge,
+  armor: ShieldCheck,
+  nitro: Zap,
+};
+
+/** the round slot where list.am shows the make's logo: the make's initials on the car's paint */
+function MakeBadge({ make, color, size = 44 }: { make: string; color: number; size?: number }) {
+  const name = makeName(make);
+  const initials = name
+    .replace(/\(.*?\)/g, '')
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-20 shrink-0 text-xs text-muted whitespace-nowrap">{label}</div>
-      <div className="flex-1 flex gap-[3px]">
-        {Array.from({ length: 10 }, (_, i) => (
-          <div key={i} className={`h-1.5 flex-1 rounded-full ${i < b ? 'bg-brand' : i < t ? 'bg-brand/35' : 'bg-line'}`} />
-        ))}
-      </div>
+    <div className="relative shrink-0 rounded-full bg-mist flex items-center justify-center font-bold text-ink-2 tracking-tight" style={{ width: size, height: size, fontSize: size * 0.3 }}>
+      {initials || '?'}
+      <span className="absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full border-2 border-paper" style={{ background: hex(color) }} />
     </div>
   );
 }
@@ -67,7 +114,10 @@ export function RepairLabel({ cost, coins, health }: { cost: number; coins: numb
   );
 }
 
-// ------------------------------------------------------------------ title card
+const paint = (v: GarageVehicle) => paintOf(v.color, VEHICLES[ARCHETYPE[archetypeOf(v).archetype].type].palette[0]);
+const title = (v: GarageVehicle) => `${v.model}${v.year ? ` ${v.year}` : ''}`;
+
+// ------------------------------------------------------------------ sidebar
 export function GarageCard() {
   const { v, setup, save } = useActive();
   const setPanel = useGarage((s) => s.setPanel);
@@ -75,84 +125,88 @@ export function GarageCard() {
   const own = useGarage.getState().ownCount();
   const demo = v.id.startsWith('demo-');
   const a = setup.archetype;
-  const r = ratings(a);
   const h = setup.progress.health;
   const cost = repairCost(a, h);
   const hits = hitsLeft(h, setup.damageTaken);
+  const Perk = PERK_ICON[a.id];
   return (
-    <Card id="garage-card" className="p-5 flex flex-col gap-4">
+    <div id="garage-card" className="p-5 sm:p-6 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="display text-xl">My Garage</div>
-        <Button id="btn-garage" variant="tint" size="sm" onClick={() => setPanel('garage')}>
-          {own === 0 ? 'Add new vehicle' : `Garage · ${own}`}
+        <div className="text-xl font-bold">My Garage</div>
+        <Button id="btn-garage" variant="secondary" size="sm" onClick={() => setPanel(own === 0 ? 'add' : 'garage')}>
+          {own === 0 ? (
+            <>
+              <Plus size={16} strokeWidth={1.8} /> Add new vehicle
+            </>
+          ) : (
+            <>My cars · {own}</>
+          )}
         </Button>
       </div>
 
-      <div className="rounded-xl bg-card p-4 flex flex-col gap-3">
-        <div className="flex items-start gap-3">
-          <Swatch color={paintOf(v.color, VEHICLES[a.type].palette[0])} />
+      <div className="rounded-2xl border border-line">
+        <div className="p-4 flex items-center gap-3">
+          <MakeBadge make={v.make} color={paint(v)} />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span id="garage-name" className="display text-lg leading-tight">
-                {displayName(v)}
+            <div className="flex items-center gap-2 min-w-0">
+              <span id="garage-name" className="font-semibold text-[16px] truncate">
+                {title(v)}
               </span>
-              <Badge tone={demo ? 'grey' : 'brand'}>{demo ? 'Test drive' : v.primary ? 'Primary' : 'Yours'}</Badge>
+              <Badge tone={demo ? 'grey' : 'brand'} className="shrink-0">
+                {demo ? 'Test drive' : v.primary ? 'Primary' : 'Yours'}
+              </Badge>
             </div>
-            <div className="text-sm text-muted mt-0.5">
-              Drives as{' '}
-              <span id="garage-type" className="text-brand font-semibold">
+            <div className="text-[13px] text-ink-2 truncate">
+              <span id="garage-make">{makeName(v.make)}</span> ·{' '}
+              <span id="garage-type" className="text-brand">
                 {a.name}
-              </span>{' '}
-              · {a.best}
+              </span>
             </div>
           </div>
+          <IconButton aria-label="All cars" title="All cars" onClick={() => setPanel('garage')} className="-mr-2">
+            <Ellipsis {...ICON} />
+          </IconButton>
         </div>
-        <div className="text-xs text-ink-2 leading-snug short:hidden">{a.perk}</div>
-
-        <div className="rounded-lg bg-paper p-3 flex flex-col gap-1.5">
-          <div className="flex items-center gap-3">
-            <Label className="w-20">Condition</Label>
-            <Bar value={h / 100} tone={healthTone(h)} className="flex-1 h-2" />
-            <span id="garage-health" className="text-sm font-semibold tabular-nums w-10 text-right">
-              {Math.round(h)}%
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted">
-              {h < MIN_HEALTH ? <span className="text-hot font-semibold">Too damaged to drive: repair it first</span> : `Can take ${hits} more big hit${hits === 1 ? '' : 's'}`}
-            </span>
-            {cost > 0 && (
-              <Button id="btn-repair" variant="primary" size="sm" className="ml-auto" onClick={() => useGarage.getState().repair()}>
-                <RepairLabel cost={cost} coins={save.coins} health={h} />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5 short:hidden">
-          <StatBar label="Top speed" base={r.top} total={r.top * setup.top} />
-          <StatBar label="Acceleration" base={r.accel} total={r.accel * setup.power} />
-          <StatBar label="Handling" base={r.handling} total={r.handling * setup.grip} />
-          <StatBar label="Toughness" base={r.toughness} total={(r.toughness * (1 / setup.damageTaken)) / a.perks.toughness} />
+        <div className="px-2 pb-2">
+          <Tiles>
+            <Tile label="Condition" id="garage-health" value={<span className={h < RULES.damagedBelow ? 'text-alert' : ''}>{Math.round(h)}%</span>} />
+            <Tile label="Survives" value={h < MIN_HEALTH ? '—' : `${hits} hard hit${hits === 1 ? '' : 's'}`} />
+            <Tile label="Top speed" value={`${topSpeedKmh(a.type, setup.top)} km/h`} />
+            <Tile label="0–100 km/h" value={`${zeroToHundred(a.type, setup.power).toFixed(1)} s`} />
+          </Tiles>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button id="btn-workshop" variant="tint" onClick={() => setPanel('workshop')}>
-          Workshop
+      {h < MIN_HEALTH && (
+        <div className="flex items-center gap-2 text-[13px] text-alert font-medium">
+          <Wrench size={15} strokeWidth={1.8} /> Too damaged to drive
+        </div>
+      )}
+      {cost > 0 && (
+        <Button id="btn-repair" onClick={() => useGarage.getState().repair()}>
+          <Wrench size={16} strokeWidth={1.8} />
+          <RepairLabel cost={cost} coins={save.coins} health={h} />
         </Button>
-        {/* the header shows the wallet on wider screens */}
-        <span className="ml-auto inline-flex sm:hidden items-center h-8 px-3 rounded-full bg-mist">
-          <Coins n={save.coins} />
-        </span>
+      )}
+
+      <div className="flex items-center gap-3 rounded-xl bg-tile px-4 py-3">
+        <Perk {...ICON} className="text-brand shrink-0" />
+        <div className="min-w-0">
+          <div className="text-[14px] font-medium">{a.best}</div>
+          <div className="text-[13px] text-ink-2">{a.perk}</div>
+        </div>
       </div>
-      {notice && <div className="text-sm text-brand">{notice}</div>}
-    </Card>
+
+      <Button id="btn-workshop" variant="secondary" onClick={() => setPanel('workshop')}>
+        <Wrench size={16} strokeWidth={1.8} /> Workshop
+      </Button>
+      {notice && <div className="text-[13px] text-brand">{notice}</div>}
+    </div>
   );
 }
 
 // ------------------------------------------------------------------ panels
-function Panel({ title, children, onClose, id }: { title: string; children: React.ReactNode; onClose: () => void; id: string }) {
+function Panel({ title, children, onClose, id }: { title: string; children: ReactNode; onClose: () => void; id: string }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
@@ -188,20 +242,24 @@ function Workshop() {
   const host = hostBridge()?.connected;
   return (
     <Panel id="workshop" title="Workshop" onClose={() => g.setPanel('none')}>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <div className="font-semibold">{displayName(v)}</div>
-          <div className="text-sm text-muted">{a.name}</div>
+      <div className="flex items-center gap-3">
+        <MakeBadge make={v.make} color={paint(v)} size={40} />
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold truncate">{title(v)}</div>
+          <div className="text-[13px] text-ink-2">{a.name}</div>
         </div>
-        <span className="inline-flex items-center h-10 px-4 rounded-full bg-mist">
-          <Coins n={save.coins} big />
+        <span className="inline-flex items-center h-9 px-3 rounded-full bg-mist text-[14px]">
+          <Coins n={save.coins} />
         </span>
       </div>
-      <div className="rounded-xl bg-card p-4 flex items-center gap-3 flex-wrap">
-        <Label>Condition</Label>
-        <Bar value={h / 100} tone={healthTone(h)} className="w-40 h-2" />
-        <span className="font-semibold tabular-nums">{Math.round(h)}%</span>
-        <div className="ml-auto flex gap-2">
+
+      <div className="rounded-xl bg-tile p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <Label>Condition</Label>
+          <span className="font-semibold tabular-nums text-[14px]">{Math.round(h)}%</span>
+        </div>
+        <Bar value={h / 100} tone={healthTone(h)} className="w-full" />
+        <div className="flex gap-2 flex-wrap">
           {broke ? (
             <Button id="btn-patch" size="sm" onClick={() => g.patch()}>
               Free patch-up
@@ -213,32 +271,39 @@ function Workshop() {
           )}
           {host && cost > 0 && (
             <Button
-              variant="tint"
+              variant="secondary"
               size="sm"
               onClick={() => hostBridge()?.send({ type: 'mygarage:services', vehicleId: v.id, make: v.make, model: v.model, year: v.year, category: 'repair' })}
             >
-              Find a real mechanic
+              Find a mechanic
             </Button>
           )}
         </div>
       </div>
-      <div className="flex flex-col divide-y divide-line">
+
+      <div className="flex flex-col divide-y divide-line -my-1">
         {UPGRADES.map((u) => {
           const lvl = setup.progress.upgrades[u.id];
           const c = upgradeCost(a, lvl);
+          const Icon = UPGRADE_ICON[u.id];
           return (
             <div key={u.id} className="flex items-center gap-3 py-3">
+              <div className="w-9 h-9 rounded-full bg-mist flex items-center justify-center shrink-0">
+                <Icon size={17} strokeWidth={1.6} />
+              </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold">{u.name}</div>
-                <div className="text-sm text-muted">{u.effect}</div>
+                <div className="text-[15px] font-medium">{u.name}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[13px] text-ink-2">{u.effect}</span>
+                  <span className="flex gap-0.5">
+                    {Array.from({ length: MAX_LEVEL }, (_, i) => (
+                      <span key={i} className={`w-1.5 h-1.5 rounded-full ${i < lvl ? 'bg-brand' : 'bg-line'}`} />
+                    ))}
+                  </span>
+                </div>
               </div>
-              <div className="flex gap-1">
-                {Array.from({ length: MAX_LEVEL }, (_, i) => (
-                  <span key={i} className={`w-2.5 h-2.5 rounded-full ${i < lvl ? 'bg-brand' : 'bg-line'}`} />
-                ))}
-              </div>
-              <Button id={`up-${u.id}`} variant="tint" size="sm" className="w-28" disabled={c === null || save.coins < c} onClick={() => g.upgrade(u.id)}>
-                {c === null ? 'Maxed' : <>Buy · {fmt(c)}</>}
+              <Button id={`up-${u.id}`} variant="secondary" size="sm" className="w-24" disabled={c === null || save.coins < c} onClick={() => g.upgrade(u.id)}>
+                {c === null ? 'Max' : <Coins n={c} />}
               </Button>
             </div>
           );
@@ -246,17 +311,14 @@ function Workshop() {
       </div>
       {host && (
         <Button
-          variant="tint"
+          variant="secondary"
           className="self-start"
           onClick={() => hostBridge()?.send({ type: 'mygarage:parts', vehicleId: v.id, make: v.make, model: v.model, year: v.year, category: 'performance' })}
         >
-          Go to parts that fit this car →
+          Parts for this car
         </Button>
       )}
-      {g.notice && <div className="text-sm text-brand">{g.notice}</div>}
-      <div className="text-xs text-muted">
-        Coins come from runs ({a.perks.cashMul > 1 ? `this car earns ${Math.round((setup.cashMul - 1) * 100)}% extra` : 'about 1 coin per 20 points'}) and races (400+ for a win).
-      </div>
+      {g.notice && <div className="text-[13px] text-brand">{g.notice}</div>}
     </Panel>
   );
 }
@@ -272,15 +334,17 @@ function GarageList() {
     const p = progressOf(save, x);
     const on = x.id === active.id;
     return (
-      <div key={x.id} className={`flex items-center gap-3 p-3 rounded-xl ${on ? 'bg-brand-tint' : 'bg-card'}`}>
-        <Swatch color={paintOf(x.color, VEHICLES[a.type].palette[0])} />
+      <div key={x.id} className={`flex items-center gap-3 p-3 rounded-xl border ${on ? 'border-brand bg-badge/40' : 'border-line'}`}>
+        <MakeBadge make={x.make} color={paint(x)} size={40} />
         <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate flex items-center gap-2">
-            {displayName(x)}
-            {x.primary && <Badge>Primary</Badge>}
+          <div className="font-medium truncate flex items-center gap-2">
+            <span className="truncate">
+              {makeName(x.make)} {title(x)}
+            </span>
+            {x.primary && <Badge className="shrink-0">Primary</Badge>}
           </div>
-          <div className="text-sm text-muted">
-            {a.name} · {Math.round(p.health)}%
+          <div className="text-[13px] text-ink-2">
+            {a.name} · <span className={p.health < RULES.damagedBelow ? 'text-alert' : ''}>{Math.round(p.health)}%</span>
           </div>
         </div>
         {x.source === 'local' && !x.id.startsWith('demo-') && (
@@ -290,10 +354,11 @@ function GarageList() {
         )}
         <Button
           data-car={x.id}
-          variant={on ? 'tint' : 'primary'}
+          variant={on ? 'secondary' : 'primary'}
           size="sm"
+          className="w-20"
           onClick={() => {
-            g.setActive(x.id);
+            nm.pickCar(x.id);
             g.setPanel('none');
           }}
         >
@@ -303,16 +368,15 @@ function GarageList() {
     );
   };
   return (
-    <Panel id="garage-list" title="My Garage" onClose={() => g.setPanel('none')}>
-      <div className="text-sm text-ink-2">Saved vehicles drive in the game. Each keeps its own condition and upgrades.</div>
-      <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">
-        <Label>{fromHost ? 'From your Garage' : 'Your cars'}</Label>
-        {mine.length ? mine.map(row) : <div className="text-sm text-muted rounded-xl bg-card p-4">No cars yet. Add yours and the game drives it.</div>}
-        <Label className="mt-3">Test drive · one of each kind</Label>
+    <Panel id="garage-list" title="My cars" onClose={() => g.setPanel('none')}>
+      <div className="flex flex-col gap-2 max-h-[62vh] overflow-y-auto -mx-1 px-1">
+        <Label>{fromHost ? 'From your Garage' : 'Yours'}</Label>
+        {mine.length ? mine.map(row) : <div className="text-[14px] text-muted rounded-xl bg-tile p-4">No cars yet</div>}
+        <Label className="mt-3">Test drive</Label>
         {demos.map(row)}
       </div>
-      <Button id="btn-add-car" variant="tint" className="self-start" onClick={() => g.setPanel('add')}>
-        + Add new vehicle
+      <Button id="btn-add-car" variant="secondary" className="self-start" onClick={() => g.setPanel('add')}>
+        <Plus size={16} strokeWidth={1.8} /> Add new vehicle
       </Button>
     </Panel>
   );
@@ -328,6 +392,7 @@ function AddVehicle() {
   const [otherMake, setOtherMake] = useState('');
   const [model, setModel] = useState('');
   const [year, setYear] = useState('');
+  const [more, setMore] = useState(false);
   const [f, setF] = useState({ color: '', engine: '', gasEquipment: '', wheelSize: '', steeringWheel: '', headlights: '', condition: '', archetype: '' });
   const realMake = make === '__other' ? otherMake : make;
   const models = useMemo(() => (make && make !== '__other' ? knownModels(make) : []), [make]);
@@ -340,15 +405,25 @@ function AddVehicle() {
   };
   const match = realMake && model ? archetypeOf(draft as GarageVehicle) : null;
   // the list.am form look: grey filled fields, no border, blue focus ring
-  const sel = 'w-full h-11 rounded-lg bg-mist px-3 text-[15px] text-ink border-0 outline-none focus:ring-2 focus:ring-brand';
-  const label = 'text-sm font-medium text-ink mb-1.5 block';
+  const sel = 'w-full h-11 rounded-[10px] bg-mist px-3 text-[15px] text-ink border-0 outline-none focus:ring-2 focus:ring-brand';
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const pick = (label: string, k: keyof typeof f, options: [string, string][], id?: string) => (
+    <Field label={label}>
+      <select id={id} className={sel} value={f[k]} onChange={set(k)}>
+        <option value="">—</option>
+        {options.map(([v, t]) => (
+          <option key={v} value={v}>
+            {t}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
   return (
-    <Panel id="add-vehicle" title="Add a vehicle" onClose={() => g.setPanel('garage')}>
-      <div className="text-sm text-ink-2 -mt-2">Add your vehicle once and drive it in the game. Only make and model are needed; the rest fine-tune how it drives.</div>
+    <Panel id="add-vehicle" title="Add new vehicle" onClose={() => g.setPanel('garage')}>
       <div className="grid grid-cols-2 gap-x-3 gap-y-4">
         <div className="col-span-2 sm:col-span-1">
-          <label className={label}>Make</label>
+          <FieldLabel>Make</FieldLabel>
           <select id="f-make" className={sel} value={make} onChange={(e) => setMake(e.target.value)}>
             <option value="">Select make</option>
             {makes.map((m) => (
@@ -361,7 +436,7 @@ function AddVehicle() {
           {make === '__other' && <input className={`${sel} mt-2`} placeholder="Make" value={otherMake} onChange={(e) => setOtherMake(e.target.value)} maxLength={40} />}
         </div>
         <div className="col-span-2 sm:col-span-1">
-          <label className={label}>Model</label>
+          <FieldLabel>Model</FieldLabel>
           <input id="f-model" className={sel} list="f-models" placeholder="Select model" value={model} onChange={(e) => setModel(e.target.value)} maxLength={40} />
           <datalist id="f-models">
             {models.map((m) => (
@@ -377,84 +452,75 @@ function AddVehicle() {
             ))}
           </select>
         </Field>
-        <Field label="Color">
-          <select id="f-color" className={sel} value={f.color} onChange={set('color')}>
-            <option value="">—</option>
-            {COLORS.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Engine">
-          <select id="f-engine" className={sel} value={f.engine} onChange={set('engine')}>
-            <option value="">—</option>
-            <option value="petrol">Gasoline</option>
-            <option value="diesel">Diesel</option>
-            <option value="hybrid">Hybrid</option>
-            <option value="electric">Electric</option>
-            <option value="gas">Gas (LPG / CNG)</option>
-          </select>
-        </Field>
-        <Field label="Gas equipment">
-          <select className={sel} value={f.gasEquipment} onChange={set('gasEquipment')}>
-            <option value="">—</option>
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
-          </select>
-        </Field>
-        <Field label="Wheel size">
-          <select className={sel} value={f.wheelSize} onChange={set('wheelSize')}>
-            <option value="">—</option>
-            {Array.from({ length: 10 }, (_, i) => 13 + i).map((n) => (
-              <option key={n} value={n}>
-                R{n}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Current condition">
-          <select className={sel} value={f.condition} onChange={set('condition')}>
-            <option value="">—</option>
-            <option value="not_damaged">Not damaged</option>
-            <option value="damaged">Damaged</option>
-          </select>
-        </Field>
-        <Field label="Steering wheel">
-          <select className={sel} value={f.steeringWheel} onChange={set('steeringWheel')}>
-            <option value="">—</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-          </select>
-        </Field>
-        <Field label="Headlights">
-          <select className={sel} value={f.headlights} onChange={set('headlights')}>
-            <option value="">—</option>
-            <option value="halogen">Halogen</option>
-            <option value="xenon">Xenon</option>
-            <option value="led">LED</option>
-          </select>
-        </Field>
+        {pick(
+          'Color',
+          'color',
+          COLORS.map((c) => [c, c]),
+          'f-color',
+        )}
+      </div>
+
+      <button onClick={() => setMore(!more)} className="self-start -mt-1 flex items-center gap-1 text-[14px] font-medium text-brand hover:text-brand-dark">
+        More details <ChevronDown size={16} strokeWidth={1.8} className={`transition-transform ${more ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={`grid grid-cols-2 gap-x-3 gap-y-4 ${more ? '' : 'hidden'}`}>
+        {pick(
+          'Engine',
+          'engine',
+          [
+            ['petrol', 'Gasoline'],
+            ['diesel', 'Diesel'],
+            ['hybrid', 'Hybrid'],
+            ['electric', 'Electric'],
+            ['gas', 'Gas (LPG / CNG)'],
+          ],
+          'f-engine',
+        )}
+        {pick('Gas equipment', 'gasEquipment', [
+          ['no', 'No'],
+          ['yes', 'Yes'],
+        ])}
+        {pick(
+          'Wheel size',
+          'wheelSize',
+          Array.from({ length: 10 }, (_, i) => [String(13 + i), `R${13 + i}`]),
+        )}
+        {pick('Current condition', 'condition', [
+          ['not_damaged', 'Not damaged'],
+          ['damaged', 'Damaged'],
+        ])}
+        {pick('Steering wheel', 'steeringWheel', [
+          ['left', 'Left'],
+          ['right', 'Right'],
+        ])}
+        {pick('Headlights', 'headlights', [
+          ['halogen', 'Halogen'],
+          ['xenon', 'Xenon'],
+          ['led', 'LED'],
+        ])}
         <div className="col-span-2">
-          <label className={label}>Drives as</label>
+          <FieldLabel>Drives as</FieldLabel>
           <select id="f-archetype" className={sel} value={f.archetype} onChange={set('archetype')}>
             <option value="">Automatic{match && !f.archetype ? ` (${ARCHETYPE[match.archetype].name})` : ''}</option>
             {ARCHETYPES.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name}: {a.best.toLowerCase()}
+                {a.name}
               </option>
             ))}
           </select>
         </div>
       </div>
+
       {match && (
-        <div id="f-match" className="text-sm rounded-xl bg-brand-tint text-ink px-4 py-3">
-          {makeName(realMake)} {model} drives as a <b className="text-brand">{ARCHETYPE[match.archetype].name}</b>. {ARCHETYPE[match.archetype].perk}
+        <div id="f-match" className="flex items-center gap-2 text-[14px] rounded-xl bg-tile px-4 h-11">
+          <Car size={16} strokeWidth={1.6} className="text-ink-2" />
+          Drives as <span className="font-semibold text-brand">{ARCHETYPE[match.archetype].name}</span>
         </div>
       )}
-      {g.notice && <div className="text-sm text-brand">{g.notice}</div>}
+      {g.notice && <div className="text-[13px] text-brand">{g.notice}</div>}
       {/* as in the Garage's "Confirm vehicle details": a grey button and a blue one, side by side */}
       <div className="grid grid-cols-2 gap-3">
-        <Button variant="ghost" size="lg" className="bg-mist" onClick={() => g.setPanel('garage')}>
+        <Button variant="secondary" size="lg" onClick={() => g.setPanel('garage')}>
           Back
         </Button>
         <Button
@@ -463,20 +529,28 @@ function AddVehicle() {
           disabled={!realMake || !model}
           onClick={() => {
             const v = g.addVehicle({ make: makeName(realMake), model, year, ...f, archetype: f.archetype || undefined });
-            if (v) g.setPanel('none');
+            if (v) {
+              nm.audio.init();
+              nm.audio.pick(VEHICLES[g.setup().type]);
+              g.setPanel('none');
+            }
           }}
         >
-          Save vehicle
+          Save
         </Button>
       </div>
     </Panel>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldLabel({ children }: { children: ReactNode }) {
+  return <label className="text-[14px] font-medium text-ink mb-1.5 block">{children}</label>;
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <label className="text-sm font-medium text-ink mb-1.5 block">{label}</label>
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </div>
   );
@@ -489,32 +563,27 @@ export function GarageResults({ g }: { g: GarageResult }) {
   const cost = repairCost(setup.archetype, setup.progress.health);
   const h = setup.progress.health;
   return (
-    <div id="garage-result" className="rounded-xl bg-card p-4 flex items-center gap-x-8 gap-y-3 flex-wrap">
-      <div>
-        <Label>Coins earned</Label>
-        <div className="display text-2xl text-brand">+{fmt(g.coins)}</div>
-      </div>
-      <div>
-        <Label>Wallet</Label>
-        <Coins n={save.coins} big />
-      </div>
-      <div className="flex-1 min-w-48">
-        <Label>Condition {g.damage > 0 ? <span className="text-hot font-semibold">−{g.damage}%</span> : <span className="text-ok font-semibold">no damage</span>}</Label>
-        <div className="flex items-center gap-2 mt-1.5">
-          <Bar value={h / 100} tone={healthTone(h)} className="flex-1 h-2" />
-          <span className="tabular-nums text-sm font-semibold">{Math.round(h)}%</span>
+    <div id="garage-result" className="flex flex-col gap-3">
+      <Tiles cols={3}>
+        <Tile label="Coins earned" value={<span className="text-brand">+{fmt(g.coins)}</span>} />
+        <Tile label="Wallet" value={<Coins n={save.coins} />} />
+        <Tile label="Condition" value={<span className={g.damage > 0 ? 'text-alert' : ''}>{g.damage > 0 ? `${Math.round(h)}% (−${g.damage})` : `${Math.round(h)}%`}</span>} />
+      </Tiles>
+      {(cost > 0 && save.coins > 0) || (h < MIN_HEALTH && cost > 0 && save.coins <= cost / 2) ? (
+        <div className="flex gap-2 flex-wrap">
+          {cost > 0 && save.coins > 0 && (
+            <Button id="btn-repair-result" size="sm" onClick={() => useGarage.getState().repair()}>
+              <Wrench size={15} strokeWidth={1.8} />
+              <RepairLabel cost={cost} coins={save.coins} health={h} />
+            </Button>
+          )}
+          {h < MIN_HEALTH && cost > 0 && save.coins <= cost / 2 && (
+            <Button id="btn-patch-result" variant="secondary" size="sm" onClick={() => useGarage.getState().patch()}>
+              Free patch-up
+            </Button>
+          )}
         </div>
-      </div>
-      {cost > 0 && save.coins > 0 && (
-        <Button id="btn-repair-result" size="sm" onClick={() => useGarage.getState().repair()}>
-          <RepairLabel cost={cost} coins={save.coins} health={h} />
-        </Button>
-      )}
-      {h < MIN_HEALTH && cost > 0 && save.coins <= cost / 2 && (
-        <Button id="btn-patch-result" variant="tint" size="sm" onClick={() => useGarage.getState().patch()}>
-          Free patch-up
-        </Button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -529,7 +598,7 @@ export function isTouch() {
   }
 }
 
-function Hold({ code, children, className, id }: { code: string; children: React.ReactNode; className: string; id?: string }) {
+function Hold({ code, children, className, id }: { code: string; children: ReactNode; className: string; id?: string }) {
   const held = useRef(new Set<number>());
   const up = (e: React.PointerEvent) => {
     held.current.delete(e.pointerId);
@@ -566,7 +635,7 @@ export function TouchControls() {
     [],
   );
   if ((phase !== 'run' && phase !== 'countdown') || paused) return null;
-  const pad = 'rounded-full bg-paper/85 lift flex items-center justify-center font-bold text-ink';
+  const pad = 'rounded-full surface flex items-center justify-center font-semibold text-ink';
   return (
     <div id="touch-controls" className="absolute inset-0 pointer-events-none">
       <div className="absolute left-4 bottom-4 flex gap-3">
@@ -579,29 +648,29 @@ export function TouchControls() {
       </div>
       <div className="absolute right-4 bottom-4 flex items-end gap-3">
         <div className="flex flex-col gap-3 items-center">
-          <Hold id="t-drift" code="Space" className={`${pad} w-14 h-14 text-xs`}>
+          <Hold id="t-drift" code="Space" className={`${pad} w-14 h-14 text-[12px]`}>
             Drift
           </Hold>
-          <Hold id="t-brake" code="KeyS" className={`${pad} w-16 h-16 text-sm`}>
+          <Hold id="t-brake" code="KeyS" className={`${pad} w-16 h-16 text-[13px]`}>
             Brake
           </Hold>
         </div>
         <div className="flex flex-col gap-3 items-center">
-          <Hold id="t-boost" code="ShiftLeft" className={`${pad} w-14 h-14 text-xs !bg-brand-tint !text-brand`}>
-            Boost
+          <Hold id="t-boost" code="ShiftLeft" className={`${pad} w-14 h-14 !bg-badge !text-brand`}>
+            <Zap size={20} strokeWidth={1.8} />
           </Hold>
-          <Hold id="t-gas" code="KeyW" className={`${pad} w-20 h-24 text-lg !rounded-2xl !bg-brand !text-white`}>
+          <Hold id="t-gas" code="KeyW" className={`${pad} w-20 h-24 text-[15px] !rounded-2xl !bg-brand !text-white !border-brand`}>
             Gas
           </Hold>
         </div>
       </div>
       <div className="absolute left-1/2 -translate-x-1/2 bottom-4 flex gap-2">
-        <button onClick={() => nm.togglePause()} className={`pointer-events-auto ${pad} w-11 h-11 text-sm`} aria-label="Pause">
-          II
+        <button onClick={() => nm.togglePause()} className={`pointer-events-auto ${pad} w-11 h-11`} aria-label="Pause">
+          <PauseIcon size={18} strokeWidth={1.8} />
         </button>
         {racing && (
-          <button onClick={() => nm.backOnTrack()} className={`pointer-events-auto ${pad} w-11 h-11 text-[10px]`} aria-label="Back on track">
-            Reset
+          <button onClick={() => nm.backOnTrack()} className={`pointer-events-auto ${pad} w-11 h-11`} aria-label="Back on track">
+            <RotateCcw size={18} strokeWidth={1.8} />
           </button>
         )}
       </div>
@@ -622,9 +691,8 @@ export function RotateNotice() {
   if (!portrait || (phase !== 'run' && phase !== 'countdown')) return null;
   return (
     <div className="absolute inset-0 bg-paper flex flex-col items-center justify-center gap-3 text-center p-8 pointer-events-auto">
-      <Mark size={56} />
-      <div className="display text-2xl">Turn your phone sideways</div>
-      <div className="text-ink-2 text-sm">The road needs the width.</div>
+      <Mark size={48} />
+      <div className="text-xl font-bold">Turn your phone sideways</div>
     </div>
   );
 }

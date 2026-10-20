@@ -13,7 +13,7 @@ export const raceClock = (t: number) => {
 
 const hex = (c: THREE.Color) => '#' + c.getHexString();
 const camDir = new THREE.Vector3();
-const BRAND = '#0074f8';
+const BRAND = '#0077ff';
 
 /** the rival's colour as CSS, for tags and dots */
 function rivalColor() {
@@ -21,7 +21,7 @@ function rivalColor() {
 }
 
 function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-paper/95 rounded-2xl lift ${className}`}>{children}</div>;
+  return <div className={`surface rounded-xl ${className}`}>{children}</div>;
 }
 
 export function RaceHud() {
@@ -32,42 +32,40 @@ export function RaceHud() {
   return (
     <>
       {/* position, time, gap */}
-      <Chip className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 min-w-44">
+      <Chip className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 min-w-40">
         <div className="flex items-baseline gap-1.5">
-          <div id="race-position" className={`display text-5xl leading-none ${lead ? 'text-brand' : 'text-ink'}`}>
+          <div id="race-position" className={`display text-[40px] leading-none ${lead ? 'text-brand' : 'text-ink'}`}>
             {lead ? '1st' : '2nd'}
           </div>
-          <div className="text-sm font-medium text-muted">of 2</div>
+          <div className="text-[13px] text-muted">of 2</div>
         </div>
-        <div className="display text-2xl leading-tight mt-1">{raceClock(r.time)}</div>
-        <div className={`text-xs font-semibold tabular-nums ${r.gap >= 0 ? 'text-brand' : 'text-ink-2'}`}>
-          {r.gap >= 0 ? `${r.gap} m ahead of the rival` : `${-r.gap} m behind the rival`}
-        </div>
-        {r.left >= 0 && <div className="display text-lg text-hot throb mt-1">Finish in {Math.ceil(r.left)} s</div>}
+        <div className="display text-xl leading-tight mt-1">{raceClock(r.time)}</div>
+        <div className={`text-[12px] font-medium tabular-nums ${r.gap >= 0 ? 'text-brand' : 'text-ink-2'}`}>{r.gap >= 0 ? `+${r.gap} m` : `−${-r.gap} m`}</div>
+        {r.left >= 0 && <div className="text-[15px] font-semibold text-alert throb mt-1">Finish in {Math.ceil(r.left)} s</div>}
       </Chip>
 
       {/* checkpoints + where to go */}
       <Chip className="absolute left-1/2 -translate-x-1/2 top-4 sm:top-6 px-5 py-2 flex items-center gap-4">
         <div className="text-center">
-          <Label>Checkpoint</Label>
-          <div id="race-cp" className="display text-3xl leading-tight">
+          <Label className="text-[12px]">Checkpoint</Label>
+          <div id="race-cp" className="display text-[28px] leading-tight">
             {Math.min(r.checkpoint + 1, r.checkpoints)}
-            <span className="text-muted text-xl"> / {r.checkpoints}</span>
+            <span className="text-muted text-lg"> / {r.checkpoints}</span>
           </div>
         </div>
         <div className="flex flex-col items-center">
-          <svg width="40" height="40" viewBox="-27 -27 54 54" style={{ transform: `rotate(${r.arrow}deg)` }}>
+          <svg width="36" height="36" viewBox="-27 -27 54 54" style={{ transform: `rotate(${r.arrow}deg)` }}>
             <path d="M0 -22 L16 10 L0 2 L-16 10 Z" fill={BRAND} />
           </svg>
-          <div className="text-xs font-semibold text-ink-2 tabular-nums">{r.cpDist} m</div>
+          <div className="text-[12px] font-medium text-ink-2 tabular-nums">{r.cpDist} m</div>
         </div>
       </Chip>
 
       {/* warnings */}
       <div className="absolute left-1/2 -translate-x-1/2 top-[26%] flex flex-col items-center gap-2">
-        {r.stunned && <div className="rounded-full bg-hot text-white px-6 py-2 display text-3xl lift">Crashed</div>}
-        {!r.stunned && r.wrongWay && <div className="rounded-full bg-hot text-white px-6 py-2 display text-3xl lift throb">Wrong way</div>}
-        {!r.stunned && r.off && <div className="rounded-full bg-paper text-ink px-5 py-2 font-semibold lift">Off the route · T to get back</div>}
+        {r.stunned && <div className="rounded-full bg-alert text-white px-6 h-12 flex items-center text-xl font-bold">Crashed</div>}
+        {!r.stunned && r.wrongWay && <div className="rounded-full bg-alert text-white px-6 h-12 flex items-center text-xl font-bold throb">Wrong way</div>}
+        {!r.stunned && r.off && <div className="rounded-full surface px-5 h-10 flex items-center text-[14px] font-medium">Off the route · T to get back</div>}
       </div>
 
       <RaceMap />
@@ -107,7 +105,7 @@ function RaceMap({ size = 180 }: { size?: number }) {
       g.beginPath();
       g.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
       g.clip();
-      g.fillStyle = '#f8f8f8';
+      g.fillStyle = '#fafafa';
       g.fillRect(0, 0, size, size);
       g.translate(size / 2, size / 2);
       g.rotate(Math.PI + yaw);
@@ -115,7 +113,7 @@ function RaceMap({ size = 180 }: { size?: number }) {
       g.translate(-pos.x, -pos.z);
       const px = 1 / zoom; // one screen pixel in metres
       // streets near us
-      g.strokeStyle = '#e1e2e6';
+      g.strokeStyle = '#eaeaea';
       g.lineCap = 'square';
       const R = size / zoom;
       for (const s of city.segments) {
@@ -146,7 +144,7 @@ function RaceMap({ size = 180 }: { size?: number }) {
       };
       race.route.checkpoints.forEach((c, i) => {
         if (i < race.player.next) return;
-        dot(c.x, c.z, i === race.player.next ? 6 : 3.5, c.finish ? '#101014' : i === race.player.next ? BRAND : '#b7bac2');
+        dot(c.x, c.z, i === race.player.next ? 6 : 3.5, c.finish ? '#0d0d0d' : i === race.player.next ? BRAND : '#c7c7c7');
       });
       dot(race.rival.pos.x, race.rival.pos.z, 5.5, rivalColor());
       g.restore();
@@ -154,7 +152,7 @@ function RaceMap({ size = 180 }: { size?: number }) {
       g.save();
       g.translate(size / 2, size / 2);
       g.rotate(-(car.yaw - yaw));
-      g.fillStyle = '#101014';
+      g.fillStyle = '#0d0d0d';
       g.strokeStyle = '#ffffff';
       g.lineWidth = 2;
       g.beginPath();
@@ -171,7 +169,7 @@ function RaceMap({ size = 180 }: { size?: number }) {
     return () => cancelAnimationFrame(raf);
   }, [size]);
   return (
-    <div className="absolute right-4 sm:right-6 top-4 sm:top-6 rounded-full bg-paper p-1.5 lift">
+    <div className="absolute right-4 sm:right-6 top-4 sm:top-6 rounded-full surface p-1">
       <canvas id="race-map" ref={ref} style={{ width: size, height: size }} className="rounded-full block" />
     </div>
   );
@@ -202,13 +200,13 @@ function RivalTag() {
   return (
     <div
       ref={ref}
-      className="absolute left-0 top-0 opacity-0 flex items-center gap-1 rounded-full bg-paper lift pl-1 pr-2.5 py-1 pointer-events-none"
+      className="absolute left-0 top-0 opacity-0 flex items-center gap-1 rounded-full surface pl-1 pr-2.5 py-1 pointer-events-none"
       style={{ willChange: 'transform' }}
     >
-      <span className="rounded-full px-2 py-0.5 text-xs font-bold text-white" style={{ background: rivalColor() }}>
+      <span className="rounded-full px-2 py-0.5 text-[12px] font-semibold text-white" style={{ background: rivalColor() }}>
         Rival
       </span>
-      <span ref={dist} className="text-xs font-semibold text-ink-2 tabular-nums" />
+      <span ref={dist} className="text-[12px] font-medium text-ink-2 tabular-nums" />
     </div>
   );
 }
@@ -218,41 +216,30 @@ export function RaceResults({ r }: { r: RunResult }) {
   const stats: [string, string][] = [
     ['Your time', race.time !== null ? raceClock(race.time) : 'DNF'],
     ['Rival', race.rivalTime !== null ? `${race.rivalEstimated ? '≈ ' : ''}${raceClock(race.rivalTime)}` : '—'],
-    ['Route', `${(race.length / 1000).toFixed(2)} km`],
-    ['Your crashes', String(race.crashes)],
-    ['Rival crashes', String(race.rivalCrashes)],
+    ['Route', `${(race.length / 1000).toFixed(1)} km`],
+    ['Crashes', `${race.crashes} · rival ${race.rivalCrashes}`],
     ['Top speed', `${r.topSpeed} km/h`],
     ['Near misses', String(r.nearMisses)],
-    ['Drifts', `${r.drifts} · ${r.driftSec} s`],
-    ['Against traffic', `${r.oncomingSec} s`],
-    ['Closest pass', r.closest !== null ? `${Math.round(r.closest * 100)} cm` : '—'],
   ];
   const margin = race.time !== null && race.rivalTime !== null ? race.rivalTime - race.time : null;
   const stats2 = useNM((s) => s.raceStats);
   return (
     <>
-      <div className="flex items-end justify-between gap-6 flex-wrap">
+      <div className="flex items-start justify-between gap-6 flex-wrap">
         <div>
-          <div id="race-verdict" className={`display text-5xl leading-none ${race.won ? 'text-brand' : 'text-hot'}`}>
+          <div id="race-verdict" className={`text-2xl font-bold ${race.won ? 'text-brand' : 'text-alert'}`}>
             {race.won ? 'You win' : race.time === null ? 'Too slow' : 'You lose'}
           </div>
-          <div className="text-ink-2 mt-2">
+          <div className="text-[14px] text-ink-2 mt-1">
             {r.car} · {r.cond} · won {stats2.wins} of {stats2.races}
           </div>
         </div>
         <div className="text-right">
-          <div className="display text-6xl leading-none">
-            {margin !== null ? Math.abs(margin).toFixed(1) : 'DNF'}
-            {margin !== null && <span className="text-3xl text-muted"> s</span>}
+          <div className="display text-5xl leading-none">
+            {margin !== null ? `${race.won ? '+' : '−'}${Math.abs(margin).toFixed(1)}` : 'DNF'}
+            {margin !== null && <span className="text-2xl text-muted"> s</span>}
           </div>
-          <div className="text-sm mt-1 text-muted">
-            {margin === null ? 'Did not finish' : race.won ? 'ahead of the rival' : 'behind the rival'}
-            {race.record && (
-              <Badge className="ml-2" tone="brand">
-                Biggest winning margin yet
-              </Badge>
-            )}
-          </div>
+          <div className="mt-2 h-6">{race.record ? <Badge>Best margin</Badge> : <span className="text-[13px] text-muted">{margin === null ? 'Did not finish' : 'vs the rival'}</span>}</div>
         </div>
       </div>
       <StatGrid stats={stats} />
