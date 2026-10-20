@@ -22,6 +22,12 @@ export interface VehicleSpec {
   palette: number[];
   traffic: number; // spawn weight in traffic
   cruise: number; // traffic desired speed multiplier
+  /** body shape to build (defaults to key) */
+  model?: string;
+  /** driven wheels (defaults by key: sports/truck/bus/police rear, suv all, the rest front) */
+  drive?: 'fwd' | 'rwd' | 'awd';
+  /** full engine force up to this fraction of top speed (default 0.32; electric motors hold it longer) */
+  torqueKnee?: number;
 }
 
 export const VEHICLES: VehicleSpec[] = [
@@ -69,6 +75,57 @@ export const VEHICLES: VehicleSpec[] = [
     id: 8, key: 'police', name: 'Patrol Cruiser', length: 4.75, width: 1.88, height: 1.5, wheelBase: 2.85, track: 1.62, wheelRadius: 0.35,
     mass: 1600, engine: 7600, maxSpeed: 58, brake: 54, steer: 0.58, grip: 2.5, suspension: 36, price: 0, seats: 4,
     palette: [0x111827], traffic: 0, cruise: 1,
+  },
+  // Near Miss garage archetypes: player cars only (never in traffic). See src/nearmiss/garage/archetypes.ts.
+  {
+    id: 9, key: 'g_compact', model: 'compact', name: 'City compact', length: 3.9, width: 1.74, height: 1.5, wheelBase: 2.5, track: 1.5, wheelRadius: 0.31,
+    mass: 1050, engine: 4800, maxSpeed: 45, brake: 42, steer: 0.64, grip: 2.35, suspension: 30, price: 0, seats: 4, drive: 'fwd',
+    palette: [0x2a6fdb], traffic: 0, cruise: 1,
+  },
+  {
+    id: 10, key: 'g_sedan', model: 'sedan', name: 'Family sedan', length: 4.7, width: 1.82, height: 1.46, wheelBase: 2.75, track: 1.58, wheelRadius: 0.34,
+    mass: 1400, engine: 6400, maxSpeed: 53, brake: 48, steer: 0.58, grip: 2.45, suspension: 32, price: 0, seats: 5, drive: 'fwd',
+    palette: [0x8a8f96], traffic: 0, cruise: 1,
+  },
+  {
+    id: 11, key: 'g_exec', model: 'exec', name: 'Executive', length: 5.0, width: 1.9, height: 1.46, wheelBase: 3.0, track: 1.64, wheelRadius: 0.36,
+    mass: 1750, engine: 9400, maxSpeed: 66, brake: 58, steer: 0.54, grip: 2.6, suspension: 36, price: 0, seats: 5, drive: 'rwd',
+    palette: [0x1c1c1f], traffic: 0, cruise: 1,
+  },
+  {
+    id: 12, key: 'g_sports', model: 'sports', name: 'Sports coupe', length: 4.45, width: 1.96, height: 1.2, wheelBase: 2.65, track: 1.66, wheelRadius: 0.35,
+    mass: 1350, engine: 10500, maxSpeed: 76, brake: 62, steer: 0.55, grip: 2.9, suspension: 42, price: 0, seats: 2, drive: 'rwd',
+    palette: [0xd21f1f], traffic: 0, cruise: 1,
+  },
+  {
+    id: 13, key: 'g_hatch', model: 'hatch', name: 'Hot hatch', length: 4.25, width: 1.8, height: 1.42, wheelBase: 2.62, track: 1.56, wheelRadius: 0.33,
+    mass: 1250, engine: 8000, maxSpeed: 60, brake: 54, steer: 0.66, grip: 2.7, suspension: 38, price: 0, seats: 5, drive: 'fwd',
+    palette: [0xf2f2f2], traffic: 0, cruise: 1,
+  },
+  {
+    id: 14, key: 'g_crossover', model: 'suv', name: 'Crossover', length: 4.6, width: 1.86, height: 1.66, wheelBase: 2.7, track: 1.6, wheelRadius: 0.37,
+    mass: 1600, engine: 7200, maxSpeed: 53, brake: 50, steer: 0.57, grip: 2.5, suspension: 34, price: 0, seats: 5, drive: 'awd',
+    palette: [0x5b6770], traffic: 0, cruise: 1,
+  },
+  {
+    id: 15, key: 'g_offroad', model: 'offroad', name: 'Off-roader', length: 4.8, width: 1.95, height: 1.9, wheelBase: 2.85, track: 1.66, wheelRadius: 0.42,
+    mass: 2300, engine: 9400, maxSpeed: 48, brake: 56, steer: 0.54, grip: 2.4, suspension: 36, price: 0, seats: 5, drive: 'awd',
+    palette: [0x23402e], traffic: 0, cruise: 1,
+  },
+  {
+    id: 16, key: 'g_utility', model: 'pickup', name: 'Pickup / van', length: 5.3, width: 1.9, height: 1.8, wheelBase: 3.1, track: 1.62, wheelRadius: 0.4,
+    mass: 2100, engine: 8200, maxSpeed: 48, brake: 52, steer: 0.53, grip: 2.3, suspension: 36, price: 0, seats: 3, drive: 'rwd',
+    palette: [0xf2f2f2], traffic: 0, cruise: 1,
+  },
+  {
+    id: 17, key: 'g_ev', model: 'ev', name: 'Electric', length: 4.7, width: 1.88, height: 1.44, wheelBase: 2.88, track: 1.62, wheelRadius: 0.35,
+    mass: 1850, engine: 15400, maxSpeed: 62, brake: 56, steer: 0.57, grip: 2.6, suspension: 36, price: 0, seats: 5, drive: 'awd', torqueKnee: 0.5,
+    palette: [0xe8e8e8], traffic: 0, cruise: 1,
+  },
+  {
+    id: 18, key: 'g_classic', model: 'classic', name: 'Classic', length: 4.15, width: 1.62, height: 1.44, wheelBase: 2.42, track: 1.36, wheelRadius: 0.33,
+    mass: 1050, engine: 4300, maxSpeed: 42, brake: 34, steer: 0.6, grip: 2.15, suspension: 28, price: 0, seats: 5, drive: 'rwd',
+    palette: [0xb7b2a6], traffic: 0, cruise: 1,
   },
 ];
 

@@ -1,9 +1,9 @@
 // Race mode: a route through the street grid, progress along it, and the rival's driver.
 // Route planning and progress are pure (no rendering) so they can be tested in Node.
-import type { CityData } from "../world/types";
-import { interId } from "../world/CityGenerator";
-import { RNG } from "../core/rng";
-import { clamp } from "../core/math";
+import type { CityData } from '../world/types';
+import { interId } from '../world/CityGenerator';
+import { RNG } from '../core/rng';
+import { clamp } from '../core/math';
 
 /** grid directions: 0 = N (-z), 1 = E (+x), 2 = S (+z), 3 = W (-x) */
 const DIRS: [number, number][] = [
@@ -70,11 +70,7 @@ export class Route {
    * (progress only moves forward a little at a time, which also stops a car being credited for a
    * stretch of route it is merely close to).
    */
-  project(
-    x: number,
-    z: number,
-    hint = 0,
-  ): { s: number; lat: number; dist: number } {
+  project(x: number, z: number, hint = 0): { s: number; lat: number; dist: number } {
     let best = { s: 0, lat: 0, dist: Infinity };
     let i0 = 0;
     while (i0 < this.pts.length - 2 && this.s[i0 + 1] < hint - 60) i0++;
@@ -157,14 +153,7 @@ export function planRoute(city: CityData, seed: number, target = 1700): Route {
         const ni = i + DIRS[dir][0];
         const nj = j + DIRS[dir][1];
         // stay off the outer ring of the grid and never revisit
-        if (
-          ni < 1 ||
-          nj < 1 ||
-          ni > n - 1 ||
-          nj > n - 1 ||
-          seen.has(`${ni},${nj}`)
-        )
-          break;
+        if (ni < 1 || nj < 1 || ni > n - 1 || nj > n - 1 || seen.has(`${ni},${nj}`)) break;
         const a = at(i, j);
         const c = at(ni, nj);
         len += Math.hypot(c.x - a.x, c.z - a.z);
@@ -182,21 +171,11 @@ export function planRoute(city: CityData, seed: number, target = 1700): Route {
       legs++;
       if (len >= target) break;
       // turn left or right, whichever is open
-      const turns =
-        rng.next() < 0.5
-          ? [(dir + 1) % 4, (dir + 3) % 4]
-          : [(dir + 3) % 4, (dir + 1) % 4];
+      const turns = rng.next() < 0.5 ? [(dir + 1) % 4, (dir + 3) % 4] : [(dir + 3) % 4, (dir + 1) % 4];
       const next = turns.find((d) => {
         const ni = i + DIRS[d][0];
         const nj = j + DIRS[d][1];
-        return (
-          segOk(at(i, j), d) &&
-          ni >= 1 &&
-          nj >= 1 &&
-          ni <= n - 1 &&
-          nj <= n - 1 &&
-          !seen.has(`${ni},${nj}`)
-        );
+        return segOk(at(i, j), d) && ni >= 1 && nj >= 1 && ni <= n - 1 && nj <= n - 1 && !seen.has(`${ni},${nj}`);
       });
       if (next === undefined) {
         ok = false;
@@ -207,16 +186,11 @@ export function planRoute(city: CityData, seed: number, target = 1700): Route {
     if (!ok || len < target * 0.8 || legs < 3 || path.length < 4) continue;
     return buildRoute(city, path, dirs);
   }
-  throw new Error("no route found");
+  throw new Error('no route found');
 }
 
-function buildRoute(
-  city: CityData,
-  path: { i: number; j: number }[],
-  dirs: number[],
-): Route {
-  const at = (p: { i: number; j: number }) =>
-    city.intersections[interId(city, p.i, p.j)];
+function buildRoute(city: CityData, path: { i: number; j: number }[], dirs: number[]): Route {
+  const at = (p: { i: number; j: number }) => city.intersections[interId(city, p.i, p.j)];
   const first = at(path[0]);
   const d0 = DIRS[dirs[0]];
   const lastI = at(path[path.length - 2]);
@@ -307,12 +281,7 @@ export function laneSet(lanesPerDir: number): number[] {
 /** the lane in `set` nearest to `lane` on the same side of the road */
 function sameSide(set: number[], lane: number): number {
   let best = set[0];
-  for (const o of set)
-    if (
-      Math.sign(o) === Math.sign(lane) &&
-      Math.abs(o - lane) < Math.abs(best - lane)
-    )
-      best = o;
+  for (const o of set) if (Math.sign(o) === Math.sign(lane) && Math.abs(o - lane) < Math.abs(best - lane)) best = o;
   return best;
 }
 
@@ -334,7 +303,7 @@ export class RivalDriver {
   /** hard speed limit in m/s (the race eases a rival that is far ahead) */
   cap = Infinity;
   /** why the last update limited speed (for debugging) */
-  limit: "top" | "corner" | "follow" | "cross" = "top";
+  limit: 'top' | 'corner' | 'follow' | 'cross' = 'top';
   private reverseT = 0;
   private waitT = 0;
   private banLane = 0;
@@ -392,14 +361,12 @@ export class RivalDriver {
       const v = Math.max(car.speed, 6);
       const eff = ov < -1 ? (lon * v) / (v - ov) : lon;
       set.forEach((off, k) => {
-        if (Math.abs(lat - off) < 2.4 && eff < free[k])
-          free[k] = Math.max(0, eff);
+        if (Math.abs(lat - off) < 2.4 && eff < free[k]) free[k] = Math.max(0, eff);
       });
       const inLane = Math.abs(lat - this.lane) < 2.4;
       const inPath = lon > 0 && Math.abs(lat - carLat) < 2.3;
       if (inPath && lon < freeCar) freeCar = lon;
-      if ((inLane || inPath) && lon > 0 && lon < 45)
-        blockSpeed = Math.min(blockSpeed, ov);
+      if ((inLane || inPath) && lon > 0 && lon < 45) blockSpeed = Math.min(blockSpeed, ov);
     }
     this.laneHold -= dt;
     if (this.laneHold <= 0 && toCorner > 14) {
@@ -407,11 +374,7 @@ export class RivalDriver {
       let bestScore = -Infinity;
       set.forEach((off, k) => {
         // stay put unless another lane is clearly better; keep right; leave oncoming lanes well before a corner
-        const score =
-          free[k] +
-          (off === this.lane ? 10 : 0) +
-          (off > 0 ? 6 : toCorner < 40 ? -60 : 0) +
-          (this.banT > 0 && off === this.banLane ? -200 : 0);
+        const score = free[k] + (off === this.lane ? 10 : 0) + (off > 0 ? 6 : toCorner < 40 ? -60 : 0) + (this.banT > 0 && off === this.banLane ? -200 : 0);
         if (score > bestScore) {
           bestScore = score;
           best = k;
@@ -426,10 +389,7 @@ export class RivalDriver {
     // --- steering: pure pursuit toward a point ahead on the chosen lane
     const look = clamp(6 + car.speed * 0.5, 7, 30);
     const tp = r.at(this.s + look);
-    let laneT =
-      tp.seg === here.seg
-        ? this.lane
-        : sameSide(laneSet(r.legLanes[tp.seg] ?? 1), this.lane);
+    let laneT = tp.seg === here.seg ? this.lane : sameSide(laneSet(r.legLanes[tp.seg] ?? 1), this.lane);
     if (toCorner < 18) laneT *= 0.6; // tighten up through corners
     const tx = tp.x - tp.dz * laneT;
     const tz = tp.z + tp.dx * laneT;
@@ -446,16 +406,13 @@ export class RivalDriver {
     const top = Math.min(60 * this.skill, this.cap);
     const decel = 6.5;
     let allow = top;
-    this.limit = "top";
+    this.limit = 'top';
     if (corner) {
-      const cornerV =
-        (corner.angle > 1.2 ? 12 : 17) * this.skill * Math.sqrt(car.grip / 2.6);
-      const v = Math.sqrt(
-        cornerV * cornerV + 2 * decel * Math.max(0, toCorner - 8),
-      );
+      const cornerV = (corner.angle > 1.2 ? 12 : 17) * this.skill * Math.sqrt(car.grip / 2.6);
+      const v = Math.sqrt(cornerV * cornerV + 2 * decel * Math.max(0, toCorner - 8));
       if (v < allow) {
         allow = v;
-        this.limit = "corner";
+        this.limit = 'corner';
       }
     }
     const ahead = Math.min(free[set.indexOf(this.lane)], freeCar);
@@ -465,7 +422,7 @@ export class RivalDriver {
       const v = Math.sqrt(follow * follow + 2 * decel * Math.max(0, gap));
       if (v < allow) {
         allow = v;
-        this.limit = "follow";
+        this.limit = 'follow';
       }
     }
     const cross = this.crossing(car, obstacles);
@@ -473,15 +430,13 @@ export class RivalDriver {
       const v = Math.sqrt(2 * decel * Math.max(0, cross - 5));
       if (v < allow) {
         allow = v;
-        this.limit = "cross";
+        this.limit = 'cross';
       }
     }
     let throttle = 0;
     let brake = 0;
-    if (car.speed > allow + 1.5)
-      brake = clamp((car.speed - allow) / 5, 0.25, 1);
-    else if (car.speed < allow - 0.5)
-      throttle = clamp((allow - car.speed) / 3, 0.35, 1);
+    if (car.speed > allow + 1.5) brake = clamp((car.speed - allow) / 5, 0.25, 1);
+    else if (car.speed < allow - 0.5) throttle = clamp((allow - car.speed) / 3, 0.35, 1);
 
     // --- held up by something close that is not moving (a car stopped across the road, an oncoming
     // car that stopped for us, a long queue): try another lane, backing up first if we are nose to
@@ -496,11 +451,7 @@ export class RivalDriver {
         handbrake: false,
       };
     }
-    const held =
-      car.speed < 1 &&
-      throttle === 0 &&
-      ahead < 14 &&
-      (this.limit === "follow" || this.limit === "cross");
+    const held = car.speed < 1 && throttle === 0 && ahead < 14 && (this.limit === 'follow' || this.limit === 'cross');
     if (held) this.waitT += dt;
     else if (car.speed > 3) this.waitT = 0;
     if (held && this.waitT > 2.5 && this.banT <= 0) {
@@ -535,11 +486,7 @@ export class RivalDriver {
       const ofz = Math.cos(o.yaw);
       // same direction and in our lane: following, not crossing
       const lat = (o.x - here.x) * -here.dz + (o.z - here.z) * here.dx;
-      if (
-        ofx * here.dx + ofz * here.dz > 0.7 &&
-        Math.abs(lat - this.lane) < 2.4
-      )
-        continue;
+      if (ofx * here.dx + ofz * here.dz > 0.7 && Math.abs(lat - this.lane) < 2.4) continue;
       for (let t = 0.25; t <= 2.4; t += 0.25) {
         const d = v * t;
         const m = r.at(this.s + d);
@@ -561,22 +508,14 @@ export class RivalDriver {
  * Where to put a car back on the route: the first spot at or after distance s, on its own side of
  * the road, with nothing within `clear` metres (so it does not land in the queue it was stuck in).
  */
-export function freeSpot(
-  route: Route,
-  s: number,
-  obstacles: { x: number; z: number }[],
-  clear = 9,
-): { s: number; lane: number; x: number; z: number; yaw: number } {
+export function freeSpot(route: Route, s: number, obstacles: { x: number; z: number }[], clear = 9): { s: number; lane: number; x: number; z: number; yaw: number } {
   const end = route.length - 10;
   for (let d = s; d < end; d += 4) {
     const p = route.at(d);
     for (const lane of laneSet(route.lanesAt(d)).filter((l) => l > 0)) {
       const x = p.x - p.dz * lane;
       const z = p.z + p.dx * lane;
-      if (
-        obstacles.every((o) => (o.x - x) ** 2 + (o.z - z) ** 2 > clear * clear)
-      )
-        return { s: d, lane, x, z, yaw: Math.atan2(p.dx, p.dz) };
+      if (obstacles.every((o) => (o.x - x) ** 2 + (o.z - z) ** 2 > clear * clear)) return { s: d, lane, x, z, yaw: Math.atan2(p.dx, p.dz) };
     }
   }
   const p = route.at(s);
@@ -625,8 +564,7 @@ export class Progress {
     const p = r.project(x, z, this.s);
     this.off = p.dist;
     const here = r.at(p.s);
-    this.wrongWay =
-      speed > 4 && Math.sin(yaw) * here.dx + Math.cos(yaw) * here.dz < -0.5;
+    this.wrongWay = speed > 4 && Math.sin(yaw) * here.dx + Math.cos(yaw) * here.dz < -0.5;
     if (p.dist > 18) return -1;
     const cp = r.checkpoints[this.next];
     this.s = Math.min(p.s, cp.s + 1);
@@ -640,12 +578,7 @@ export class Progress {
 }
 
 /** 1 if a is ahead of b, -1 if behind (finished cars by finishing order, given as times) */
-export function compareProgress(
-  a: Progress,
-  b: Progress,
-  aTime: number | null,
-  bTime: number | null,
-): number {
+export function compareProgress(a: Progress, b: Progress, aTime: number | null, bTime: number | null): number {
   if (aTime !== null || bTime !== null) {
     if (aTime === null) return -1;
     if (bTime === null) return 1;

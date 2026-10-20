@@ -29,6 +29,8 @@ export interface Hud {
   countdown: number;
   street: string;
   damaged: boolean;
+  health: number; // car condition 0-100
+  lastHit: boolean; // one more big hit wrecks it
 }
 
 export interface RaceHud {
@@ -83,6 +85,15 @@ export interface RunResult {
   rank: number; // 1-based place in the local top 10, 0 if not in it
   mode: Mode;
   race?: RaceResult;
+  garage?: GarageResult;
+}
+
+export interface GarageResult {
+  coins: number; // earned this run
+  health: number; // condition after the run
+  damage: number; // condition lost this run
+  repair: number; // coins to fix it fully
+  total: number; // coins now
 }
 
 export interface BestEntry {
@@ -121,7 +132,6 @@ interface NMState {
   progress: number;
   progressText: string;
   paused: boolean;
-  carIndex: number;
   cond: string;
   mode: Mode;
   hud: Hud;
@@ -146,10 +156,27 @@ export const useNM = create<NMState>((set, get) => ({
   progress: 0,
   progressText: '',
   paused: false,
-  carIndex: 0,
   cond: 'night',
   mode: 'score',
-  hud: { speed: 0, score: 0, comboPoints: 0, mult: 1, comboT: 0, boost: 0, boosting: false, time: 0, oncoming: false, drifting: false, driftAngle: 0, driftPoints: 0, countdown: 0, street: '', damaged: false },
+  hud: {
+    speed: 0,
+    score: 0,
+    comboPoints: 0,
+    mult: 1,
+    comboT: 0,
+    boost: 0,
+    boosting: false,
+    time: 0,
+    oncoming: false,
+    drifting: false,
+    driftAngle: 0,
+    driftPoints: 0,
+    countdown: 0,
+    street: '',
+    damaged: false,
+    health: 100,
+    lastHit: false,
+  },
   race: null,
   raceStats: loadRace(),
   popups: [],
@@ -164,6 +191,8 @@ export const useNM = create<NMState>((set, get) => ({
     setTimeout(() => set({ popups: get().popups.filter((x) => x.id !== item.id) }), long ? 2200 : 1400);
   },
   record: (e) => {
+    // a run that scored nothing is not a "personal best"
+    if (e.score <= 0) return 0;
     const list = [...get().best, e].sort((a, b) => b.score - a.score).slice(0, 10);
     set({ best: list });
     try {

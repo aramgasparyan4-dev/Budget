@@ -54,7 +54,8 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
   const L = spec.length / 2;
   const r = spec.wheelRadius;
   const y0 = r * 0.9;
-  switch (spec.key) {
+  const w = spec.width;
+  switch (spec.model ?? spec.key) {
     case 'compact': {
       body(b, spec, [[-L, y0], [L - 0.05, y0], [L, y0 + 0.3], [L - 0.25, y0 + 0.55], [L - 1.0, y0 + 0.68], [-L + 0.25, y0 + 0.72], [-L, y0 + 0.45]],
         [[L - 1.0, y0 + 0.68], [L - 1.7, y0 + 1.14], [-L + 0.5, y0 + 1.16], [-L + 0.15, y0 + 0.72]]);
@@ -100,6 +101,82 @@ function buildVehicle(spec: VehicleSpec): THREE.BufferGeometry {
       for (const s of [-1, 1]) addBox(b, s * 0.7, y0 + 0.68, -L + 0.25, 0.06, 0.18, 0.08, TRIM, undefined, 2);
       lights(b, spec, y0 + 0.2, y0 + 0.36, L - 0.04, -L + 0.02);
       mirrors(b, spec, y0 + 0.6, L - 1.75);
+      break;
+    }
+    case 'exec': {
+      // long bonnet, low roof, chrome window line and grille
+      body(b, spec, [[-L, y0], [L - 0.05, y0], [L, y0 + 0.22], [L - 0.12, y0 + 0.45], [L - 1.5, y0 + 0.58], [-L + 0.9, y0 + 0.62], [-L + 0.05, y0 + 0.55], [-L - 0.02, y0 + 0.28]],
+        [[L - 1.5, y0 + 0.58], [L - 2.35, y0 + 1.04], [-L + 1.55, y0 + 1.06], [-L + 0.9, y0 + 0.62]]);
+      addBox(b, 0, y0 + 1.05, -0.3, w - 0.3, 0.06, 1.6, [1, 1, 1], undefined, 0);
+      for (const sx of [-1, 1]) addBox(b, sx * (w / 2 - 0.1), y0 + 0.63, -0.25, 0.04, 0.04, 3.1, CHROME, undefined, 5);
+      lights(b, spec, y0 + 0.36, y0 + 0.46, L - 0.02, -L + 0.02);
+      addBox(b, 0, y0 + 0.36, L + 0.01, 0.62, 0.26, 0.05, CHROME, undefined, 5);
+      mirrors(b, spec, y0 + 0.7, L - 1.6);
+      break;
+    }
+    case 'hatch': {
+      // short two-box with a roof spoiler and twin pipes
+      body(b, spec, [[-L, y0], [L - 0.05, y0], [L, y0 + 0.26], [L - 0.2, y0 + 0.5], [L - 1.15, y0 + 0.62], [-L + 0.1, y0 + 0.68], [-L, y0 + 0.35]],
+        [[L - 1.15, y0 + 0.62], [L - 1.9, y0 + 1.06], [-L + 0.35, y0 + 1.08], [-L + 0.1, y0 + 0.68]]);
+      addBox(b, 0, y0 + 1.07, -0.2, w - 0.3, 0.06, 1.7, [1, 1, 1], undefined, 0);
+      addBox(b, 0, y0 + 1.12, -L + 0.32, w - 0.4, 0.05, 0.38, TRIM, undefined, 2);
+      for (const sx of [-1, 1]) {
+        addBox(b, sx * 0.35, y0 - 0.02, -L - 0.03, 0.13, 0.1, 0.12, CHROME, undefined, 5);
+        addBox(b, sx * (w / 2 + 0.005), y0 + 0.22, 0, 0.01, 0.08, spec.length - 1.2, lin([0.85, 0.08, 0.08]), undefined, 2);
+      }
+      lights(b, spec, y0 + 0.38, y0 + 0.52, L - 0.02, -L + 0.02);
+      mirrors(b, spec, y0 + 0.74, L - 1.3);
+      break;
+    }
+    case 'offroad': {
+      // upright box, flat roof with a rack, bull bar, spare wheel on the back door
+      body(b, spec, [[-L, y0], [L - 0.05, y0], [L, y0 + 0.5], [L - 0.08, y0 + 0.75], [L - 1.0, y0 + 0.86], [-L + 0.02, y0 + 0.9], [-L - 0.02, y0 + 0.45]],
+        [[L - 1.0, y0 + 0.86], [L - 1.35, y0 + 1.45], [-L + 0.12, y0 + 1.47], [-L + 0.02, y0 + 0.9]], 0.08);
+      addBox(b, 0, y0 + 1.48, -0.35, w - 0.16, 0.06, 2.9, [1, 1, 1], undefined, 0);
+      for (const sx of [-1, 1]) addBox(b, sx * (w / 2 - 0.18), y0 + 1.6, -0.45, 0.05, 0.12, 2.5, TRIM, undefined, 2);
+      for (const z of [-1.4, -0.45, 0.5]) addBox(b, 0, y0 + 1.64, z, w - 0.36, 0.04, 0.05, TRIM, undefined, 2);
+      addBox(b, 0, y0 + 0.3, L + 0.1, w * 0.72, 0.42, 0.06, TRIM, undefined, 2);
+      addCylinder(b, 0, -0.12, 0, 0.36, 0.36, 0.24, 12, lin([0.05, 0.05, 0.05]), { tx: 0, ty: y0 + 0.75, tz: -L - 0.13, ry: 0, rx: Math.PI / 2 }, 2);
+      lights(b, spec, y0 + 0.6, y0 + 0.58, L - 0.02, -L + 0.02);
+      for (const sx of [-1, 1]) addBox(b, sx * (w / 2 - 0.04), y0 + 0.05, 0, 0.08, 0.08, spec.wheelBase - 0.9, TRIM, undefined, 2);
+      mirrors(b, spec, y0 + 0.98, L - 1.1);
+      break;
+    }
+    case 'pickup': {
+      // cab up front, open bed behind
+      addExtrude(b, [[-L, y0], [L - 0.05, y0], [L, y0 + 0.45], [L - 0.1, y0 + 0.72], [L - 1.05, y0 + 0.82], [-L, y0 + 0.82]], w, [1, 1, 1], ALONG, 0);
+      addExtrude(b, [[L - 1.05, y0 + 0.82], [L - 1.6, y0 + 1.42], [L - 2.75, y0 + 1.44], [L - 2.75, y0 + 0.82]], w - 0.16, GLASS, ALONG, 1);
+      addBox(b, 0, y0 + 1.43, L - 2.15, w - 0.2, 0.06, 1.1, [1, 1, 1], undefined, 0);
+      const bedL = spec.length - 2.85;
+      const bedZ = -L + bedL / 2;
+      addBox(b, 0, y0 + 0.83, bedZ, w - 0.22, 0.02, bedL, TRIM, undefined, 2);
+      for (const sx of [-1, 1]) addBox(b, sx * (w / 2 - 0.05), y0 + 0.95, bedZ, 0.1, 0.24, bedL, [1, 1, 1], undefined, 0);
+      addBox(b, 0, y0 + 0.95, -L + 0.05, w, 0.24, 0.1, [1, 1, 1], undefined, 0);
+      addBox(b, 0, y0 + 0.95, L - 2.8, w, 0.24, 0.1, [1, 1, 1], undefined, 0);
+      lights(b, spec, y0 + 0.6, y0 + 0.68, L - 0.02, -L + 0.02);
+      mirrors(b, spec, y0 + 1.02, L - 1.25);
+      break;
+    }
+    case 'ev': {
+      // smooth fastback, glass roof, no grille, light bars front and back
+      body(b, spec, [[-L, y0], [L - 0.1, y0], [L, y0 + 0.22], [L - 0.3, y0 + 0.45], [L - 1.3, y0 + 0.58], [-L + 0.6, y0 + 0.66], [-L, y0 + 0.5]],
+        [[L - 1.3, y0 + 0.58], [L - 2.2, y0 + 1.06], [-L + 1.0, y0 + 1.02], [-L + 0.6, y0 + 0.66]]);
+      lights(b, spec, y0 + 0.38, y0 + 0.56, L - 0.06, -L + 0.02);
+      addBox(b, 0, y0 + 0.43, L - 0.07, w * 0.8, 0.04, 0.06, HEAD, undefined, 3);
+      addBox(b, 0, y0 + 0.6, -L + 0.03, w * 0.86, 0.05, 0.06, TAIL, undefined, 4);
+      mirrors(b, spec, y0 + 0.72, L - 1.45);
+      break;
+    }
+    case 'classic': {
+      // upright three-box saloon: square lamps, chrome bumpers and grille
+      body(b, spec, [[-L, y0], [L - 0.02, y0], [L, y0 + 0.45], [L - 0.05, y0 + 0.55], [L - 1.05, y0 + 0.6], [-L + 0.9, y0 + 0.62], [-L + 0.02, y0 + 0.6], [-L, y0 + 0.42]],
+        [[L - 1.05, y0 + 0.6], [L - 1.55, y0 + 1.1], [-L + 1.35, y0 + 1.12], [-L + 0.9, y0 + 0.62]], 0.1);
+      addBox(b, 0, y0 + 1.11, -0.15, w - 0.22, 0.05, 1.5, [1, 1, 1], undefined, 0);
+      lights(b, spec, y0 + 0.4, y0 + 0.44, L - 0.01, -L + 0.02);
+      addBox(b, 0, y0 + 0.4, L + 0.01, w * 0.52, 0.2, 0.04, CHROME, undefined, 5);
+      addBox(b, 0, y0 + 0.12, L + 0.08, w * 1.02, 0.12, 0.1, CHROME, undefined, 5);
+      addBox(b, 0, y0 + 0.14, -L - 0.08, w * 1.02, 0.12, 0.1, CHROME, undefined, 5);
+      mirrors(b, spec, y0 + 0.7, L - 1.15);
       break;
     }
     case 'van': {

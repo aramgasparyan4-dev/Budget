@@ -51,6 +51,8 @@ export class DrivableVehicle {
   driftAssist = false;
   /** analog controls for an AI driver; when set, the keyboard is ignored (steer +1 = full left) */
   aiInput: { throttle: number; brake: number; steer: number; handbrake: boolean } | null = null;
+  /** brake force multiplier (upgrades) */
+  brakeMul = 1;
   /** flashing hazard lights (a damaged car) */
   hazards = false;
   drifting = false;
@@ -222,13 +224,13 @@ export class DrivableVehicle {
     const rate = target === 0 ? 5 : 3.2;
     this.steer += clamp(target - this.steer, -rate * h, rate * h);
     // power-limited engine
-    const vKnee = s.maxSpeed * 0.32;
+    const vKnee = s.maxSpeed * (s.torqueKnee ?? 0.32);
     let force = s.engine * this.powerMul * Math.min(1, (vKnee * this.topMul) / Math.max(Math.abs(v), 1));
     if (thr > 0 && v > s.maxSpeed * this.topMul) force = 0;
     if (thr < 0 && v < -9) force = 0;
     const drive = thr * force;
-    const rwd = s.key === 'sports' || s.key === 'truck' || s.key === 'bus' || s.key === 'police';
-    const awd = s.key === 'suv';
+    const rwd = s.drive ? s.drive === 'rwd' : s.key === 'sports' || s.key === 'truck' || s.key === 'bus' || s.key === 'police';
+    const awd = s.drive ? s.drive === 'awd' : s.key === 'suv';
     for (let i = 0; i < 4; i++) {
       const front = i < 2;
       let e = 0;
@@ -237,7 +239,7 @@ export class DrivableVehicle {
       else e = front ? drive / 2 : 0;
       vc.setWheelEngineForce(i, e);
       vc.setWheelSteering(i, front ? this.steer : 0);
-      let b = brk * s.brake;
+      let b = brk * s.brake * this.brakeMul;
       if (!active) b = s.brake * 0.6;
       if (thr === 0 && brk === 0 && active) b = 0.8; // engine braking
       if (hand && !front) b = this.drifting ? s.brake * 0.15 : s.brake * 1.2;

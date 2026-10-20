@@ -5,8 +5,9 @@
 //  - oncoming lane: driving against traffic
 //  - drift: a slide held for a while, scored by angle, speed and length; passes made mid-drift count 1.5x
 // Every event raises the combo multiplier. The combo banks into the score after a few quiet seconds;
-// a scrape loses whatever is unbanked. The first big hit damages the car (combo lost, car slower);
-// the second ends the run.
+// a scrape loses whatever is unbanked. Hits also cost the car condition (0-100%): a big hit takes
+// about half of an average car, so a fresh one survives one and the second ends the run; tougher
+// cars and body armour take more. A car at 0% is wrecked.
 //
 // In a race there is no clock and nothing ends the run: a big hit just stops the car. Near misses and
 // drifts still pop up and still fill the boost bar, which is what makes risky driving pay off there.
@@ -63,8 +64,13 @@ export const RULES = {
   scrapeTimePenalty: 3,
   wreckImpact: 11, // velocity change (m/s) of a big hit: damages the car, the second one ends the run
   scrapeImpact: 4.5,
-  damageGrace: 1.5, // seconds after the first big hit in which further hits are part of the same crash
+  damageGrace: 1.5, // seconds after a big hit in which further hits are part of the same crash
   damageTimePenalty: 5,
+  bigHitDamage: 52, // condition lost to a big hit on an average car, plus 1.5 per m/s above wreckImpact...
+  bigHitCap: 70, // ...up to this, so a fresh average car always survives its first big hit
+  scrapeDamage: 1.2, // condition lost per m/s of a scrape above scrapeImpact
+  damagedBelow: 60, // condition under which the car counts as damaged (smoke, slower)
+  raceFloor: 10, // a race never takes a car below this (the garage's minimum to start a run)
   minDrift: 0.6, // seconds a slide must last to count as a drift
   driftRate: 90, // points per second at 25 degrees and standing speed factor
   driftPassMul: 1.5,
@@ -77,8 +83,45 @@ interface Track {
   lastSeen: number;
 }
 
+/** what the car brings to the scoring (from the garage: archetype perks, upgrades, condition) */
+export interface ScorerOpts {
+  health: number;
+  /** condition lost per hit is multiplied by this */
+  damageTaken: number;
+  scoreMul: number;
+  nearMul: number;
+  driftMul: number;
+  boostGainMul: number;
+  boostDrainMul: number;
+  startBoost: number;
+}
+
+export const DEFAULT_OPTS: ScorerOpts = { health: 100, damageTaken: 1, scoreMul: 1, nearMul: 1, driftMul: 1, boostGainMul: 1, boostDrainMul: 1, startBoost: 0.35 };
+
 export class Scorer {
-  constructor(readonly mode: 'score' | 'race' = 'score') {}
+  readonly opts: ScorerOpts;
+  /** condition, 0-100 */
+  health: number;
+  /** condition lost in this run */
+  damageTaken = 0;
+
+  constructor(
+    readonly mode: 'score' | 'race' = 'score',
+    opts: Partial<ScorerOpts> = {},
+  ) {
+    this.opts = { ...DEFAULT_OPTS, ...opts };
+    this.health = this.opts.health;
+    this.boost = this.opts.startBoost;
+  }
+
+  /** below the damaged line: smoking, slower */
+  get damaged() {
+    return this.health < RULES.damagedBelow;
+  }
+
+  private gainBoost(x: number) {
+    this.boost = Math.min(1, this.boost + x * this.opts.boostGainMul);
+  }
 
   score = 0;
   comboPoints = 0;
@@ -89,8 +132,6 @@ export class Scorer {
   time = RULES.startTime;
   elapsed = 0;
   over: null | 'wrecked' | 'time' = null;
-  /** free drive: took one big hit already */
-  damaged = false;
   /** race: big hits taken */
   crashes = 0;
   private graceT = 0;
@@ -139,13 +180,13 @@ export class Scorer {
     const speedFactor = 1 + kmh / 120;
 
     // boost
-    if (ctx.boosting && this.boost > 0) this.boost = Math.max(0, this.boost - RULES.boostDrain * dt);
+    if (ctx.boosting && this.boost > 0) this.boost = Math.max(0, this.boost - RULES.boostDrain * this.opts.boostDrainMul * dt);
 
     // continuous risk: oncoming lane
     if (speed > RULES.minSpeed && ctx.oncoming) {
       this.oncomingSec += dt;
       this.addCombo(70 * speedFactor * dt, ctx.boosting, 1.2);
-      this.boost = Math.min(1, this.boost + 0.05 * dt);
+      this.gainBoost(0.05 * dt);
       this.time = Math.min(RULES.maxTime, this.time + 0.4 * dt);
     }
 
@@ -159,13 +200,13 @@ export class Scorer {
         this.driftMax = 0;
       }
       const a = Math.min(60, Math.abs(ctx.drift.angle));
-      const pts = RULES.driftRate * (a / 25) * speedFactor * dt;
+      const pts = RULES.driftRate * (a / 25) * speedFactor * this.opts.driftMul * dt;
       this.driftPoints += pts * (ctx.boosting ? RULES.boostMul : 1);
       this.addCombo(pts, ctx.boosting, 1.5);
       this.driftTime += dt;
       this.driftSec += dt;
       this.driftMax = Math.max(this.driftMax, a);
-      this.boost = Math.min(1, this.boost + 0.08 * (a / 25) * dt);
+      this.gainBoost(0.08 * (a / 25) * dt);
       this.time = Math.min(RULES.maxTime, this.time + 0.35 * dt);
     } else if (this.driftActive) this.endDrift();
 
@@ -231,7 +272,7 @@ export class Scorer {
     const tier: 1 | 2 | 3 = gap < RULES.insaneGap ? 3 : gap < RULES.closeGap ? 2 : 1;
     const oncoming = headingDot < -0.5;
     const crossing = Math.abs(headingDot) <= 0.5;
-    let pts = 100 * tier * speedFactor;
+    let pts = 100 * tier * speedFactor * this.opts.nearMul;
     if (oncoming) pts *= 2;
     else if (crossing) pts *= 1.5;
     if (this.driftActive) pts *= RULES.driftPassMul;
@@ -240,7 +281,7 @@ export class Scorer {
     this.addCombo(pts, boosting);
     this.nearMisses++;
     this.closest = Math.min(this.closest, Math.max(0, gap));
-    this.boost = Math.min(1, this.boost + 0.07 * tier);
+    this.gainBoost(0.07 * tier);
     this.time = Math.min(RULES.maxTime, this.time + 1.5 * tier);
     const label = tier === 3 ? 'INSANE' : tier === 2 ? 'CLOSE CALL' : 'NEAR MISS';
     const parts = [oncoming ? 'ONCOMING' : crossing ? 'CROSS TRAFFIC' : '', this.driftActive ? 'DRIFTING' : ''].filter(Boolean);
@@ -272,7 +313,7 @@ export class Scorer {
 
   bank() {
     if (this.comboPoints <= 0) return;
-    const total = Math.round(this.comboPoints * this.mult);
+    const total = Math.round(this.comboPoints * this.mult * this.opts.scoreMul);
     this.score += total;
     this.bestBank = Math.max(this.bestBank, total);
     this.events.push({ kind: 'bank', label: 'BANKED', sub: `x${this.mult}`, points: total });
@@ -288,33 +329,38 @@ export class Scorer {
 
   /**
    * A collision; returns what it meant. 'crash' (race): the car stops and carries on. 'damage' (free
-   * drive): the first big hit. 'wreck': the second one, the run is over.
+   * drive): a big hit the car survived. 'wreck': condition gone, the run is over.
    */
   impact(dv: number): 'none' | 'scrape' | 'crash' | 'damage' | 'wreck' {
     if (this.over || dv < RULES.scrapeImpact) return 'none';
     // the rest of a crash that just happened (bouncing off the car we hit) counts as part of it
     if (this.graceT > 0) return 'none';
     const big = dv >= RULES.wreckImpact;
-    if (big && this.mode === 'score' && this.damaged) {
+    const raw = big ? Math.min(RULES.bigHitCap, RULES.bigHitDamage + (dv - RULES.wreckImpact) * 1.5) : (dv - RULES.scrapeImpact) * RULES.scrapeDamage;
+    const dmg = raw * this.opts.damageTaken;
+    const before = this.health;
+    this.health = Math.max(this.mode === 'race' ? Math.min(before, RULES.raceFloor) : 0, before - dmg);
+    this.damageTaken += before - this.health;
+    const lost = Math.round(this.comboPoints * this.mult * this.opts.scoreMul);
+    this.driftActive = false; // the drift's points went with the combo
+    if (this.mode === 'score' && this.health <= 0) {
       this.end('wrecked');
       return 'wreck';
     }
-    const lost = Math.round(this.comboPoints * this.mult);
-    this.driftActive = false; // the drift's points went with the combo
     this.resetCombo();
+    const left = `${Math.round(this.health)}% LEFT`;
     if (big && this.mode === 'race') {
       this.crashes++;
       this.graceT = RULES.damageGrace;
       this.boost = Math.max(0, this.boost - 0.15);
-      this.events.push({ kind: 'crash', label: 'CRASHED', points: 0 });
+      this.events.push({ kind: 'crash', label: 'CRASHED', sub: left, points: 0 });
       return 'crash';
     }
     if (big) {
-      this.damaged = true;
       this.graceT = RULES.damageGrace;
       this.boost = Math.max(0, this.boost - 0.3);
       this.time = Math.max(1, this.time - RULES.damageTimePenalty);
-      this.events.push({ kind: 'damage', label: 'CAR DAMAGED', sub: 'ONE MORE HIT ENDS IT', points: -lost });
+      this.events.push({ kind: 'damage', label: 'CAR DAMAGED', sub: left, points: -lost });
       return 'damage';
     }
     if (lost > 0) this.events.push({ kind: 'lost', label: 'COMBO LOST', points: -lost });
@@ -337,10 +383,9 @@ export class Scorer {
     if (reason === 'time') {
       if (this.driftActive) this.endDrift();
       this.bank();
-    }
-    else if (this.comboPoints > 0) {
+    } else if (this.comboPoints > 0) {
       this.driftActive = false;
-      this.events.push({ kind: 'lost', label: 'COMBO LOST', points: -Math.round(this.comboPoints * this.mult) });
+      this.events.push({ kind: 'lost', label: 'COMBO LOST', points: -Math.round(this.comboPoints * this.mult * this.opts.scoreMul) });
       this.resetCombo();
     }
   }

@@ -1,24 +1,23 @@
 // One race against the rival: the route, the rival's car and driver, both cars' progress, the
 // checkpoint gates and the rules for who wins. NearMissGame owns it and drives the player's car.
-import * as THREE from "three";
-import type { World } from "../engine/World";
-import { DrivableVehicle } from "../game/DrivableVehicle";
-import type { TrafficSystem } from "../sim/traffic/TrafficSystem";
-import { VEHICLES } from "../sim/vehicles";
-import { clamp } from "../core/math";
-import {
-  compareProgress,
-  freeSpot,
-  planRoute,
-  Progress,
-  RivalDriver,
-  Route,
-  type Checkpoint,
-} from "./race";
-import { RULES } from "./scoring";
+import * as THREE from 'three';
+import type { World } from '../engine/World';
+import { DrivableVehicle } from '../game/DrivableVehicle';
+import type { TrafficSystem } from '../sim/traffic/TrafficSystem';
+import { VEHICLES } from '../sim/vehicles';
+import { clamp } from '../core/math';
+import { compareProgress, freeSpot, planRoute, Progress, RivalDriver, Route, type Checkpoint } from './race';
+import { RULES } from './scoring';
 
-/** rival paint by the player's car: whatever stands out against it (red/yellow → cyan, black/blue → orange) */
+/** rival paint by the original preset car (red/yellow → cyan, black/blue → orange) */
 export const RIVAL_PAINT = [0x00c8ff, 0xff7a00, 0x00c8ff, 0xff7a00];
+
+/** rival paint for a player's paint: cyan, unless the player's car is itself blue or cyan (then orange) */
+export function rivalPaintFor(paint: THREE.Color): number {
+  const hsl = { h: 0, s: 0, l: 0 };
+  paint.getHSL(hsl);
+  return hsl.s > 0.25 && hsl.h > 0.42 && hsl.h < 0.75 ? 0xff7a00 : 0x00c8ff;
+}
 
 /** seconds the player has to finish once the rival is home */
 export const RIVAL_FINISHED_GRACE = 30;
@@ -26,12 +25,7 @@ export const RIVAL_FINISHED_GRACE = 30;
 /** lane centres of the start grid on the first (always four-lane) leg */
 const GRID = { player: 2.25, rival: 5.75 };
 
-export type RaceEvent =
-  | { kind: "checkpoint"; index: number }
-  | { kind: "finish" }
-  | { kind: "rivalFinished" }
-  | { kind: "rivalCrash" }
-  | { kind: "lead"; ahead: boolean };
+export type RaceEvent = { kind: 'checkpoint'; index: number } | { kind: 'finish' } | { kind: 'rivalFinished' } | { kind: 'rivalCrash' } | { kind: 'lead'; ahead: boolean };
 
 interface Gate {
   group: THREE.Group;
@@ -47,13 +41,13 @@ const DIM = new THREE.Color(0x6b7280);
 let checker: THREE.CanvasTexture | null = null;
 function checkerTexture() {
   if (checker) return checker;
-  const cv = document.createElement("canvas");
+  const cv = document.createElement('canvas');
   cv.width = 128;
   cv.height = 16;
-  const g = cv.getContext("2d")!;
+  const g = cv.getContext('2d')!;
   for (let i = 0; i < 16; i++)
     for (let j = 0; j < 2; j++) {
-      g.fillStyle = (i + j) % 2 ? "#111" : "#f4f4f4";
+      g.fillStyle = (i + j) % 2 ? '#111' : '#f4f4f4';
       g.fillRect(i * 8, j * 8, 8, 8);
     }
   checker = new THREE.CanvasTexture(cv);
@@ -101,17 +95,7 @@ export class RaceSession {
     this.route = planRoute(world.city, seed);
     this.paint = new THREE.Color(paint);
     const start = this.gridPose(GRID.rival);
-    this.rival = new DrivableVehicle(
-      world.physics,
-      carType,
-      start.x,
-      0.02,
-      start.z,
-      start.yaw,
-      this.paint,
-      "player",
-      "Rival",
-    );
+    this.rival = new DrivableVehicle(world.physics, carType, start.x, 0.02, start.z, start.yaw, this.paint, 'player', 'Rival');
     this.rival.headlights = true;
     this.rival.onImpact = (dv) => this.rivalImpact(dv);
     this.driver = new RivalDriver(this.route);
@@ -120,19 +104,10 @@ export class RaceSession {
     this.rivalProgress = new Progress(this.route);
 
     const cps = this.route.checkpoints;
-    cps.forEach((c, i) =>
-      this.gates.push(this.makeGate(c, this.route.widths[i], c.finish)),
-    );
+    cps.forEach((c, i) => this.gates.push(this.makeGate(c, this.route.widths[i], c.finish)));
     const p0 = this.route.at(6);
-    this.startGate = this.makeGate(
-      { x: p0.x, z: p0.z, s: 6, dir: [p0.dx, p0.dz], finish: true },
-      7.5,
-      true,
-    );
-    this.marker = new THREE.Mesh(
-      new THREE.ConeGeometry(0.55, 1.1, 4),
-      new THREE.MeshBasicMaterial({ color: this.paint, toneMapped: false }),
-    );
+    this.startGate = this.makeGate({ x: p0.x, z: p0.z, s: 6, dir: [p0.dx, p0.dz], finish: true }, 7.5, true);
+    this.marker = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.1, 4), new THREE.MeshBasicMaterial({ color: this.paint, toneMapped: false }));
     this.marker.rotation.x = Math.PI;
     this.group.add(this.marker);
     scene.add(this.group);
@@ -154,11 +129,7 @@ export class RaceSession {
     const tr = this.traffic;
     for (const v of [...tr.vehicles]) {
       const p = this.route.project(v.x, v.z, 0);
-      if (
-        (p.s < 170 && p.dist < 12) ||
-        Math.hypot(v.x - this.route.pts[0].x, v.z - this.route.pts[0].z) < 40
-      )
-        tr.remove(v);
+      if ((p.s < 170 && p.dist < 12) || Math.hypot(v.x - this.route.pts[0].x, v.z - this.route.pts[0].z) < 40) tr.remove(v);
     }
     return this.gridPose(GRID.player);
   }
@@ -169,12 +140,7 @@ export class RaceSession {
   }
 
   /** per frame; `running` is false during the countdown and while paused */
-  update(
-    dt: number,
-    car: DrivableVehicle,
-    running: boolean,
-    camera: THREE.Camera,
-  ) {
+  update(dt: number, car: DrivableVehicle, running: boolean, camera: THREE.Camera) {
     this.events.length = 0;
     if (!running) {
       this.updateGates();
@@ -196,16 +162,10 @@ export class RaceSession {
     // 40 m/s (144 km/h) with a 40 m lead, down to 20 m/s (72 km/h) by 210 m
     this.driver.cap = gap > 40 ? clamp(40 - (gap - 40) * 0.12, 20, 40) : Infinity;
 
-    if (this.rivalTime !== null)
-      rival.aiInput = { throttle: 0, brake: 1, steer: 0, handbrake: false };
+    if (this.rivalTime !== null) rival.aiInput = { throttle: 0, brake: 1, steer: 0, handbrake: false };
     else {
       const obs = [];
-      for (const v of this.traffic.vehicles)
-        if (
-          Math.abs(v.x - rival.pos.x) < 95 &&
-          Math.abs(v.z - rival.pos.z) < 95
-        )
-          obs.push({ x: v.x, z: v.z, v: v.v, yaw: v.yaw });
+      for (const v of this.traffic.vehicles) if (Math.abs(v.x - rival.pos.x) < 95 && Math.abs(v.z - rival.pos.z) < 95) obs.push({ x: v.x, z: v.z, v: v.v, yaw: v.yaw });
       obs.push({
         x: car.pos.x,
         z: car.pos.z,
@@ -234,39 +194,18 @@ export class RaceSession {
     if (cp >= 0) {
       if (cp === last) {
         this.playerTime = this.time;
-        this.events.push({ kind: "finish" });
-      } else this.events.push({ kind: "checkpoint", index: cp });
+        this.events.push({ kind: 'finish' });
+      } else this.events.push({ kind: 'checkpoint', index: cp });
     }
-    const rcp = this.rivalProgress.update(
-      rival.pos.x,
-      rival.pos.z,
-      rival.yaw,
-      rival.speed,
-    );
+    const rcp = this.rivalProgress.update(rival.pos.x, rival.pos.z, rival.yaw, rival.speed);
     if (rcp === last && this.rivalTime === null) {
       this.rivalTime = this.time;
-      this.events.push({ kind: "rivalFinished" });
+      this.events.push({ kind: 'rivalFinished' });
     }
     const lead = this.player.s - this.rivalProgress.s;
-    const ahead =
-      compareProgress(
-        this.player,
-        this.rivalProgress,
-        this.playerTime,
-        this.rivalTime,
-      ) > 0;
-    const pos: 1 | 2 =
-      this.playerTime !== null || this.rivalTime !== null
-        ? ahead
-          ? 1
-          : 2
-        : lead > 3
-          ? 1
-          : lead < -3
-            ? 2
-            : this.position;
-    if (pos !== this.position && this.time > 3)
-      this.events.push({ kind: "lead", ahead: pos === 1 });
+    const ahead = compareProgress(this.player, this.rivalProgress, this.playerTime, this.rivalTime) > 0;
+    const pos: 1 | 2 = this.playerTime !== null || this.rivalTime !== null ? (ahead ? 1 : 2) : lead > 3 ? 1 : lead < -3 ? 2 : this.position;
+    if (pos !== this.position && this.time > 3) this.events.push({ kind: 'lead', ahead: pos === 1 });
     this.position = pos;
 
     this.recoverRival(car, camera, dt);
@@ -283,38 +222,23 @@ export class RaceSession {
     this.offT = this.rivalProgress.off > 22 ? this.offT + dt : 0;
     const stuck = this.driver.stuckT > 2.5;
     if (!stuck && this.flipT < 1.2 && this.offT < 3) return;
-    const seen =
-      this.inView(camera, rival.pos) && rival.pos.distanceTo(car.pos) < 70;
-    if (seen && this.driver.stuckT < 6 && this.flipT < 1.2 && this.offT < 3)
-      return;
+    const seen = this.inView(camera, rival.pos) && rival.pos.distanceTo(car.pos) < 70;
+    if (seen && this.driver.stuckT < 6 && this.flipT < 1.2 && this.offT < 3) return;
     const others = [...this.traffic.vehicles, ...this.traffic.parked, car.pos];
-    const spot = freeSpot(
-      this.route,
-      Math.max(this.rivalProgress.s, this.driver.s) + 6,
-      others,
-    );
+    const spot = freeSpot(this.route, Math.max(this.rivalProgress.s, this.driver.s) + 6, others);
     rival.teleport(spot.x, 0.02, spot.z, spot.yaw);
     this.driver.reset(spot.s, spot.lane);
     this.flipT = this.offT = 0;
   }
 
   private inView(camera: THREE.Camera, p: THREE.Vector3) {
-    this.m4.multiplyMatrices(
-      camera.projectionMatrix,
-      camera.matrixWorldInverse,
-    );
+    this.m4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.m4);
     return this.frustum.containsPoint(this.v3.set(p.x, p.y + 1, p.z));
   }
 
   private rivalImpact(dv: number) {
-    if (
-      this.time <= 0 ||
-      this.rivalGrace > 0 ||
-      dv < RULES.wreckImpact ||
-      this.rivalTime !== null
-    )
-      return;
+    if (this.time <= 0 || this.rivalGrace > 0 || dv < RULES.wreckImpact || this.rivalTime !== null) return;
     this.rivalGrace = RULES.damageGrace;
     this.rivalCrashes++;
     this.rival.stop();
@@ -323,24 +247,19 @@ export class RaceSession {
     let hit = null;
     let bd = 7;
     for (const tv of this.traffic.vehicles) {
-      const d =
-        Math.hypot(tv.x - p.x, tv.z - p.z) - VEHICLES[tv.type].length / 2;
+      const d = Math.hypot(tv.x - p.x, tv.z - p.z) - VEHICLES[tv.type].length / 2;
       if (d < bd) {
         bd = d;
         hit = tv;
       }
     }
-    if (hit && hit.state !== "crash") this.traffic.crash(hit, 10);
-    this.events.push({ kind: "rivalCrash" });
+    if (hit && hit.state !== 'crash') this.traffic.crash(hit, 10);
+    this.events.push({ kind: 'rivalCrash' });
   }
 
   /** the player's car back on the route where they left it (flipped, lost, wedged) */
   resetPlayer(car: DrivableVehicle) {
-    const others = [
-      ...this.traffic.vehicles,
-      ...this.traffic.parked,
-      this.rival.pos,
-    ];
+    const others = [...this.traffic.vehicles, ...this.traffic.parked, this.rival.pos];
     const spot = freeSpot(this.route, this.player.s, others, 7);
     car.teleport(spot.x, 0.02, spot.z, spot.yaw);
     return spot.yaw;
@@ -355,19 +274,13 @@ export class RaceSession {
 
   /** where to point the player: along the route a little ahead, never past the next checkpoint */
   guide(): { x: number; z: number; cpDist: number } {
-    const cp =
-      this.player.checkpoint ??
-      this.route.checkpoints[this.route.checkpoints.length - 1];
+    const cp = this.player.checkpoint ?? this.route.checkpoints[this.route.checkpoints.length - 1];
     const p = this.route.at(Math.min(this.player.s + 35, cp.s));
     return { x: p.x, z: p.z, cpDist: Math.max(0, cp.s - this.player.s) };
   }
 
   /** screen position (CSS px) for the floating rival tag, or null when it is behind the camera */
-  tag(
-    camera: THREE.Camera,
-    w: number,
-    h: number,
-  ): { x: number; y: number } | null {
+  tag(camera: THREE.Camera, w: number, h: number): { x: number; y: number } | null {
     const p = this.v3.copy(this.rival.pos);
     p.y += 2.2;
     p.project(camera);
@@ -407,10 +320,7 @@ export class RaceSession {
       m.position.set(sx, 3.3, 0);
       g.add(m);
     }
-    const b = new THREE.Mesh(
-      new THREE.BoxGeometry(half * 2 + 0.35, 0.9, 0.22),
-      banner,
-    );
+    const b = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 0.35, 0.9, 0.22), banner);
     b.position.y = 6.4;
     g.add(b);
     const cur = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, 5.9), curtain);
@@ -444,11 +354,7 @@ export class RaceSession {
 
   private placeMarker() {
     const p = this.rival.pos;
-    this.marker.position.set(
-      p.x,
-      p.y + 2.7 + Math.sin(this.time * 3) * 0.15,
-      p.z,
-    );
+    this.marker.position.set(p.x, p.y + 2.7 + Math.sin(this.time * 3) * 0.15, p.z);
     this.marker.rotation.y += 0.04;
   }
 

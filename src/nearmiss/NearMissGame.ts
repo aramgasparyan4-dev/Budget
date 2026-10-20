@@ -19,20 +19,17 @@ import type { RoadSegment } from '../world/types';
 import type { Lane } from '../sim/traffic/RoadGraph';
 import { useStore } from '../state/store';
 import { clamp, damp } from '../core/math';
-import { Scorer, OtherCar } from './scoring';
+import { Scorer, OtherCar, RULES } from './scoring';
 import { useNM, Phase, Mode } from './store';
 import { RACE_TRAFFIC } from './race';
-import { RaceSession, RIVAL_PAINT, RIVAL_FINISHED_GRACE } from './RaceSession';
+import { RaceSession, RIVAL_FINISHED_GRACE, rivalPaintFor } from './RaceSession';
+import { useGarage, hostBridge, startBridge } from './garage/store';
+import { CarSetup, damageFactor, MIN_HEALTH, raceCoins, repairCost, runCoins } from './garage/progress';
+import { displayName, paintOf } from './garage/vehicle';
+import type { ParkingSpot } from '../world/types';
 
 /** the same city as Echo City */
 export const CITY_SEED = 20261019;
-
-export const CARS = [
-  { type: 3, name: 'Volta GT', blurb: 'Fastest car in the city. Light rear end.', color: 0xd21f1f, siren: false },
-  { type: 8, name: 'Patrol Cruiser', blurb: 'Heavy and stable. Lights on.', color: 0x111827, siren: true },
-  { type: 4, name: 'Echo Cab', blurb: 'Slow, forgiving, nobody looks twice.', color: 0xf7c21b, siren: false },
-  { type: 0, name: 'Pixie Compact', blurb: 'Tiny. Fits through gaps nothing else does.', color: 0x2a6fdb, siren: false },
-];
 
 const clear = (o: Partial<WeatherParams> = {}): WeatherParams => ({ cloud: 0.15, rain: 0, fog: 0, wet: 0, wind: 0.2, storm: 0, flash: 0, ...o });
 
@@ -45,9 +42,7 @@ export const CONDITIONS: Record<string, { label: string; hour: number; weather: 
 
 const BOOST_POWER = 1.8;
 const BOOST_TOP = 1.25;
-/** a damaged car (free drive, after the first big hit) */
-const DAMAGED_POWER = 0.8;
-const DAMAGED_TOP = 0.85;
+const DARK_PAINT = new THREE.Color(0x1d1d1f);
 /** free drive: much denser than Echo City, spawning often and close in (never in plain view ahead) */
 const SCORE_TRAFFIC = { maxVehicles: 160, spawnInterval: 0.03, spawnAttempts: 24, spawnRadius: { min: 60, max: 280, despawn: 320 } };
 /** traffic is always at rush-hour volume, whatever the light looks like */
@@ -102,9 +97,17 @@ export class NearMissGame {
   get cond() {
     return CONDITIONS[useNM.getState().cond] ?? CONDITIONS.night;
   }
-  get carDef() {
-    return CARS[useNM.getState().carIndex] ?? CARS[0];
-  }
+  /** the garage car being driven (set at the start of each run) */
+  setup: CarSetup | null = null;
+  /** its paint before any damage */
+  private basePaint = new THREE.Color();
+  /** this run's condition and coins have been written to the garage */
+  private runSaved = true;
+  /** the title screen: your car parked at a curb, the camera circling it */
+  private showroom: { spot: ParkingSpot; out: [number, number]; along: [number, number] } | null = null;
+  private showPaint = new THREE.Color();
+  /** a street-lamp spot over the parked car (always in the scene so shaders never recompile; 0 when unused) */
+  private showLight = new THREE.SpotLight(0xffe0b0, 0, 20, 0.62, 0.7, 1.4);
 
   // ------------------------------------------------------------------ setup
   attach(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
@@ -116,8 +119,9 @@ export class NearMissGame {
     this.cam = new CameraController(camera);
     this.input.attach(renderer.domElement);
     renderer.info.autoReset = false;
-    scene.add(this.vehR.group, this.smoke.points, this.engineSmoke.points, this.skids.mesh);
+    scene.add(this.vehR.group, this.smoke.points, this.engineSmoke.points, this.skids.mesh, this.showLight, this.showLight.target);
     (window as unknown as { __nm: NearMissGame }).__nm = this;
+    startBridge();
     const unlock = () => {
       this.audio.init();
       this.audio.setVolumes(useStore.getState().settings.audio);
@@ -217,7 +221,7 @@ export class NearMissGame {
     const px = car.pos.x + ax * dist;
     const pz = car.pos.z + az * dist;
     const oncoming = Math.random() < 0.4;
-    const cands = lanes.filter((l) => (l.dx * ax + l.dz * az < 0) === oncoming);
+    const cands = lanes.filter((l) => l.dx * ax + l.dz * az < 0 === oncoming);
     if (!cands.length) return;
     const l = cands[Math.floor(Math.random() * cands.length)];
     const sAt = (px - l.x0) * l.dx + (pz - l.z0) * l.dz;
@@ -255,6 +259,7 @@ export class NearMissGame {
 
   // ------------------------------------------------------------------ flow
   toTitle() {
+    this.saveRun(0);
     this.removeCar();
     this.endRace();
     this.slowmo = 1;
@@ -293,17 +298,26 @@ export class NearMissGame {
   startRun(sameRoute = false) {
     if (!this.world || !this.traffic) return;
     this.audio.init();
+    // restarting mid-run: the damage so far stays with the car (no coins for an unfinished run)
+    this.saveRun(0);
+    const setup = useGarage.getState().setup();
+    if (setup.progress.health < MIN_HEALTH) {
+      useGarage.setState({ notice: 'Your car needs a repair before it can drive' });
+      if (this.phase !== 'title') this.toTitle();
+      return;
+    }
     this.removeCar();
-    const def = this.carDef;
+    this.setup = setup;
+    this.basePaint.setHex(paintOf(setup.vehicle.color, VEHICLES[setup.type].palette[0]));
     this.mode = useNM.getState().mode;
     let start: { x: number; z: number; yaw: number };
     if (this.mode === 'race') {
       const seed = sameRoute && this.race ? this.race.seed : Math.floor(Math.random() * 1e9);
       this.endRace();
       this.trafficPreset(RACE_TRAFFIC);
-      const st = useNM.getState();
-      this.race = new RaceSession(this.world, this.traffic, this.scene, def.type, RIVAL_PAINT[st.carIndex] ?? RIVAL_PAINT[0], seed);
-      this.race.rival.gripMul = this.cond.grip;
+      // the rival drives the same kind of car, in a colour that stands out from yours
+      this.race = new RaceSession(this.world, this.traffic, this.scene, setup.type, rivalPaintFor(this.basePaint), seed);
+      this.race.rival.gripMul = this.condGrip(setup);
       start = this.race.grid();
     } else {
       this.endRace();
@@ -312,17 +326,29 @@ export class NearMissGame {
       // nothing parked on top of us or right in front
       for (const v of [...this.traffic.vehicles]) if (Math.hypot(v.x - start.x, v.z - start.z) < 45) this.traffic.remove(v);
     }
-    const car = new DrivableVehicle(this.world.physics, def.type, start.x, 0.02, start.z, start.yaw, new THREE.Color(def.color), 'player', def.name);
-    car.siren = def.siren;
+    this.leaveShowroom();
+    const car = new DrivableVehicle(this.world.physics, setup.type, start.x, 0.02, start.z, start.yaw, this.basePaint, 'player', displayName(setup.vehicle));
     car.headlights = true;
-    car.gripMul = this.cond.grip;
+    car.gripMul = setup.grip * this.condGrip(setup);
+    car.brakeMul = setup.brake;
     car.driftAssist = true;
     this.skids.clear();
     this.smoke.clear();
     car.driven = true;
     car.onImpact = (dv) => this.onImpact(dv);
     this.car = car;
-    this.scorer = new Scorer(this.mode);
+    this.scorer = new Scorer(this.mode, {
+      health: setup.progress.health,
+      damageTaken: setup.damageTaken,
+      scoreMul: setup.scoreMul,
+      nearMul: setup.nearMul,
+      driftMul: setup.driftMul,
+      boostGainMul: setup.boostGainMul,
+      boostDrainMul: setup.boostDrainMul,
+      startBoost: setup.startBoost,
+    });
+    this.runSaved = false;
+    this.damageLook();
     this.rivalTag = null;
     this.lastInter = -1;
     this.flipT = 0;
@@ -336,6 +362,27 @@ export class NearMissGame {
     this.audio.engineStart();
     useNM.getState().set({ result: null, popups: [] });
     this.setPhase('countdown');
+  }
+
+  /** grip left in these conditions (all-wheel drive keeps more of it in the rain) */
+  private condGrip(setup: CarSetup) {
+    return 1 - (1 - this.cond.grip) * setup.rainPenalty;
+  }
+
+  /** write the car's condition (and the coins earned) back to the garage, once per run */
+  private saveRun(coins: number, score = 0) {
+    if (this.runSaved || !this.setup) return;
+    this.runSaved = true;
+    useGarage.getState().finish(this.scorer.health, coins, score);
+  }
+
+  /** paint, hazards and smoke follow the car's condition */
+  private damageLook() {
+    const car = this.car;
+    if (!car) return;
+    const h = this.scorer.health;
+    car.paint.copy(this.basePaint).lerp(DARK_PAINT, Math.max(0, (100 - h) / 100) * 0.55);
+    car.hazards = h < 35;
   }
 
   /** R: the same again (a race replays its route) */
@@ -381,9 +428,13 @@ export class NearMissGame {
   private finish() {
     const s = this.scorer;
     const st = useNM.getState();
-    const def = this.carDef;
     if (this.race) return this.finishRace();
-    const rank = st.record({ score: s.score, car: def.name, cond: this.cond.label, date: Date.now(), nearMisses: s.nearMisses, bestCombo: s.bestCombo });
+    const setup = this.setup!;
+    const name = displayName(setup.vehicle);
+    const rank = st.record({ score: s.score, car: name, cond: this.cond.label, date: Date.now(), nearMisses: s.nearMisses, bestCombo: s.bestCombo });
+    const coins = runCoins(s.score, setup);
+    this.saveRun(coins, s.score);
+    hostBridge()?.send({ type: 'nearmiss:run', vehicleId: setup.vehicle.id, mode: 'score', score: s.score, coins, health: Math.round(s.health) });
     st.set({
       result: {
         score: s.score,
@@ -399,10 +450,11 @@ export class NearMissGame {
         drifts: s.drifts,
         bestDrift: s.bestDrift,
         closest: isFinite(s.closest) ? Math.round(s.closest * 100) / 100 : null,
-        car: def.name,
+        car: name,
         cond: this.cond.label,
         rank,
         mode: 'score',
+        garage: this.garageResult(coins),
       },
     });
     this.audio.engine(0, 0, 0, false);
@@ -414,13 +466,16 @@ export class NearMissGame {
     const race = this.race!;
     const s = this.scorer;
     const st = useNM.getState();
-    const def = this.carDef;
+    const setup = this.setup!;
     const mine = race.playerTime;
     const won = mine !== null && (race.rivalTime === null || mine < race.rivalTime);
     const rivalEstimated = race.rivalTime === null;
     const rivalTime = race.rivalTime ?? (mine !== null ? mine + race.rivalSecondsLeft() : null);
     const margin = won && rivalTime !== null ? rivalTime - mine : 0;
     const record = st.recordRace(won, margin);
+    const coins = raceCoins(won, mine !== null, margin, setup);
+    this.saveRun(coins);
+    hostBridge()?.send({ type: 'nearmiss:run', vehicleId: setup.vehicle.id, mode: 'race', score: 0, coins, health: Math.round(s.health), won });
     st.set({
       result: {
         score: s.score,
@@ -436,16 +491,23 @@ export class NearMissGame {
         drifts: s.drifts,
         bestDrift: s.bestDrift,
         closest: isFinite(s.closest) ? Math.round(s.closest * 100) / 100 : null,
-        car: def.name,
+        car: displayName(setup.vehicle),
         cond: this.cond.label,
         rank: 0,
         mode: 'race',
+        garage: this.garageResult(coins),
         race: { won, time: mine, rivalTime, rivalEstimated, crashes: s.crashes, rivalCrashes: race.rivalCrashes, length: Math.round(race.route.length), record },
       },
     });
     this.audio.engine(0, 0, 0, false);
     this.audio.skid(0);
     this.setPhase('results');
+  }
+
+  private garageResult(coins: number) {
+    const s = this.scorer;
+    const a = this.setup!.archetype;
+    return { coins, health: Math.round(s.health), damage: Math.round(s.damageTaken), repair: repairCost(a, s.health), total: useGarage.getState().save.coins };
   }
 
   // ------------------------------------------------------------------ collisions
@@ -469,22 +531,17 @@ export class NearMissGame {
     if (r === 'none') return;
     this.audio.crash(Math.min(1, dv / 16));
     this.cam.shake = Math.min(1.6, dv * 0.09);
+    this.damageLook();
     if (r === 'wreck') this.wreck();
     else if (r === 'crash' && this.race) {
       // racing: a big hit stops you dead, then you carry on
       this.car.stop();
       this.race.stunT = 0.9;
       this.flushEvents();
-    } else if (r === 'damage') this.damageCar();
-  }
-
-  /** free drive, first big hit: the car smokes, flashes its hazards and loses some pace */
-  private damageCar() {
-    const car = this.car!;
-    car.hazards = true;
-    car.paint.lerp(new THREE.Color(0x1d1d1f), 0.4);
-    this.beatT = 0.6;
-    this.flushEvents();
+    } else if (r === 'damage') {
+      this.beatT = 0.6;
+      this.flushEvents();
+    }
   }
 
   private wreck() {
@@ -530,9 +587,10 @@ export class NearMissGame {
     const driving = this.phase === 'run' && !this.paused;
     this.boosting = driving && !!car && (input.down('ShiftLeft') || input.down('ShiftRight')) && this.scorer.boost > 0.01 && car.forwardSpeed > 2;
     if (car) {
-      const dmg = this.scorer.damaged;
-      car.powerMul = (this.boosting ? BOOST_POWER : 1) * (dmg ? DAMAGED_POWER : 1);
-      car.topMul = (this.boosting ? BOOST_TOP : 1) * (dmg ? DAMAGED_TOP : 1);
+      const dmg = damageFactor(this.scorer.health);
+      const st = this.setup;
+      car.powerMul = (st?.power ?? 1) * (this.boosting ? BOOST_POWER : 1) * dmg.power;
+      car.topMul = (st?.top ?? 1) * (this.boosting ? BOOST_TOP : 1) * dmg.top;
     }
     const race = this.race;
     const go = this.phase === 'run';
@@ -565,8 +623,10 @@ export class NearMissGame {
       this.camera.lookAt(p.x, p.y + 0.5, p.z);
       this.focus.copy(p);
     } else {
-      // title / results: ride behind a random car in traffic
-      this.attractCam(rawDt);
+      // title: your car at the curb; results: ride behind a random car in traffic
+      if (this.phase === 'title' && this.showroomCam(rawDt)) {
+        /* showroom */
+      } else this.attractCam(rawDt);
     }
     const cf = new THREE.Vector3();
     this.camera.getWorldDirection(cf);
@@ -609,7 +669,15 @@ export class NearMissGame {
 
     // sound
     if (this.audio.ready) {
-      this.audio.updateAmbience(rawDt, { traffic: Math.min(1, tr.vehicles.length / 60), rain: cond.weather.rain, wind: cond.weather.wind, crowd: 0, day: 1 - G.uNight.value, interior: false, park: 0 });
+      this.audio.updateAmbience(rawDt, {
+        traffic: Math.min(1, tr.vehicles.length / 60),
+        rain: cond.weather.rain,
+        wind: cond.weather.wind,
+        crowd: 0,
+        day: 1 - G.uNight.value,
+        interior: false,
+        park: 0,
+      });
       if (car && (this.phase === 'run' || this.phase === 'countdown') && !this.paused) {
         const thr = input.down('KeyW') || input.down('ArrowUp') ? 1 : 0;
         this.audio.engine(Math.min(1.2, car.rpm + (this.boosting ? 0.25 : 0)), thr, car.speed, car.spec.mass > 2300);
@@ -653,6 +721,83 @@ export class NearMissGame {
     if (race.rivalTime !== null && race.playerTime === null && race.time - race.rivalTime > RIVAL_FINISHED_GRACE) this.finishRace();
   }
 
+  /** park the active car at the curb nearest downtown for the title screen */
+  private enterShowroom() {
+    const city = this.world!.city;
+    const tr = this.traffic!;
+    const c = this.downtown();
+    // no tree or lamp right next to it: they block the camera and catch the light
+    const tall = city.props.filter((p) => (p.type === 'tree' || p.type === 'conifer' || p.type === 'palm' || p.type === 'lamp') && Math.hypot(p.x - c.x, p.z - c.z) < 400);
+    let best: ParkingSpot | null = null;
+    let bd = Infinity;
+    for (const p of city.parking) {
+      if (tr.usedSpots.has(p.id) || !city.segments[p.seg]?.exists) continue;
+      const d = Math.hypot(p.x - c.x, p.z - c.z);
+      if (d >= bd) continue;
+      if (tall.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 7)) continue;
+      if (d < bd) {
+        bd = d;
+        best = p;
+      }
+    }
+    if (!best) return;
+    for (const v of [...tr.parked]) if (Math.hypot(v.x - best.x, v.z - best.z) < 9) tr.remove(v);
+    tr.usedSpots.add(best.id);
+    const seg = city.segments[best.seg];
+    const out: [number, number] = seg.orient === 'v' ? [Math.sign(seg.x0 - best.x) || 1, 0] : [0, Math.sign(seg.z0 - best.z) || 1];
+    this.showroom = { spot: best, out, along: [Math.sin(best.rot), Math.cos(best.rot)] };
+    this.attractSnap = true;
+  }
+
+  private leaveShowroom() {
+    if (this.showroom) this.traffic?.usedSpots.delete(this.showroom.spot.id);
+    this.showroom = null;
+    this.showLight.intensity = 0;
+  }
+
+  /** the title camera: a slow half circle round your car from the street side */
+  private showroomCam(dt: number): boolean {
+    if (!this.showroom) this.enterShowroom();
+    const sh = this.showroom;
+    if (!sh) return false;
+    const { spot, out, along } = sh;
+    const a = Math.sin(this.time * 0.16) * 1.05;
+    const dx = out[0] * Math.cos(a) + along[0] * Math.sin(a);
+    const dz = out[1] * Math.cos(a) + along[1] * Math.sin(a);
+    const want = new THREE.Vector3(spot.x + dx * 8.2, 2.5, spot.z + dz * 8.2);
+    if (this.attractSnap) this.camera.position.copy(want);
+    else this.camera.position.lerp(want, 1 - Math.exp(-dt * 3));
+    this.attractSnap = false;
+    // aim a little to the car's left so it sits right of centre, clear of the title column
+    const fx = spot.x - this.camera.position.x;
+    const fz = spot.z - this.camera.position.z;
+    const fl = Math.hypot(fx, fz) || 1;
+    const shift = this.camera.aspect > 1.3 ? 1.4 : 0;
+    this.camera.lookAt(spot.x + (fz / fl) * shift, 0.6, spot.z - (fx / fl) * shift);
+    // a key light just off the camera's shoulder, so the side you are looking at is always lit
+    const b = a + 0.45;
+    const lx = out[0] * Math.cos(b) + along[0] * Math.sin(b);
+    const lz = out[1] * Math.cos(b) + along[1] * Math.sin(b);
+    this.showLight.position.set(spot.x + lx * 6, 3.4, spot.z + lz * 6);
+    this.showLight.target.position.set(spot.x, 0.5, spot.z);
+    this.showLight.intensity = 40 + 190 * G.uNight.value;
+    this.camera.fov = damp(this.camera.fov, 52, 3, dt);
+    this.camera.updateProjectionMatrix();
+    this.focus.set(spot.x, 0, spot.z);
+    // a damaged car smokes on the title screen too: a reminder to fix it
+    const g = useGarage.getState();
+    const health = g.setup().progress.health;
+    if (health < 60 && dt > 0) {
+      this.engineSmokeAcc += (8 + (60 - health) * 0.4) * dt;
+      const len = VEHICLES[g.setup().type].length;
+      while (this.engineSmokeAcc >= 1) {
+        this.engineSmokeAcc -= 1;
+        this.engineSmoke.emit(spot.x + along[0] * (len / 2 - 0.7), 0.6, spot.z + along[1] * (len / 2 - 0.7), 0, 0, 0.9);
+      }
+    }
+    return true;
+  }
+
   private attractCam(dt: number) {
     const tr = this.traffic!;
     let v = this.attract;
@@ -693,11 +838,12 @@ export class NearMissGame {
       others.push({ id: v.id, x: v.x, z: v.z, yaw: v.yaw, v: v.v, width: spec.width, length: spec.length });
     }
     const road = this.roadInfo(car.pos.x, car.pos.z, yaw);
-    this.scorer.update(
-      { x: car.pos.x, z: car.pos.z, yaw, vx: lv.x, vz: lv.z, width: car.spec.width, length: car.spec.length },
-      others,
-      { oncoming: road.oncoming, drift: { active: car.drifting, angle: Math.abs(car.slipAngle) }, boosting: this.boosting, dt },
-    );
+    this.scorer.update({ x: car.pos.x, z: car.pos.z, yaw, vx: lv.x, vz: lv.z, width: car.spec.width, length: car.spec.length }, others, {
+      oncoming: road.oncoming,
+      drift: { active: car.drifting, angle: Math.abs(car.slipAngle) },
+      boosting: this.boosting,
+      dt,
+    });
     // running a red light
     const it = this.intersectionAt(car.pos.x, car.pos.z);
     if (it >= 0 && it !== this.lastInter && car.speed > 14) {
@@ -769,8 +915,9 @@ export class NearMissGame {
     this.engineSmoke.setViewport(this.renderer.domElement.height, this.camera.fov);
     if (!car || dt <= 0) return;
     if (this.scorer.damaged) {
-      // from under the bonnet, thicker when slow
-      this.engineSmokeAcc += (16 + 22 / (1 + car.speed / 8)) * dt;
+      // from under the bonnet, thicker when slow and the worse the damage
+      const worse = 0.4 + (60 - this.scorer.health) / 60;
+      this.engineSmokeAcc += (16 + 22 / (1 + car.speed / 8)) * worse * dt;
       const f = new THREE.Vector3(0, 0.55, car.spec.length / 2 - 0.7).applyQuaternion(car.quat).add(car.pos);
       const lv = car.body.linvel();
       while (this.engineSmokeAcc >= 1) {
@@ -801,7 +948,19 @@ export class NearMissGame {
     r.begin();
     for (const v of this.traffic!.vehicles) {
       if (Math.hypot(v.x - this.focus.x, v.z - this.focus.z) > draw) continue;
-      r.push({ type: v.type, x: v.x, z: v.z, yaw: v.yaw, paint: v.paint, head: lights, brake: v.brake ? 1 : 0, hazard: v.hazard || v.blink !== 0 ? 1 : 0, siren: v.type === 8 ? 1 : 0, wheelRot: v.wheelRot, steer: clamp(v.yawRate * 8, -0.5, 0.5) });
+      r.push({
+        type: v.type,
+        x: v.x,
+        z: v.z,
+        yaw: v.yaw,
+        paint: v.paint,
+        head: lights,
+        brake: v.brake ? 1 : 0,
+        hazard: v.hazard || v.blink !== 0 ? 1 : 0,
+        siren: v.type === 8 ? 1 : 0,
+        wheelRot: v.wheelRot,
+        steer: clamp(v.yawRate * 8, -0.5, 0.5),
+      });
     }
     for (const v of this.traffic!.parked) {
       if (Math.hypot(v.x - this.focus.x, v.z - this.focus.z) > draw) continue;
@@ -809,6 +968,13 @@ export class NearMissGame {
     }
     if (this.car) r.push(this.car.getDrawable(night));
     if (this.race) r.push(this.race.rival.getDrawable(night));
+    if (this.phase === 'title' && this.showroom) {
+      const st = useGarage.getState().setup();
+      const h = st.progress.health;
+      const paint = this.showPaint.setHex(paintOf(st.vehicle.color, VEHICLES[st.type].palette[0])).lerp(DARK_PAINT, ((100 - h) / 100) * 0.55);
+      const sp = this.showroom.spot;
+      r.push({ type: st.type, x: sp.x, z: sp.z, yaw: sp.rot, paint, head: 1, brake: 0, hazard: h < 35 ? 1 : 0, wheelRot: 0, steer: 0 });
+    }
     r.end();
   }
 
@@ -832,6 +998,8 @@ export class NearMissGame {
       countdown: this.phase === 'countdown' ? Math.max(0, Math.ceil(3 - this.phaseT)) : 0,
       street: road.street,
       damaged: s.damaged,
+      health: s.health,
+      lastHit: s.health <= RULES.bigHitCap * s.opts.damageTaken,
     });
     const race = this.race;
     if (race && car && (this.phase === 'countdown' || this.phase === 'run')) {

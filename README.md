@@ -11,13 +11,14 @@ you did, and relationships with you and with each other.
 This repo holds two games built on the same engine:
 
 - **Echo City** (`index.html`): the life simulation described below.
-- **Near Miss** (`near-miss.html`): an arcade driving game set in the same city. See [Near Miss](#near-miss).
+- **MyGarage Drive** (`near-miss.html`): an arcade driving game in the same city where you drive
+  your own car, from a classifieds-site garage or added by hand. See [MyGarage Drive](#mygarage-drive).
 
 ## Run it
 
 ```bash
 npm install
-npm run dev          # Echo City: http://localhost:5173 · Near Miss: http://localhost:5173/near-miss.html
+npm run dev          # Echo City: http://localhost:5173 · MyGarage Drive: http://localhost:5173/near-miss.html
 npm run build        # type-check + production build of both games into dist/
 npm run preview      # serve dist/
 ```
@@ -128,11 +129,69 @@ your business, objectives and settings.
 **Intro and goals.** An opening cinematic, then a tutorial (look, walk, go home, phone, take a
 delivery, deliver it, meet someone, earn $500) followed by longer life goals with rewards.
 
-## Near Miss
+## MyGarage Drive
+
+Drive your own car through city traffic. The car comes from a garage: the same details a
+classifieds site's "My Garage" collects (make, model, year, colour, condition, engine, gas
+equipment, wheel size, steering wheel, headlights), either handed over by the host page or
+entered in the game's own "Add a vehicle" form. It is built to plug into the Garage feature on
+list.am; [docs/GARAGE-INTEGRATION.md](docs/GARAGE-INTEGRATION.md) is the spec for that. The
+page itself carries no host branding.
 
 Two modes, picked on the title screen: **Free drive** (score attack against the clock) and
-**Race** (one-on-one against a rival car). Your free-drive high score and your race record
-(wins, races, biggest winning margin) show on the loading screen and the title screen.
+**Race** (one-on-one against a rival in the same kind of car). Your free-drive high score and
+your race record (wins, races, biggest winning margin) show on the loading screen and the title
+screen. The title screen shows your car parked at a curb under a street lamp.
+
+### Your car
+
+The make and model pick one of ten kinds of car. Each has its own body, its own handling and one
+thing it is best at (checked by a unit test):
+
+| Kind | Best at | Perk | Examples |
+| --- | --- | --- | --- |
+| City compact | Cheapest to keep | Repairs and upgrades cost half | Polo, Yaris, i10, Matiz |
+| Family sedan | Earns the most | 20% more coins | Camry, Corolla, Elantra, Passat |
+| Executive | Longest boost | Nitro drains 35% slower | E-Class, 5 Series, A6 |
+| Sports coupe | Top speed and grip | The fastest car; fragile, dear to fix | 911, Mustang, M4 |
+| Hot hatch | Agility and drifting | Drifts score 50% more | Golf GTI, Civic Type R |
+| Crossover | All weather | Keeps most of its grip in the rain | RAV4, Tucson, Soueast DX5 |
+| Off-roader | Toughest | Takes three big hits | Land Cruiser, Patrol, Niva |
+| Pickup / van | Big points | Near misses worth 30% more | Hilux, L200, Sprinter |
+| Electric | Fastest off the line | Boost refills 40% faster | Tesla, BYD, Ioniq 5 |
+| Classic | Legend status | Every point counts 50% more | Lada 2107, Volga, W123 |
+
+The catalogue (`src/nearmiss/garage/catalog.ts`) knows about 60 makes and their common models,
+in English and Russian spellings; anything it does not know is matched on model-name patterns
+("pickup", "van", "4x4", "GTI"...), then the make's usual kind of car, then age (pre-1990 drives
+as a classic), and otherwise as a family sedan. An electric engine always means Electric, and
+the player can override the match ("Drives as"). The other details tweak it a little: diesel
+pulls harder, hybrid refills boost faster, gas (LPG/CNG) equipment earns 10% more coins, bigger
+wheels add grip, the colour is the paint, and a car listed as damaged arrives at 60%.
+
+Without a car of your own there is a demo line-up, one of each kind, which stays available as
+test drives after you add yours.
+
+### Damage, coins, repairs, upgrades
+
+- **Condition (0-100%) stays with the car between runs.** A big hit costs about half of an
+  average car (more for a harder crash, at most 70%), scrapes cost a few percent, and tougher
+  cars and body armour take less. Every fresh car survives its first big hit; a family sedan is
+  wrecked by the second, an off-roader by the third. A damaged car smokes, flashes its hazards,
+  darkens and loses power and top speed. Below 10% it will not start until it is repaired.
+- **Coins:** about 1 per 20 points in free drive, 400 and up for winning a race (more for a big
+  margin), something for finishing. Everyone starts with 500.
+- **Repairs** cost coins in proportion to the damage (the compact is cheapest, the sports coupe
+  dearest); without enough coins you fix what they cover, and a player who is broke with a
+  wrecked car gets a free patch-up to 35% so nobody is stuck.
+- **Workshop:** six upgrades with five levels each: engine (+7% power a level), gearbox (+5% top
+  speed), tires (+5% grip), brakes (+12%), body armour (-9% damage), nitro tank (slower drain,
+  more boost at the start). Prices scale with the kind of car.
+- When a host page is connected, the workshop also offers "Find a real mechanic" and "Shop real
+  parts that fit this car", which ask the host to open its own listings for that car.
+
+Everything is kept in this browser (localStorage), or on the player's account if the host page
+stores the progress the game sends it.
 
 ### Free drive
 
@@ -144,13 +203,10 @@ drifts and running red lights also feed the combo. Every event raises the multip
 whatever hasn't banked. The clock starts at 40 seconds and drains; risky driving buys time
 back.
 
-The car can take one big hit. The first one loses the combo and 5 seconds, and leaves the car
-damaged: black smoke from the bonnet, hazard lights, darker paint, 20% less power and 15% less
-top speed, and a DAMAGED marker on screen. The next big hit ends the run (a crash that bounces
-you into a second car within 1.5 s counts once). Rolling the car also ends it.
+A big hit loses the combo and 5 seconds and costs condition (see above); when the car reaches 0%
+the run is over. A crash that bounces you into a second car within 1.5 s counts once. Rolling
+the car also ends it.
 
-- **Cars:** Volta GT (fast), Patrol Cruiser (heavy, lights on), Echo Cab (forgiving), Pixie
-  Compact (small enough for gaps nothing else fits through).
 - **Conditions:** midnight, night rain (lower grip), golden hour, noon.
 - **Drifting:** tap Space (or the brake) while steering at speed to kick the back out, keep
   steering into the slide to hold it and counter-steer to straighten. The car settles at about
@@ -168,15 +224,15 @@ you into a second car within 1.5 s counts once). Rolling the car also ends it.
 ### Race
 
 A random 1.6-2.3 km route through the grid (legs of 2-5 blocks, left and right turns, never
-crossing itself), from a two-car grid on an avenue to a checkered finish gate. Both cars are
-the model you picked; the rival is painted to stand out from yours (cyan against the red and
-yellow cars, orange against the black and blue ones) and carries a floating RIVAL tag and a
-marker over its roof. Pass the checkpoint gates in order (the next one glows amber, the one
+crossing itself), from a two-car grid on an avenue to a checkered finish gate. The rival drives
+the same kind of car as yours, painted to stand out from it (cyan, or orange if your car is blue),
+and carries a floating RIVAL tag and a marker over its roof. Pass the checkpoint gates in order (the next one glows amber, the one
 after shows in grey); a shortcut down another street gains nothing until you go back through
 the gate you missed.
 
 - **Crashes don't end the race.** A big hit stops your car dead for just under a second, then
-  you carry on. The same goes for the rival. Rolling over or getting lost puts you back on the
+  you carry on. It still costs condition, but a race never takes the car below 10%. The same
+  goes for the rival. Rolling over or getting lost puts you back on the
   route; T does it on demand.
 - **The rival** drives the route with its own AI: pure-pursuit steering on a lane, braking for
   corners and for traffic it can't get round, overtaking through other lanes (including
@@ -192,22 +248,30 @@ the gate you missed.
   off-route warnings. Race traffic is a little lighter than free drive.
 
 Controls: W A S D drive, Shift boost, Space + steer to drift, mouse to look, Esc pause,
-R restart (in a race: the same route again), T back on the route (race), Enter start,
-← → pick a car.
+R restart (in a race: the same route again), T back on the route (race), Enter start.
+
+On phones and tablets (or with `?touch=1`) there are on-screen controls: steering buttons on
+the left, gas and brake on the right with boost and drift above them, pause and (in a race)
+reset at the bottom. Short landscape screens get a compact title with the Drive button pinned
+in the corner, and holding the phone upright during a run asks you to turn it. Phones start
+on the LOW graphics preset.
 
 It reuses Echo City's city generator, chunk renderer and shaders, sky and weather, Rapier car
 physics (with an arcade drift layer that only Near Miss switches on), traffic simulation,
 vehicle models and procedural audio. Its own code is in
-`src/nearmiss/` (about 3,600 lines): the scoring rules (`scoring.ts`, pure and unit-tested),
+`src/nearmiss/` (about 5,500 lines): the scoring rules (`scoring.ts`, pure and unit-tested),
 routes, race progress and the rival's driver (`race.ts`, pure), one race with its rival car and
-gates (`RaceSession.ts`), the game loop and traffic director (`NearMissGame.ts`) and the
-interface (`App.tsx`, `RaceUI.tsx`).
+gates (`RaceSession.ts`), the garage (`garage/`: archetypes, catalogue, vehicle parsing, the
+economy, the host bridge and its store, all pure except the store), the game loop and traffic
+director (`NearMissGame.ts`) and the interface (`App.tsx`, `RaceUI.tsx`, `GarageUI.tsx`). The
+ten garage bodies and their physics specs live with the other vehicles (`src/sim/vehicles.ts`
+ids 9-18, never used for traffic; `src/render/vehicleModels.ts`).
 
 ## Architecture
 
 ```
 src/
-  nearmiss/  Near Miss: scoring rules, game loop, interface
+  nearmiss/  MyGarage Drive: scoring rules, race, garage, game loop, interface
   core/      seeded RNG, noise, math helpers
   world/     city generator, buildings, names, chunk geometry + worker, terrain
   render/    materials/shaders, chunk manager, sky/lighting, humans, vehicles, rain, terrain
@@ -237,19 +301,27 @@ throttled HUD updates.
 ```bash
 npm run typecheck
 npm run test:sim     # headless 3-day simulation of all residents and the economy
-npm run test:unit    # Near Miss scoring rules (24 checks), drift handling (16), race rules (13)
+npm run test:unit    # scoring (24 checks), drift handling (16), race rules (13), garage (29)
 npm run test:race    # the rival AI racing itself through real physics and traffic (a few minutes)
 npm run dev &        # then, in another shell:
 npm run test:e2e     # drives both games in headless Chromium (needs Playwright's Chromium)
 ```
 
-`scripts/e2e-nearmiss.mjs` (26 checks) covers the title screen, car and condition choice, the
-countdown, a scripted near miss, combo banking, boost, oncoming driving, a drift (scored, with
+`scripts/e2e-nearmiss.mjs` (33 checks) covers the title screen with the parked car and garage
+card, adding a car with the garage form (a Soueast DX5 drives as a white crossover), buying an
+upgrade, picking a car and conditions, the countdown, a scripted near miss, combo banking, boost, oncoming driving, a drift (scored, with
 skid marks and smoke), pause, a first crash that damages the car and a second that wrecks it,
-the results screen and leaderboard, restart, running out of time, the rain grip penalty, and
+the results screen with coins and condition, a wrecked car refusing to start until it is
+repaired, repairing it, restart, running out of time (and the coins for it), the rain grip
+penalty, and
 the race: the grid and both colours, the rival driving off at GO, the race HUD, a crash that
 stops the car without ending the race, passing a checkpoint, T back on track, winning, losing
-after the rival finishes, and the high score on the loading screen after a reload.
+after the rival finishes, the high score on the loading screen after a reload, a `#garage=`
+host link bringing in the player's cars (a damaged Lada 2107 with gas equipment arrives as a
+classic at 60% that earns extra coins), and the touch controls driving the car.
+`scripts/garage-test.ts` checks the catalogue against real cars, that every kind of car really is
+best at what it claims, the damage rules, the economy, and that hostile host payloads and corrupt
+saves are cleaned up.
 `scripts/race-test.ts` races two AI cars over six routes through the real city collision and
 traffic, and checks that they finish and how fast. `scripts/drift-test.ts` drives each
 Near Miss car in Rapier without a browser and checks that drifts hold an angle, keep speed
@@ -267,6 +339,16 @@ mid-game — with zero runtime errors. Both suites also pass against the product
 Set `URL` and `CHROME` to point them somewhere else.
 
 ## Known limitations and what remains
+
+- **MyGarage Drive is not connected to a real garage yet.** The host bridge and the `#garage=`
+  link are built and tested with a stand-in page, but no host has sent it real data. The
+  catalogue covers common cars in Armenia and falls back sensibly for the rest; a host with a
+  body-type field per model could send `archetype` directly instead.
+- **Touch controls were tested with emulated touch in headless Chromium, not on a phone**, and
+  phone performance is unknown (the city is heavy; phones start on LOW).
+- **Coins and upgrades are kept on the client.** That is fine while they only matter in the game;
+  if they ever turn into something with real value (site bonus points, discounts), the host has
+  to validate runs on its server, because a browser save can be edited.
 
 - **Performance was only measured with software rendering** (SwiftShader in a headless
   container, ~1–2 fps for real frames). The game was not run on a real GPU while it was being

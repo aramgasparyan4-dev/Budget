@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test:sim": "tsx scripts/sim-test.ts",
     "test:e2e": "node scripts/e2e.mjs && node scripts/e2e-systems.mjs && node scripts/e2e-nearmiss.mjs",
-    "test:unit": "tsx scripts/nearmiss-test.ts && tsx scripts/drift-test.ts && tsx scripts/race-unit-test.ts",
+    "test:unit": "tsx scripts/nearmiss-test.ts && tsx scripts/drift-test.ts && tsx scripts/race-unit-test.ts && tsx scripts/garage-test.ts",
     "test:race": "tsx scripts/race-test.ts"
   },
   "dependencies": {

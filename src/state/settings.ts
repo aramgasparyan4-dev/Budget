@@ -148,6 +148,8 @@ export function persistSettings(s: Settings) {
 /** Pick a sensible preset for this machine. */
 export function detectPreset(): Preset {
   try {
+    // phones and small tablets: keep it light
+    if (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900) return 'low';
     const cores = navigator.hardwareConcurrency ?? 4;
     const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
     const c = document.createElement('canvas');
