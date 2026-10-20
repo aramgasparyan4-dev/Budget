@@ -24,6 +24,8 @@ export class AudioEngine {
   private skidNodes: { gain: GainNode; f1: BiquadFilterNode; f2: BiquadFilterNode } | null = null;
   vol = { master: 0.8, music: 0.55, sfx: 0.8, ambience: 0.7 };
   ready = false;
+  /** the background bed (city rumble, rain, wind, crowd, birds); a game can switch it off before init */
+  ambience = true;
 
   init() {
     if (this.ctx) {
@@ -57,7 +59,7 @@ export class AudioEngine {
     rvGain.gain.value = 0.35;
     this.reverb.connect(rvGain).connect(this.buses.music);
     this.setVolumes(this.vol);
-    this.startAmbience();
+    if (this.ambience) this.startAmbience();
     this.ready = true;
   }
 
@@ -128,9 +130,12 @@ export class AudioEngine {
     trem.frequency.value = 3.1;
     const tg = ctx.createGain();
     tg.gain.value = 0.3;
-    trem.connect(tg).connect(crowd.gain);
+    // the tremolo swings its own gain (1 +- 0.3) ahead of the level, so a level of 0 is silence
+    const wobble = ctx.createGain();
+    wobble.gain.value = 1;
+    trem.connect(tg).connect(wobble.gain);
     trem.start();
-    n4.connect(bp2).connect(crowd).connect(muffle);
+    n4.connect(bp2).connect(wobble).connect(crowd).connect(muffle);
     n4.start();
     this.amb = { city, rain, wind, windFilter: bp, crowd, muffle };
   }

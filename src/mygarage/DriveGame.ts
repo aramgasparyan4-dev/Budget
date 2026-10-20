@@ -54,7 +54,8 @@ export class DriveGame {
   scene!: THREE.Scene;
   camera!: THREE.PerspectiveCamera;
   input = new Input();
-  audio = new AudioEngine();
+  /** only the car and the game's own sounds: no background bed of city noise, wind and birds */
+  audio = Object.assign(new AudioEngine(), { ambience: false });
   cam!: CameraController;
   world: World | null = null;
   traffic: TrafficSystem | null = null;

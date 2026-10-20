@@ -66,7 +66,8 @@ thing it is best at (checked by a unit test):
 | Electric     | Fastest off the line | Boost refills 40% faster      | smooth, light bars, blue trim        | Tesla, BYD, Ioniq 5             |
 | Classic      | Legend status        | +50% score, cheap to fix      | upright, chrome everywhere           | Lada 2107, Volga, W123          |
 
-Picking a car plays its door and a short rev that sounds like it: deeper for heavy cars, higher
+There is no background ambience (city rumble, wind, birds): you hear the car, the tyres, the
+traffic you pass and the game's cues. Picking a car plays its door and a short rev that sounds like it: deeper for heavy cars, higher
 and sharper for light powerful ones, a rising whine for an electric car.
 
 The catalogue (`src/mygarage/garage/catalog.ts`) knows about 60 makes and their common models,
