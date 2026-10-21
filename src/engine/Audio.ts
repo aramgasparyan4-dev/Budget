@@ -377,6 +377,35 @@ export class AudioEngine {
     });
   }
 
+  /** a car horn: two notes a little apart, through a small speaker; quieter further away */
+  horn(pan: number, dist: number, long = false) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const dur = long ? 0.75 : 0.32;
+    const vol = 0.07 / (1 + dist / 25);
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 900;
+    f.Q.value = 0.9;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.setValueAtTime(vol, t + dur - 0.05);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    const p = ctx.createStereoPanner();
+    p.pan.value = clamp(pan, -0.9, 0.9);
+    f.connect(g).connect(p).connect(this.buses.sfx);
+    for (const hz of [415, 523]) {
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = hz * (0.98 + Math.random() * 0.04);
+      o.connect(f);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    }
+  }
+
   /** police radio: a squelch, a few garbled syllables, a squelch */
   radio() {
     if (!this.ctx) return;

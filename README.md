@@ -39,13 +39,16 @@ the same 3D model you drive, in its paint, darker when damaged), its condition, 
 and "Switch car" (a grid of all your cars with their pictures). A big Drive button sits at the
 foot of the sidebar, always in view. On a phone held upright the sidebar moves under the scene.
 
-Three modes:
+Four modes:
 
 - **Time attack:** score as much as you can in the city before the clock runs out.
 - **Highway:** an endless, winding motorway with no clock (below).
+- **Police chase:** downtown streets and motorway with the police after you: get away, or get
+  busted (below).
 - **Race:** one-on-one against a rival in the same kind of car through the city.
 
-Each mode keeps its own best (time attack and highway scores, races won), shown in the header.
+Each mode keeps its own best (time attack, highway and chase scores, races won), shown in the
+header.
 
 ## Your car
 
@@ -86,13 +89,17 @@ car of your own there is a demo line-up, one of each kind, kept as test drives a
 - **Condition (0-100%) stays with the car between drives.** A big hit costs about half of an
   average car (at most 70%), scrapes a few percent, and tougher cars and body armour take less.
   A fresh car survives its first big hit; a family sedan is wrecked by the second, an off-roader
-  by the third. A damaged car smokes, flashes its hazards, darkens and loses power. Below 10% it
-  will not start until it is repaired.
+  by the third. A damaged car smokes, flashes its hazards, darkens, loses power and its engine
+  misfires and rattles. It always drives: a wrecked car limps out at 25%.
+- **Free repairs on the road:** whenever the car is damaged, a wrench in a column of blue light
+  waits on the road 170-260 m ahead (in every mode: on the street, the motorway, the race
+  route). Drive through it for +40%. The HUD shows how far it is and which way; the map shows it
+  too. Once it is behind you, another is laid ahead.
 - **Coins:** about 1 per 20 points in time attack; the same on the highway up to 20,000 points
   and a quarter of that beyond (drives have no end); 400 and up for winning a race. Everyone
   starts with 500.
-- **Repairs** cost coins in proportion to the damage; without enough you fix what they cover,
-  and a player who is broke with a wrecked car gets a free patch-up to 35%.
+- **Repairs in the garage** cost coins in proportion to the damage (full condition in one go);
+  without enough you fix what they cover.
 - **Workshop:** six upgrades with five levels each: engine (+7% power a level), gearbox (+5% top
   speed), tires (+5% grip), brakes (+12%), body armour (-9% damage), nitro tank. Prices scale
   with the kind of car. With a host page connected it also offers "Find a mechanic" and "Parts
@@ -153,6 +160,44 @@ and dropped once 450 m behind; the branch not taken is dropped once you are past
 Every 1.2 km the whole world is moved back toward the start to keep coordinates small for the
 physics. The city is not drawn while you are out here.
 
+## Police chase
+
+A road of its own (`highway/road.ts`, profile `chase`) that alternates between downtown and open
+motorway, every 1.2-2.3 km:
+
+- **Downtown:** a two-way street, two lanes each way with only a double yellow line between
+  (cross over and the oncoming cars brake and honk), pavements and kerbs, buildings right at the
+  pavement with lit floors and shop fronts, street lamps, and every block a cross street with a
+  zebra crossing, signals over the lanes and a barrier across it. Corners are tight (radius 40-115
+  m, up to about 90 degrees). Traffic drives at city speeds.
+- **Out of town:** the street opens into a boulevard with a planted median, then a three-lane
+  motorway (sweeping bends, tunnels, roadworks, causeways), then closes back into town.
+- The road's heading stays within about 50 degrees of where it started, so however it winds it
+  never comes back across itself.
+
+**The police:** a patrol car waits parked on the pavement ahead. Drive past it (or hit it) and the
+chase is on: lights and siren, SPOTTED. The police cars are real cars in the physics: they close
+in from behind, ram your back corner to spin you, drop back after a hit and come again, block you
+from in front, and take the other direction's lanes downtown when theirs are blocked. They brake
+for corners and traffic, but not always in time. Traffic moves over for them.
+
+- **Heat (1-5)** rises with every 40 s of pursuit and every two cars you take out: more police
+  cars (1, 2, 3, 3, 4 at once, backup arriving from behind), faster ones (tuned against your car's
+  top speed: a bit slower than you at first, a bit faster at heat 5), and from heat 3 roadblocks:
+  police cars angled across every lane but one, 500 m ahead (the HUD warns you).
+- **Escape:** stay more than 170 m from every police car and the escape meter fills (faster
+  beyond 320 m); close in under 110 m and it drains. Full: ESCAPED, a big bonus, and a quiet
+  spell until the next patrol car spots you (the heat stays).
+- **Busted:** slow to a crawl with a police car on you and the busted meter fills; about four
+  seconds and it is over (quicker with more of them). A wreck ends it too.
+- **Scoring:** points for every second with the police after you (more at higher heat), on top of
+  near misses (oncoming ones downtown are worth double), drifts and slipstreams. TAKEDOWN for a
+  police car you wreck, COP CRASHED for one that wrecks itself, ROADBLOCK DODGED, ESCAPED. No
+  clock; End drive (pause) banks it. Chase scores have their own top 10; coins as the highway.
+- **HUD:** heat stars, pursuit / losing them / lost them, the escape meter and how many are after
+  you, the busted meter when it fills, the roadblock warning, red and blue light at the edges of
+  the screen when one is right on you, and the map with the police flashing on it.
+
 ## Race
 
 A random 1.6-2.3 km route through the city grid, from a two-car grid to a finish gate. The rival
@@ -168,7 +213,7 @@ Turning is helped in every mode: more steering lock at speed, a little more grip
 follows the wheel without sliding; drifts and handbrake turns are left alone.
 
 **Controls:** W A S D drive, Shift boost, Space + steer to drift, mouse to look, Esc pause,
-R restart, T back on the route (race), E end the drive (highway, paused), Enter start. On phones
+R restart, T back on the route (race), E end the drive (highway and chase, paused), Enter start. On phones
 and tablets there are on-screen controls (steering left, pedals right, boost and drift above
 them); phones start on the LOW preset.
 
@@ -180,8 +225,19 @@ All synthesised with Web Audio (`src/engine/`):
   pattern: the wave's harmonics follow the cylinders (a three's thrum, a crossplane V8's burble),
   a band of noise pulsed at the firing rate gives it bark on small speakers, and throttle opens
   the "muffler". Diesels clatter, turbos whistle and blow off, sporty cars crackle on lift-off,
-  the classic hunts at idle. The electric car has no engine at all: a clean motor and inverter
-  whine that rises with road speed, quieter when coasting. Road and wind noise grow with speed.
+  the classic hunts at idle. The revs follow a six-speed gearbox spread over the car's top speed
+  (they climb through each gear and drop at the shift, with a moment of cut power, a bark from a
+  sporty exhaust and a hiss from a turbo; later shifts with more throttle; you can rev it on the
+  line in the countdown), and it stutters on the rev limiter flat out at top speed. The note
+  wobbles a little like a real one, the intake roars under load, and two slightly different
+  exhaust pipes, one each side, give it resonance and stereo width. A damaged engine misfires and
+  rattles. Boost adds a nitrous hiss. The electric car has no engine at all: a clean motor and
+  inverter whine and its reduction gear, rising with road speed, quieter when coasting. Road and
+  wind noise grow with speed, and the tyres thump over joints in the road.
+- **The police:** sirens that switch between wail and yelp, placed left or right of you with
+  the Doppler shift as they come and go (the two nearest), police radio when they spot you or
+  call backup, a fanfare when you escape and a falling phrase when you are busted. Downtown,
+  cars coming the other way honk when you are in their lane. A wrench pickup ratchets and chimes.
 - **Picking a car** plays its door, then it starts up: the starter cranks, it catches and settles,
   and a blip of the throttle (an electric car wakes with a chime and a whine instead).
 - **Music** (`music.ts`): a step sequencer with a few synth instruments. A slow lo-fi groove in
@@ -208,9 +264,12 @@ src/
   mygarage/   the game
     DriveGame.ts      game loop, modes, camera, traffic director, collisions
     scoring.ts        the scoring rules (pure, unit-tested)
-    Highway.ts        the highway: streaming, your place on the road, traffic bodies, map
+    Highway.ts        the highway and chase road: streaming, where cars are on it, traffic bodies, map
     highway/          road.ts (the road tree and its planning, pure), traffic.ts (pure),
-                      build.ts (meshes and collision for a piece)
+                      police.ts (how a police car drives, pure), build.ts (meshes and collision
+                      for a piece, downtown streets included)
+    Chase.ts          the police chase: police cars, heat, backup, roadblocks, escape, busted
+    pickups.ts        the wrenches on the road (free repairs)
     race.ts, RaceSession.ts   routes, progress, the rival's driver; one race
     garage/           archetypes, catalogue, vehicles, economy, host bridge, store
     App.tsx, GarageUI.tsx, RaceUI.tsx, ui.tsx, theme.css, thumbs.ts (car pictures)
@@ -232,20 +291,27 @@ commit 13737f4).
 
 ```bash
 npm run typecheck
-npm run test:unit    # scoring (31), drift (40), turning help (6), race rules (13), garage (29), highway road (12)
+npm run test:unit    # scoring (31), drift (40), turning help (6), race rules (13), garage (28), highway road (12), chase (15)
 npm run test:race    # the rival AI racing itself through real physics and traffic (a few minutes)
 npm run dev &        # then, in another shell:
-npm run test:e2e     # drives the game in headless Chromium (35 checks)
+npm run test:e2e     # drives the game in headless Chromium (37 checks)
 ```
 
 `scripts/e2e-drive.mjs` covers the title screen and garage card, adding a car with the form,
 buying an upgrade, picking a car and conditions, the countdown, near misses, combos, boost,
 oncoming driving, drifting, pause, damage and a wreck, results with coins and condition, a
-wrecked car refusing to start, repairs, running out of time, rain, the race (grid, rival, HUD, a
+wrecked car limping out and a wrench on the road fixing it, garage repairs, running out of time,
+rain, the race (grid, rival, HUD, a
 crash, checkpoints, back on track, winning and losing), a highway drive (80 seconds round the
 bends with an autopilot, no clock, the world brought back toward the start, a near miss, a
-crash, ending the drive for coins and its own best, the city coming back), the high score after
-a reload, a `#garage=` host link, and the touch controls. `scripts/highway-test.ts` lays 60 km
+crash, ending the drive for coins and its own best, the city coming back), a police chase
+(downtown two-way streets, the patrol car pulling out after you, being busted and the results),
+the high score after a reload, a `#garage=` host link, and the touch controls.
+`scripts/chase-test.ts` lays 40 km of chase road and checks it keeps its heading bound and never
+comes back across itself, that streets and motorway take turns, that cross streets sit on
+straights; that an oncoming car downtown stops for you in its lane, that downtown traffic keeps
+to city speeds and moves over for a siren; and drives a police car (a simple car model) behind
+you round the corners to check it stays on the road and catches up. `scripts/highway-test.ts` lays 60 km
 of road through forks and checks it joins up without gaps or kinks, that lanes carry straight
 into the branches, that every feature and zone turns up, that points project back onto the road,
 and that roadworks close and reopen a lane. The suites also pass against the production build.
@@ -259,6 +325,8 @@ and that roadworks close and reopen a lane. The suites also pass against the pro
   MEDIUM or LOW.
 - **Sound and music are untested by ear.** Levels were measured (nothing clips, the engine sits
   above the music) but nobody has listened to them.
+- **The police chase was tuned with an autopilot,** not by people playing it: how hard it is to
+  get away (and how often the police crash on their own) may need adjusting after real play.
 - **Touch controls were tested with emulated touch,** not on a phone.
 - **Coins and upgrades are kept on the client.** If they ever turn into something with real
   value, the host has to validate drives on its server.

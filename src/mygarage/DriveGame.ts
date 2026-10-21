@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Input } from '../engine/Input';
 import { AudioEngine } from '../engine/Audio';
-import { engineFor } from '../engine/engineSound';
+import { engineFor, SoundGearbox } from '../engine/engineSound';
 import { World } from '../engine/World';
 import type { WeatherParams } from '../render/Environment';
 import { G } from '../render/globals';
@@ -111,6 +111,9 @@ export class DriveGame {
   /** lanes grouped by the road line they run along ('v3', 'h7'), for the traffic director */
   private lineLanes = new Map<string, Lane[]>();
   private directorT = 0;
+  private hornT = 0;
+  /** the gears the engine sound goes through */
+  private gearbox = new SoundGearbox();
   /** free repairs on the road (wrenches) */
   pickups!: Pickups;
   private pickT = 0;
@@ -420,6 +423,7 @@ export class DriveGame {
     this.cam.snap();
     this.audio.setCar(engineFor(VEHICLES[setup.type]));
     this.audio.engineStart();
+    this.gearbox = new SoundGearbox();
     useNM.getState().set({ result: null, popups: [], ending: null, chase: null });
     this.setPhase('countdown');
   }
@@ -835,8 +839,20 @@ export class DriveGame {
       const onRoad = this.phase === 'run' || this.phase === 'countdown' || this.phase === 'wreck';
       this.audio.setMusic(this.phase === 'loading' ? null : onRoad ? 'drive' : 'garage', this.paused ? 0.4 : this.phase === 'results' ? 0.8 : 1);
       if (car && (this.phase === 'run' || this.phase === 'countdown') && !this.paused) {
-        const thr = this.phase === 'run' && (input.down('KeyW') || input.down('ArrowUp')) ? 1 : 0;
-        this.audio.engine({ rpm: Math.min(1.2, car.rpm + (this.boosting ? 0.12 : 0)), throttle: thr, speed: Math.abs(car.forwardSpeed), boost: this.boosting });
+        // you can rev it on the line during the countdown
+        const thr = input.down('KeyW') || input.down('ArrowUp') ? 1 : 0;
+        const v = Math.abs(car.forwardSpeed);
+        const top = car.spec.maxSpeed * (this.setup?.top ?? 1) * damageFactor(this.scorer.health).top;
+        const gb = this.gearbox.update(rawDt, v, top, thr, this.phase === 'countdown');
+        this.audio.engine({
+          rpm: Math.min(1.15, gb.rpm + (this.boosting ? 0.06 : 0)),
+          throttle: thr,
+          speed: v,
+          boost: this.boosting,
+          gear: gb.gear,
+          limit: !this.boosting && thr > 0 && v > top * 0.97,
+          damage: Math.max(0, (RULES.damagedBelow - this.scorer.health) / RULES.damagedBelow),
+        });
       }
       this.sirenSound(rawDt);
       const sliding = car && this.phase === 'run' && !this.paused && (car.drifting || (car.handbrake && car.speed > 8));
@@ -1055,10 +1071,35 @@ export class DriveGame {
       if (inter.signalized && tr.signalColor(it, axis) === 2) this.scorer.bonus('RED LIGHT', 250, this.boosting);
     }
     this.lastInter = it;
-    if (this.onHighway) this.highwayBonuses(dt, car);
+    if (this.onHighway) {
+      this.highwayBonuses(dt, car);
+      this.honks(dt, car);
+    }
     if (this.chase?.state === 'pursuit') this.scorer.pursuit(dt, this.chase.heat);
     this.flushEvents();
     if (this.scorer.over === 'time') this.finish();
+  }
+
+  /** downtown, on the wrong side of the road: the car coming at you leans on its horn */
+  private honks(dt: number, car: DrivableVehicle) {
+    this.hornT -= dt;
+    const hw = this.highway!;
+    const you = hw.you;
+    if (this.hornT > 0 || !you || !hw.oncomingSide()) return;
+    const cf = new THREE.Vector3();
+    this.camera.getWorldDirection(cf);
+    for (const c of hw.traffic.cars) {
+      if (!c.oncoming || c.path !== you.path || c.crashed) continue;
+      const d = c.s - you.s;
+      const ol = you.path.oncomingLat(c.lane, c.s);
+      if (d < 6 || d > 60 || ol === null || Math.abs(ol - you.lat) > 2) continue;
+      const dx = c.x - car.pos.x;
+      const dz = c.z - car.pos.z;
+      const dist = Math.hypot(dx, dz) || 1;
+      this.audio.horn((dx * -cf.z + dz * cf.x) / dist, dist, d < 30);
+      this.hornT = 2 + Math.random() * 1.5;
+      return;
+    }
   }
 
   /** highway extras: riding a car's slipstream refills the boost; every 5 km is a bonus */

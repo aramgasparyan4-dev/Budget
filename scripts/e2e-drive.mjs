@@ -81,8 +81,9 @@ window.__t = {
       const back = g.startPose(seg.id, false);
       p = seg.orient === 'v' ? { x: back.x, z: p.z, yaw: p.yaw } : { x: p.x, z: back.z, yaw: p.yaw };
     }
-    // move first, then clear the streets around where we landed
+    // move first, then clear the streets around where we landed (and any wrench left on the old road)
     g.car.teleport(p.x, 0.02, p.z, p.yaw);
+    g.pickups.clear();
     __t.quiet(260);
     window.__nm.simulate(0.2);
     return p;
@@ -444,7 +445,7 @@ await step('results screen with stats and a ranked score', async () => {
   // a wreck that scored nothing does not go on the leaderboard
   assert(r.result && r.result.reason === 'wrecked' && (r.result.score > 0 ? r.result.rank >= 1 : r.result.rank === 0), JSON.stringify(r));
   const cta = await ev(() => document.querySelector('#btn-again')?.textContent);
-  assert(/fix your car/i.test(cta ?? ''), 'a wreck should lead to the workshop: ' + cta);
+  assert(/drive again/i.test(cta ?? ''), 'a wreck can drive again straight away: ' + cta);
   const g = r.result.garage;
   assert(g && g.health === 0 && g.damage === 100 && g.repair > 0 && (await page.$('#garage-result')), 'garage result ' + JSON.stringify(g));
   return {
@@ -455,15 +456,39 @@ await step('results screen with stats and a ranked score', async () => {
   };
 });
 
-await step('the wreck stays wrecked: it will not start until repaired', async () => {
+await step('a wreck still drives (it limps out), and a wrench on the road fixes it for free', async () => {
   const r = await ev(() => {
     const g = __t.g();
     const health = window.__garage.getState().setup().progress.health;
     g.startRun();
     const phase = g.phase;
-    return { health, phase, notice: window.__garage.getState().notice };
+    const limp = Math.round(g.scorer.health);
+    __t.sim(3.3);
+    __t.place(true);
+    __t.launch(12);
+    // one turns up on the road ahead of a damaged car
+    for (let i = 0; i < 40 && !g.pickups.items.length; i++) __t.sim(0.1);
+    const p = g.pickups.items[0];
+    const spawned = p ? { ahead: Math.round((p.x - g.car.pos.x) * Math.sin(g.car.yaw) + (p.z - g.car.pos.z) * Math.cos(g.car.yaw)), dist: Math.round(Math.hypot(p.x - g.car.pos.x, p.z - g.car.pos.z)) } : null;
+    __t.sim(0.1);
+    const hud = __t.st().hud.pickup;
+    // drive through it: put it a little way ahead of the car
+    if (p) {
+      p.x = g.car.pos.x + Math.sin(g.car.yaw) * 14;
+      p.z = g.car.pos.z + Math.cos(g.car.yaw) * 14;
+    }
+    __t.down('KeyW');
+    for (let i = 0; i < 30 && g.scorer.health <= limp; i++) __t.sim(0.1);
+    __t.up('KeyW');
+    const popups = __t.st().popups.map((x) => x.label);
+    return { health, phase, limp, spawned, hud, after: Math.round(g.scorer.health), popups, left: g.pickups.items.length };
   });
-  assert(r.health === 0 && r.phase === 'title' && /repair/i.test(r.notice), JSON.stringify(r));
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: 'scripts/out/nm-e2e-repair.png' });
+  assert(r.health === 0 && r.phase === 'countdown' && r.limp === 25, 'limps out: ' + JSON.stringify(r));
+  assert(r.spawned && r.spawned.ahead > 100 && r.hud && r.hud.dist > 100 && Math.abs(r.hud.arrow) < 30, 'a wrench ahead: ' + JSON.stringify(r));
+  assert(r.after === 65 && r.popups.includes('REPAIRED'), 'repaired: ' + JSON.stringify(r));
+  await ev(() => __t.g().toTitle());
   return r;
 });
 
@@ -475,7 +500,7 @@ await step('repair spends coins and gets it running again', async () => {
     health: window.__garage.getState().setup().progress.health,
     card: document.querySelector('#garage-health')?.textContent,
   }));
-  assert(r.coins < before && r.health >= 10 && r.card === `${Math.round(r.health)}%`, JSON.stringify({ before, ...r }));
+  assert(r.coins < before && r.health > 65 && r.card === `${Math.round(r.health)}%`, JSON.stringify({ before, ...r }));
   // back to the results screen state the next step starts from
   await ev(() => {
     const g = __t.g();
@@ -895,6 +920,72 @@ await step('highway: End drive banks the combo, pays coins and keeps its own bes
   assert(!back.onHighway && back.phase === 'title' && back.hidden, JSON.stringify(back));
   await ev(() => __t.st().set({ mode: 'score' }));
   return { score: r.result.score, coins: r.coins - coins0, back };
+});
+
+await step('police chase: downtown two-way streets, a patrol car spots you and gives chase', async () => {
+  await page.click('#mode-chase');
+  await page.click('#btn-drive');
+  const r = await ev(() => {
+    const g = __t.g();
+    const hw = g.highway;
+    __t.sim(3.3);
+    const you = hw.you;
+    const ch = g.chase;
+    const start = {
+      profile: hw.profile,
+      street: you.path.street(you.s),
+      oncoming: hw.traffic.cars.filter((c) => c.oncoming && hw.reachable(c)).length,
+      state: ch.state,
+      spotter: ch.cops.filter((c) => c.role === 'spotter').map((c) => Math.round(c.d.s - you.s)),
+    };
+    // drive up to the patrol car: it pulls out after you
+    const cop = ch.cops.find((c) => c.role === 'spotter');
+    const q = you.path.pose(cop.d.s - 22, 3.4 * 1.5);
+    g.car.teleport(q.x, 0.02, q.z, q.h);
+    g.car.body.setLinvel({ x: Math.sin(q.h) * 12, y: 0, z: Math.cos(q.h) * 12 }, true);
+    g.car.lastVel.set(Math.sin(q.h) * 12, 0, Math.cos(q.h) * 12);
+    __t.down('KeyW');
+    for (let i = 0; i < 20 && ch.state !== 'pursuit'; i++) __t.sim(0.1);
+    __t.sim(2);
+    __t.up('KeyW');
+    const popups = __t.st().popups.map((x) => x.label);
+    return { start, state: ch.state, lights: ch.cops.filter((c) => c.lights).length, popups, chaseHud: __t.st().chase };
+  });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'scripts/out/nm-e2e-chase.png' });
+  assert(r.start.profile === 'chase' && r.start.street && r.start.oncoming > 0 && r.start.state === 'patrol' && r.start.spotter.length === 1 && r.start.spotter[0] > 150, 'start ' + JSON.stringify(r.start));
+  assert(r.state === 'pursuit' && r.lights >= 1 && r.chaseHud?.state === 'pursuit' && (await page.$('#hud-chase')) && (await page.$('#hud-heat')), 'pursuit ' + JSON.stringify(r));
+  return r;
+});
+
+await step('police chase: stopped with the police on you is busted; the results say so', async () => {
+  const r = await ev(() => {
+    const g = __t.g();
+    const ch = g.chase;
+    const car = g.car;
+    // stop dead with a police car right behind
+    car.stop();
+    const cop = ch.cops.find((c) => !c.disabled && c.role === 'pursuit');
+    const back = { x: car.pos.x - Math.sin(car.yaw) * 7, z: car.pos.z - Math.cos(car.yaw) * 7 };
+    cop.car.teleport(back.x, 0.02, back.z, car.yaw);
+    let bust = 0;
+    for (let i = 0; i < 80 && g.phase === 'run'; i++) {
+      car.stop();
+      __t.sim(0.1);
+      bust = Math.max(bust, ch.bust);
+    }
+    const ending = __t.st().ending;
+    __t.sim(3);
+    return { bust: +bust.toFixed(2), ending, phase: g.phase, result: __t.st().result, best: __t.st().bestChase.length };
+  });
+  await page.waitForSelector('#btn-again', { timeout: 10000 });
+  await page.screenshot({ path: 'scripts/out/nm-e2e-busted.png' });
+  const title = await ev(() => document.querySelector('#results')?.textContent ?? '');
+  assert(r.bust > 0.9 && r.ending === 'busted' && r.phase === 'results', JSON.stringify({ ...r, result: undefined }));
+  assert(r.result.mode === 'chase' && r.result.reason === 'busted' && r.result.chase && /Busted/.test(title) && /Escapes/.test(title), JSON.stringify(r.result));
+  await page.click('#btn-title');
+  await ev(() => __t.st().set({ mode: 'score' }));
+  return { bust: r.bust, chase: r.result.chase, score: r.result.score };
 });
 
 await step('high score shows on the loading screen after a reload', async () => {

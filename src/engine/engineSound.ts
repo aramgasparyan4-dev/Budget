@@ -8,8 +8,16 @@
 // the engine its bark. Throttle opens the "muffler" filter and drives a soft clipper. Diesels add
 // a clatter, turbos a whistle and a blow-off, sporty ones crackle when you lift off.
 //
+// What makes it sound like a real one rather than a synth: the revs follow a six-speed gearbox
+// (SoundGearbox: they climb through each gear and drop at the shift, with a moment of cut power),
+// the note wobbles a little all the time, the intake roars under load, the exhaust pipes resonate
+// (two slightly different pipes, left and right, which also gives it width), it stutters on the
+// rev limiter at top speed, a damaged engine misfires and rattles, and the tyres thump over joints
+// in the road.
+//
 // An electric car has none of that: two high, clean tones that rise with road speed (the motor and
-// its inverter), a faint hum when stopped, and the same road and wind noise as everyone.
+// its inverter), the whine of its reduction gear, a faint hum when stopped, and the same road and
+// wind noise as everyone.
 
 export interface EngineProfile {
   kind: 'combustion' | 'electric';
@@ -34,6 +42,10 @@ export interface EngineProfile {
   turbo: number;
   pops: number;
   clatter: number;
+  /** exhaust pipe resonance: delay in ms (longer: lower, boomier) */
+  pipe: number;
+  /** intake roar under load */
+  intake: number;
 }
 
 /** harmonics: the firing harmonic and its multiples, plus extra orders for uneven engines */
@@ -60,34 +72,36 @@ const base = (o: Partial<EngineProfile>): EngineProfile => ({
   turbo: 0,
   pops: 0,
   clatter: 0,
+  pipe: 2.6,
+  intake: 0.4,
   ...o,
 });
 
 /** by body model (VEHICLES[i].model ?? key) */
 export const ENGINES: Record<string, EngineProfile> = {
   // a three-cylinder city car: thrummy, light, busy
-  compact: base({ cylinders: 3, idle: 900, redline: 6400, harmonics: wave(3, { 1: 0.32, 2: 0.22 }, 0.7), cutIdle: 480, cutMax: 2400, body: 190, barkHz: 1100, bark: 0.55, level: 0.8 }),
+  compact: base({ cylinders: 3, idle: 900, redline: 6400, harmonics: wave(3, { 1: 0.32, 2: 0.22 }, 0.7), cutIdle: 480, cutMax: 2400, body: 190, barkHz: 1100, bark: 0.55, level: 0.8, pipe: 1.9, intake: 0.35 }),
   // a smooth four
-  sedan: base({ idle: 750, redline: 6200, harmonics: wave(4, { 2: 0.12 }, 0.85), cutIdle: 380, cutMax: 2100, body: 150, bark: 0.35, level: 0.85 }),
+  sedan: base({ idle: 750, redline: 6200, harmonics: wave(4, { 2: 0.12 }, 0.85), cutIdle: 380, cutMax: 2100, body: 150, bark: 0.35, level: 0.85, pipe: 2.4, intake: 0.3 }),
   // a turbo V6: deep, even, a turbo you can hear
-  exec: base({ cylinders: 6, idle: 700, redline: 6800, harmonics: wave(6, { 3: 0.28 }, 0.8), cutIdle: 360, cutMax: 2300, body: 130, barkHz: 800, bark: 0.4, turbo: 0.6, level: 0.95 }),
+  exec: base({ cylinders: 6, idle: 700, redline: 6800, harmonics: wave(6, { 3: 0.28 }, 0.8), cutIdle: 360, cutMax: 2300, body: 130, barkHz: 800, bark: 0.4, turbo: 0.6, level: 0.95, pipe: 3.2, intake: 0.45 }),
   // a crossplane V8: burble at idle, howl at the top, crackle on the overrun
-  sports: base({ cylinders: 8, idle: 850, redline: 7600, harmonics: wave(8, { 4: 0.55, 2: 0.3, 1: 0.12, 6: 0.2 }, 0.65), cutIdle: 420, cutMax: 3600, body: 120, barkHz: 750, bark: 0.75, pops: 1, level: 1.1 }),
+  sports: base({ cylinders: 8, idle: 850, redline: 7600, harmonics: wave(8, { 4: 0.55, 2: 0.3, 1: 0.12, 6: 0.2 }, 0.65), cutIdle: 420, cutMax: 3600, body: 120, barkHz: 750, bark: 0.75, pops: 1, level: 1.1, pipe: 3.8, intake: 0.75 }),
   // a turbo four tuned loud: rasp, whistle, blow-off and pops
-  hatch: base({ idle: 900, redline: 7000, harmonics: wave(4, { 2: 0.28, 1: 0.1 }, 0.6), cutIdle: 520, cutMax: 3800, body: 210, barkHz: 1300, bark: 0.8, turbo: 1, pops: 0.7, level: 1 }),
+  hatch: base({ idle: 900, redline: 7000, harmonics: wave(4, { 2: 0.28, 1: 0.1 }, 0.6), cutIdle: 520, cutMax: 3800, body: 210, barkHz: 1300, bark: 0.8, turbo: 1, pops: 0.7, level: 1, pipe: 2.1, intake: 0.85 }),
   // the crossover's four: plain, a little gruff
-  suv: base({ idle: 750, redline: 6000, harmonics: wave(4, { 2: 0.2 }, 0.8), cutIdle: 380, cutMax: 2200, body: 140, bark: 0.45, level: 0.9 }),
+  suv: base({ idle: 750, redline: 6000, harmonics: wave(4, { 2: 0.2 }, 0.8), cutIdle: 380, cutMax: 2200, body: 140, bark: 0.45, level: 0.9, pipe: 2.8, intake: 0.4 }),
   // a big turbo-diesel six: low, clattery, runs out of revs early
-  offroad: base({ cylinders: 6, idle: 650, redline: 4300, harmonics: wave(6, { 3: 0.25 }, 1.0), cutIdle: 300, cutMax: 1500, body: 95, barkHz: 650, bark: 0.6, clatter: 1, turbo: 0.45, level: 1.05 }),
+  offroad: base({ cylinders: 6, idle: 650, redline: 4300, harmonics: wave(6, { 3: 0.25 }, 1.0), cutIdle: 300, cutMax: 1500, body: 95, barkHz: 650, bark: 0.6, clatter: 1, turbo: 0.45, level: 1.05, pipe: 4.2, intake: 0.35 }),
   // a four-cylinder diesel
-  pickup: base({ idle: 700, redline: 4400, harmonics: wave(4, { 2: 0.25 }, 1.0), cutIdle: 320, cutMax: 1600, body: 110, barkHz: 700, bark: 0.55, clatter: 0.8, turbo: 0.3, level: 1 }),
+  pickup: base({ idle: 700, redline: 4400, harmonics: wave(4, { 2: 0.25 }, 1.0), cutIdle: 320, cutMax: 1600, body: 110, barkHz: 700, bark: 0.55, clatter: 0.8, turbo: 0.3, level: 1, pipe: 3.6, intake: 0.35 }),
   // an old carburettor four: lumpy, raw, the odd backfire
-  classic: base({ idle: 800, redline: 5600, harmonics: wave(4, { 2: 0.38, 1: 0.18 }, 0.7), cutIdle: 460, cutMax: 2600, body: 170, barkHz: 1000, bark: 0.7, rough: 1, pops: 0.35, level: 0.95 }),
+  classic: base({ idle: 800, redline: 5600, harmonics: wave(4, { 2: 0.38, 1: 0.18 }, 0.7), cutIdle: 460, cutMax: 2600, body: 170, barkHz: 1000, bark: 0.7, rough: 1, pops: 0.35, level: 0.95, pipe: 2.9, intake: 0.6 }),
   ev: base({ kind: 'electric', level: 1 }),
   // traffic bodies, should one ever be driven
-  van: base({ idle: 700, redline: 4500, harmonics: wave(4, { 2: 0.25 }, 1.0), cutIdle: 320, cutMax: 1600, body: 110, clatter: 0.7, level: 1 }),
-  truck: base({ cylinders: 6, idle: 600, redline: 3200, harmonics: wave(6, { 3: 0.3 }, 1.0), cutIdle: 260, cutMax: 1200, body: 80, barkHz: 550, clatter: 1, turbo: 0.5, level: 1.1 }),
-  bus: base({ cylinders: 6, idle: 600, redline: 3000, harmonics: wave(6, { 3: 0.3 }, 1.0), cutIdle: 240, cutMax: 1100, body: 75, barkHz: 500, clatter: 0.9, level: 1.1 }),
+  van: base({ idle: 700, redline: 4500, harmonics: wave(4, { 2: 0.25 }, 1.0), cutIdle: 320, cutMax: 1600, body: 110, clatter: 0.7, level: 1, pipe: 3.4 }),
+  truck: base({ cylinders: 6, idle: 600, redline: 3200, harmonics: wave(6, { 3: 0.3 }, 1.0), cutIdle: 260, cutMax: 1200, body: 80, barkHz: 550, clatter: 1, turbo: 0.5, level: 1.1, pipe: 4.8 }),
+  bus: base({ cylinders: 6, idle: 600, redline: 3000, harmonics: wave(6, { 3: 0.3 }, 1.0), cutIdle: 240, cutMax: 1100, body: 75, barkHz: 500, clatter: 0.9, level: 1.1, pipe: 5 }),
 };
 
 export function engineFor(spec: { model?: string; key: string }): EngineProfile {
@@ -100,9 +114,55 @@ export interface EngineState {
   throttle: number;
   speed: number;
   boost?: boolean;
+  /** the gear it is in: a change is a shift */
+  gear?: number;
+  /** flat out at top speed: bouncing off the rev limiter */
+  limit?: boolean;
+  /** 0..1: how badly the engine is hurt (misfires, rattle) */
+  damage?: number;
 }
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
+
+/**
+ * Six gears spread over the car's top speed, for the sound only: the revs climb through each gear
+ * and drop at each shift (later with more throttle, as a driver would), the clutch slips off the
+ * line, and it changes down as the car slows.
+ */
+export class SoundGearbox {
+  gear = 1;
+  rpm = 0.18;
+  private holdT = 0;
+  /** top of each gear as a fraction of top speed */
+  static readonly TOPS = [0.19, 0.34, 0.5, 0.66, 0.83, 1.02];
+
+  /** `neutral`: not moving off yet (the countdown): the throttle just revs it */
+  update(dt: number, speed: number, top: number, throttle: number, neutral = false): { rpm: number; gear: number } {
+    if (neutral) {
+      this.gear = 1;
+      this.rpm += (0.18 + 0.78 * throttle - this.rpm) * Math.min(1, dt * (throttle > 0 ? 7 : 4));
+      return { rpm: this.rpm, gear: this.gear };
+    }
+    const v = Math.abs(speed);
+    const tops = SoundGearbox.TOPS.map((f) => f * Math.max(10, top));
+    this.holdT -= dt;
+    const g = this.gear;
+    if (this.holdT <= 0) {
+      if (g < 6 && v > tops[g - 1] * (0.6 + 0.37 * throttle)) {
+        this.gear++;
+        this.holdT = 0.4;
+      } else if (g > 1 && v < tops[g - 2] * 0.48) {
+        this.gear--;
+        this.holdT = 0.4;
+      }
+    }
+    const ratio = v / tops[this.gear - 1];
+    const launch = this.gear === 1 ? 0.32 * throttle * (1 - Math.min(1, v / (tops[0] * 0.7))) : 0;
+    const want = 0.18 + 0.82 * Math.min(1.08, ratio + launch);
+    this.rpm += (want - this.rpm) * Math.min(1, dt * 14);
+    return { rpm: this.rpm, gear: this.gear };
+  }
+}
 
 export class EngineSound {
   readonly out: GainNode;
@@ -120,17 +180,31 @@ export class EngineSound {
   private turbo?: OscillatorNode;
   private turboGain?: GainNode;
   private clatterGain?: GainNode;
+  private mix?: GainNode;
+  private intakeFilter?: BiquadFilterNode;
+  private intakeGain?: GainNode;
+  private limGain?: GainNode;
+  private limDepth?: GainNode;
+  private rattleGain?: GainNode;
+  private hissGain?: GainNode;
+  private gear = 0;
+  private misfireT = 0;
   // electric
   private motor?: OscillatorNode;
   private inverter?: OscillatorNode;
   private hum?: OscillatorNode;
   private motorGain?: GainNode;
   private inverterGain?: GainNode;
+  private whine?: OscillatorNode;
+  private whineGain?: GainNode;
   // everyone
   private roadGain: GainNode;
   private windGain: GainNode;
   private last: EngineState = { rpm: 0.18, throttle: 0, speed: 0 };
   private popT = 0;
+  private lastT = 0;
+  /** metres to the next joint in the road */
+  private jointIn = 20;
 
   constructor(
     private ctx: AudioContext,
@@ -192,6 +266,10 @@ export class EngineSound {
     this.toneGain = ctx.createGain();
     this.toneGain.gain.value = 0.7;
     cam.connect(this.toneGain);
+    // the note is never quite steady: a slow random wobble of a few cents (more in an old engine)
+    const wobble = ctx.createGain();
+    wobble.gain.value = 700 + 1600 * p.rough;
+    this.noiseThrough([this.filter('lowpass', 7, 0.5), this.filter('lowpass', 7, 0.5)], wobble);
     // the bark: noise pulsed at the firing rate (gain swings 0..1 with each firing)
     const fire = ctx.createOscillator();
     const pr = new Float32Array(16);
@@ -207,7 +285,9 @@ export class EngineSound {
     this.barkGain = ctx.createGain();
     this.barkGain.gain.value = 0;
     this.noiseThrough([this.barkFilter, am], this.barkGain);
-    // drive -> soft clip -> body -> muffler
+    // tone + bark -> (misfires, shifts) -> drive -> soft clip -> body -> muffler -> (rev limiter) -> level
+    this.mix = ctx.createGain();
+    this.mix.gain.value = 1;
     this.drive = ctx.createGain();
     this.drive.gain.value = 1;
     const shaper = ctx.createWaveShaper();
@@ -223,9 +303,57 @@ export class EngineSound {
     this.muffler = this.filter('lowpass', p.cutIdle, 0.9);
     this.engGain = ctx.createGain();
     this.engGain.gain.value = 0;
-    this.toneGain.connect(this.drive);
-    this.barkGain.connect(this.drive);
-    this.drive.connect(shaper).connect(body).connect(presence).connect(this.muffler).connect(this.engGain).connect(this.out);
+    this.toneGain.connect(this.mix);
+    this.barkGain.connect(this.mix);
+    this.mix.connect(this.drive);
+    // the rev limiter: a fast chop of the power, off until it is needed
+    this.limGain = ctx.createGain();
+    this.limGain.gain.value = 1;
+    const chop = ctx.createOscillator();
+    chop.type = 'square';
+    chop.frequency.value = 17;
+    this.limDepth = ctx.createGain();
+    this.limDepth.gain.value = 0;
+    chop.connect(this.limDepth).connect(this.limGain.gain);
+    chop.start();
+    this.nodes.push(chop);
+    this.drive.connect(shaper).connect(body).connect(presence).connect(this.muffler).connect(this.limGain).connect(this.engGain).connect(this.out);
+    // intake roar: air rushing in under load, through the same muffler
+    this.intakeFilter = this.filter('bandpass', 320, 0.8);
+    this.intakeGain = ctx.createGain();
+    this.intakeGain.gain.value = 0;
+    this.noiseThrough([this.intakeFilter], this.intakeGain);
+    this.intakeGain.connect(this.muffler);
+    // two exhaust pipes, a touch different, one each side: resonance and width
+    for (const [side, k] of [
+      [-1, 1],
+      [1, 1.17],
+    ] as const) {
+      const d = ctx.createDelay(0.05);
+      d.delayTime.value = (p.pipe * k) / 1000;
+      const fb = ctx.createGain();
+      fb.gain.value = 0.38;
+      const tone = this.filter('lowpass', 2600, 0.7);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.3;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = side * 0.55;
+      this.engGain.connect(d);
+      d.connect(tone).connect(fb).connect(d);
+      tone.connect(wet).connect(pan).connect(this.out);
+    }
+    // a damaged engine rattles on every firing
+    const rattleAm = ctx.createGain();
+    rattleAm.gain.value = 0;
+    this.rattleGain = ctx.createGain();
+    this.rattleGain.gain.value = 0;
+    this.noiseThrough([this.filter('bandpass', 1700, 3), rattleAm], this.rattleGain);
+    this.rattleGain.connect(this.out);
+    // boost: the hiss of the nitrous
+    this.hissGain = ctx.createGain();
+    this.hissGain.gain.value = 0;
+    this.noiseThrough([this.filter('highpass', 2800, 0.7)], this.hissGain);
+    this.hissGain.connect(this.out);
     // a turbo's whistle, after the muffler
     if (p.turbo > 0) {
       this.turbo = ctx.createOscillator();
@@ -248,6 +376,11 @@ export class EngineSound {
       this.noiseThrough([this.filter('bandpass', 2600, 2.2), tick], this.clatterGain);
       this.clatterGain.connect(this.out);
     }
+    const rattleDepth = ctx.createGain();
+    rattleDepth.gain.value = 1;
+    fire.connect(rattleDepth).connect(rattleAm.gain);
+    wobble.connect(cam.detune);
+    wobble.connect(fire.detune);
     cam.start();
     fire.start();
     this.cam = cam;
@@ -278,6 +411,11 @@ export class EngineSound {
     this.inverter.connect(this.inverterGain).connect(soft);
     this.hum.connect(humGain).connect(soft);
     soft.connect(this.out);
+    // the reduction gear's whine, a little off the motor's note
+    this.whine = mk('triangle');
+    this.whineGain = ctx.createGain();
+    this.whineGain.gain.value = 0;
+    this.whine.connect(this.whineGain).connect(soft);
   }
 
   /** follow the car: `at` schedules (for the start-up sequence), otherwise it glides there now */
@@ -294,15 +432,31 @@ export class EngineSound {
     const sp = Math.min(1, speed / 60);
     go(this.roadGain.gain, 0.05 * Math.min(1, speed / 8) * (0.4 + sp), 0.15);
     go(this.windGain.gain, 0.06 * sp * sp, 0.2);
+    // joints in the road: a soft da-dum under the wheels every so often
+    if (at === undefined) {
+      const dt = this.lastT ? Math.min(0.1, now - this.lastT) : 0;
+      this.lastT = now;
+      this.jointIn -= speed * dt;
+      if (this.jointIn <= 0) {
+        this.jointIn = 16 + Math.random() * 22;
+        if (speed > 8) {
+          const v = 0.05 * Math.min(1, speed / 30);
+          this.burst(0.06, this.filter('lowpass', 110, 0.8), v);
+          this.burst(0.06, this.filter('lowpass', 110, 0.8), v * 0.8, Math.min(0.25, 2.7 / speed));
+        }
+      }
+    }
     if (p.kind === 'electric') {
       const f = 210 + speed * 36;
       go(this.motor!.frequency, f, 0.04);
       go(this.inverter!.frequency, f * 2.93, 0.04);
       go(this.hum!.frequency, 100 + speed * 2, 0.1);
+      go(this.whine!.frequency, 60 + speed * 71, 0.04);
       const move = Math.min(1, speed / 2.5);
       const load = s.throttle > 0 ? 0.55 + 0.45 * s.throttle : 0.35; // regen when coasting
       go(this.motorGain!.gain, 0.05 * move * load * (s.boost ? 1.3 : 1), 0.06);
-      go(this.inverterGain!.gain, 0.012 * move * load, 0.06);
+      go(this.inverterGain!.gain, 0.012 * move * load * (s.boost ? 1.8 : 1), 0.06);
+      go(this.whineGain!.gain, 0.007 * Math.min(1, speed / 12) * (0.6 + 0.4 * load), 0.08);
       go(this.out.gain, p.level, 0.1);
       this.last = s;
       return;
@@ -320,8 +474,16 @@ export class EngineSound {
     go(this.barkFilter!.frequency, p.barkHz * (0.8 + x * 0.9), 0.05);
     go(this.barkGain!.gain, p.bark * (0.25 + 0.75 * thr) * (0.5 + 0.5 * x), 0.05);
     go(this.drive!.gain, 0.8 + thr * 1.4, 0.05);
-    go(this.engGain!.gain, 0.085 * load * (0.75 + 0.35 * x), 0.06);
+    go(this.engGain!.gain, 0.074 * load * (0.75 + 0.35 * x), 0.06);
     go(this.out.gain, p.level, 0.1);
+    go(this.intakeFilter!.frequency, 260 + x * 520, 0.05);
+    go(this.intakeGain!.gain, 0.22 * p.intake * thr * (0.3 + 0.7 * x), 0.06);
+    const limiting = !!s.limit && thr > 0.5;
+    go(this.limGain!.gain, limiting ? 0.55 : 1, 0.02);
+    go(this.limDepth!.gain, limiting ? 0.45 : 0, 0.02);
+    const dmg = clamp(s.damage ?? 0, 0, 1);
+    go(this.rattleGain!.gain, dmg > 0.35 ? 0.03 * (dmg - 0.35) * (0.5 + 0.5 * thr) : 0, 0.1);
+    go(this.hissGain!.gain, s.boost ? 0.022 : 0, 0.08);
     if (this.turbo) {
       go(this.turbo.frequency, 2200 + x * 3800 + (s.boost ? 900 : 0), 0.25);
       go(this.turboGain!.gain, 0.008 * p.turbo * thr * x * x * (s.boost ? 1.8 : 1), 0.35);
@@ -329,6 +491,32 @@ export class EngineSound {
     if (this.clatterGain) go(this.clatterGain.gain, 0.035 * p.clatter * (1 - 0.6 * x) * (0.6 + 0.4 * thr), 0.08);
     // lifting off high in the revs: a turbo dumps its pressure, a sporty exhaust crackles
     if (at === undefined) {
+      // a gear change: power cut for a moment (a bark from a sporty exhaust, a hiss from a turbo)
+      const gear = s.gear ?? 0;
+      if (gear && this.gear && gear !== this.gear) {
+        const up = gear > this.gear;
+        const m = this.mix!.gain;
+        m.cancelScheduledValues(now);
+        m.setValueAtTime(up ? 0.3 : 0.7, now);
+        m.setTargetAtTime(1, now + (up ? 0.07 : 0.04), 0.03);
+        this.burst(0.05, this.filter('lowpass', 160, 0.8), 0.06);
+        if (up && thr > 0.5 && x > 0.45) {
+          if (p.turbo > 0.4) this.blowOff(0.45);
+          if (p.pops > 0.5) this.pop();
+        }
+        if (!up && p.pops > 0 && Math.random() < 0.5) this.pop();
+      }
+      this.gear = gear;
+      // a hurt engine misfires now and then
+      this.misfireT -= 1 / 60;
+      if (dmg > 0.3 && this.misfireT <= 0 && Math.random() < 0.03 * dmg * (0.4 + thr)) {
+        this.misfireT = 0.25;
+        const m = this.mix!.gain;
+        m.cancelScheduledValues(now);
+        m.setValueAtTime(0.12, now);
+        m.setTargetAtTime(1, now + 0.04 + Math.random() * 0.05, 0.02);
+        if (dmg > 0.6 && Math.random() < 0.25) this.pop();
+      }
       const lifted = this.last.throttle > 0.6 && thr < 0.1 && x > 0.5;
       if (lifted && p.turbo > 0.4) this.blowOff();
       if (lifted && p.pops > 0) this.popT = 0.35 + 0.5 * p.pops;
@@ -341,6 +529,7 @@ export class EngineSound {
   }
 
   private burst(dur: number, filter: BiquadFilterNode, vol: number, when = 0) {
+    if (!this.ctx) return;
     const ctx = this.ctx;
     const t = ctx.currentTime + when;
     const src = ctx.createBufferSource();
@@ -353,8 +542,8 @@ export class EngineSound {
     src.stop(t + dur + 0.02);
   }
 
-  private blowOff() {
-    this.burst(0.45, this.filter('highpass', 1800, 0.8), 0.05 * this.p.turbo);
+  private blowOff(level = 1) {
+    this.burst(0.45, this.filter('highpass', 1800, 0.8), 0.05 * this.p.turbo * level);
   }
 
   private pop() {

@@ -206,6 +206,8 @@ export class Highway {
         pr = r;
       }
     }
+    // lost (a reset or a teleport): look along the whole path
+    if (pr.d === Infinity) pr = path.project(car.x, car.z, you.s, you.s, path.length);
     if (pr.d === Infinity) return null;
     you.path = path;
     you.s = pr.s;
