@@ -6,7 +6,7 @@ import { DrivableVehicle } from '../game/DrivableVehicle';
 import type { TrafficSystem } from '../sim/traffic/TrafficSystem';
 import { VEHICLES } from '../sim/vehicles';
 import { clamp } from '../core/math';
-import { compareProgress, freeSpot, planRoute, Progress, RivalDriver, Route, type Checkpoint } from './race';
+import { compareProgress, freeSpot, laneSet, planRoute, Progress, RivalDriver, Route, type Checkpoint } from './race';
 import { RULES } from './scoring';
 
 /** rival paint by the original preset car (red/yellow → cyan, black/blue → orange) */
@@ -134,6 +134,16 @@ export class RaceSession {
       if ((p.s < 170 && p.dist < 12) || Math.hypot(v.x - this.route.pts[0].x, v.z - this.route.pts[0].z) < 40) tr.remove(v);
     }
     return this.gridPose(GRID.player);
+  }
+
+  /** a point on the route `d` metres ahead of the player, in the near lane (null near the finish) */
+  spotAhead(d: number): { x: number; z: number } | null {
+    const r = this.route;
+    const s = Math.min(r.length - 40, this.player.s + d);
+    if (s < this.player.s + 70) return null;
+    const at = r.at(s);
+    const lane = laneSet(r.legLanes[at.seg] ?? 1)[0];
+    return { x: at.x - at.dz * lane, z: at.z + at.dx * lane };
   }
 
   /** physics-rate control for the rival (held on the brakes until GO) */

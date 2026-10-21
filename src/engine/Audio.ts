@@ -7,6 +7,29 @@ import { Music, type MusicStyle } from './music';
 type Bus = 'music' | 'sfx';
 export type UiSound = 'click' | 'select' | 'buy' | 'error';
 
+/** a police siren to play: how far, where (-1 left .. 1 right), and how fast it is closing (m/s) */
+export interface SirenCue {
+  dist: number;
+  pan: number;
+  closing: number;
+}
+
+interface SirenVoice {
+  osc: OscillatorNode;
+  lfo: OscillatorNode;
+  lfoGain: GainNode;
+  gain: GainNode;
+  pan: StereoPannerNode;
+  tone: BiquadFilterNode;
+  base: number;
+  depth: number;
+  /** wail (slow sweep) or yelp (fast); real sirens switch between them */
+  yelp: boolean;
+  switchT: number;
+}
+
+const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
+
 export class AudioEngine {
   ctx: AudioContext | null = null;
   private master!: GainNode;
@@ -19,6 +42,7 @@ export class AudioEngine {
   private music: Music | null = null;
   private wantMusic: MusicStyle | null = null;
   private musicLevel = 1;
+  private sirenVoices: SirenVoice[] = [];
   vol = { master: 0.8, music: 0.55, sfx: 0.8, ambience: 0.7 };
   ready = false;
 
@@ -278,6 +302,105 @@ export class AudioEngine {
   comboLost() {
     this.blip(392, 0.14, 'triangle', 0.05);
     this.blip(311, 0.26, 'triangle', 0.05, undefined, 'sfx', 0.11);
+  }
+
+  /** a wrench picked up: a ratchet, a clunk, then a bright rising chime */
+  repair() {
+    if (!this.ctx) return;
+    for (let i = 0; i < 6; i++) this.burst(0.022, 3400 - i * 120, 5, 0.1, 'bandpass', i * 0.042, 0.2);
+    this.blip(190, 0.14, 'sine', 0.22, 95, 'sfx', 0.26);
+    this.burst(0.08, 600, 0.8, 0.12, 'lowpass', 0.26);
+    [784, 988, 1175, 1568].forEach((f, i) => {
+      this.blip(f, 0.24, 'triangle', 0.05, undefined, 'sfx', 0.3 + i * 0.065);
+      this.blip(f * 2, 0.18, 'sine', 0.015, undefined, 'sfx', 0.3 + i * 0.065);
+    });
+  }
+
+  // ------------------------------------------------------------------ the police
+  private makeSiren(i: number): SirenVoice {
+    const ctx = this.ctx!;
+    // an electronic siren: a square wave swept up and down, through a horn speaker
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    const base = i % 2 ? 1080 : 1000;
+    const depth = i % 2 ? 340 : 380;
+    osc.frequency.value = base;
+    const lfo = ctx.createOscillator();
+    lfo.type = 'triangle';
+    const yelp = i % 2 === 1;
+    lfo.frequency.value = yelp ? 3.3 : 0.3;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = depth;
+    lfo.connect(lfoGain).connect(osc.frequency);
+    const horn = ctx.createBiquadFilter();
+    horn.type = 'peaking';
+    horn.frequency.value = 1500;
+    horn.Q.value = 1.2;
+    horn.gain.value = 8;
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 4000;
+    tone.Q.value = 0.5;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const pan = ctx.createStereoPanner();
+    osc.connect(horn).connect(tone).connect(gain).connect(pan).connect(this.buses.sfx);
+    osc.start();
+    lfo.start(ctx.currentTime + i * 0.7);
+    return { osc, lfo, lfoGain, gain, pan, tone, base, depth, yelp, switchT: 4 + i * 2.5 };
+  }
+
+  /** every frame in a chase: the nearest sirens (an empty list fades them out) */
+  sirens(list: SirenCue[], dt = 1 / 60) {
+    if (!this.ctx || (!list.length && !this.sirenVoices.length)) return;
+    while (this.sirenVoices.length < Math.min(2, list.length)) this.sirenVoices.push(this.makeSiren(this.sirenVoices.length));
+    const t = this.ctx.currentTime;
+    this.sirenVoices.forEach((v, i) => {
+      const s = list[i];
+      if (!s) {
+        v.gain.gain.setTargetAtTime(0, t, 0.25);
+        return;
+      }
+      v.switchT -= dt;
+      if (v.switchT <= 0) {
+        v.yelp = !v.yelp;
+        v.switchT = v.yelp ? 3 + Math.random() * 2 : 5 + Math.random() * 3;
+        v.lfo.frequency.setValueAtTime(v.yelp ? 3.3 : 0.3, t);
+      }
+      // the Doppler shift as it comes and goes, quieter and duller with distance
+      const dop = 343 / (343 - clamp(s.closing, -70, 70));
+      v.gain.gain.setTargetAtTime(0.13 / (1 + s.dist / 18), t, 0.08);
+      v.pan.pan.setTargetAtTime(clamp(s.pan, -0.85, 0.85), t, 0.08);
+      v.osc.frequency.setTargetAtTime(v.base * dop, t, 0.08);
+      v.lfoGain.gain.setTargetAtTime(v.depth * dop, t, 0.08);
+      v.tone.frequency.setTargetAtTime(900 + 6000 / (1 + s.dist / 35), t, 0.15);
+    });
+  }
+
+  /** police radio: a squelch, a few garbled syllables, a squelch */
+  radio() {
+    if (!this.ctx) return;
+    this.burst(0.05, 2600, 2, 0.05, 'bandpass', 0, 0.3);
+    const n = 4 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const f = 380 + Math.random() * 420;
+      this.blip(f, 0.06 + Math.random() * 0.06, 'square', 0.012, f * (0.8 + Math.random() * 0.4), 'sfx', 0.07 + i * 0.09);
+      this.burst(0.07, 1800, 1.5, 0.018, 'bandpass', 0.07 + i * 0.09, 0.3);
+    }
+    this.burst(0.12, 3000, 1.2, 0.04, 'bandpass', 0.1 + n * 0.09, 0.3);
+  }
+
+  /** got away: a bright rising run over a soft thump */
+  escaped() {
+    this.blip(110, 0.4, 'sine', 0.2, 70);
+    [523, 659, 784, 1047, 1319].forEach((f, i) => this.blip(f, 0.3, 'triangle', 0.055, undefined, 'sfx', 0.06 + i * 0.07));
+    this.blip(2093, 0.5, 'sine', 0.02, undefined, 'sfx', 0.42);
+  }
+
+  /** busted: a falling phrase */
+  busted() {
+    [440, 370, 311, 262].forEach((f, i) => this.blip(f, 0.32, 'triangle', 0.06, f * 0.97, 'sfx', i * 0.16));
+    this.blip(65, 0.6, 'sine', 0.25, 40, 'sfx', 0.6);
   }
 
   countdown(go: boolean) {

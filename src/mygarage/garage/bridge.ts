@@ -18,7 +18,7 @@ export interface GarageImport {
 export type HostEvent =
   | { type: 'mygarage:ready'; version: 1 }
   | { type: 'mygarage:progress'; save: GarageSave }
-  | { type: 'mygarage:run'; vehicleId: string; mode: 'score' | 'highway' | 'race'; score: number; coins: number; health: number; won?: boolean }
+  | { type: 'mygarage:run'; vehicleId: string; mode: 'score' | 'highway' | 'chase' | 'race'; score: number; coins: number; health: number; won?: boolean }
   | { type: 'mygarage:parts'; vehicleId: string; make: string; model: string; year?: number; category: string }
   | { type: 'mygarage:services'; vehicleId: string; make: string; model: string; year?: number; category: 'repair' };
 

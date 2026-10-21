@@ -25,10 +25,12 @@ import { useNM, Phase, Mode } from './store';
 import { RACE_TRAFFIC } from './race';
 import { RaceSession, RIVAL_FINISHED_GRACE, rivalPaintFor } from './RaceSession';
 import { useGarage, hostBridge, startBridge } from './garage/store';
-import { CarSetup, damageFactor, highwayCoins, MIN_HEALTH, raceCoins, repairCost, runCoins } from './garage/progress';
+import { CarSetup, damageFactor, highwayCoins, raceCoins, repairCost, runCoins, startHealth } from './garage/progress';
 import { displayName, paintOf } from './garage/vehicle';
 import type { ParkingSpot } from '../world/types';
 import { Highway } from './Highway';
+import { Pickups, REPAIR_AMOUNT, type Pickup } from './pickups';
+import { Chase, type Cop } from './Chase';
 
 /** the same city as Echo City */
 export const CITY_SEED = 20261019;
@@ -73,8 +75,10 @@ export class DriveGame {
   race: RaceSession | null = null;
   /** the motorway for highway mode (built the first time it is needed) */
   highway: Highway | null = null;
-  /** a highway drive (or its results) is on: the city is left as it was */
+  /** a highway drive or police chase (or its results) is on: the city is left as it was */
   onHighway = false;
+  /** the police, in a chase */
+  chase: Chase | null = null;
   /** CSS px of the screen the title screen's sidebar covers: the parked car is centred in the rest */
   viewInset = { right: 0, bottom: 0 };
   private viewShifted = false;
@@ -107,6 +111,9 @@ export class DriveGame {
   /** lanes grouped by the road line they run along ('v3', 'h7'), for the traffic director */
   private lineLanes = new Map<string, Lane[]>();
   private directorT = 0;
+  /** free repairs on the road (wrenches) */
+  pickups!: Pickups;
+  private pickT = 0;
 
   get cond() {
     return CONDITIONS[useNM.getState().cond] ?? CONDITIONS.night;
@@ -136,6 +143,7 @@ export class DriveGame {
     this.input.attach(renderer.domElement);
     renderer.info.autoReset = false;
     scene.add(this.vehR.group, this.smoke.points, this.engineSmoke.points, this.skids.mesh, this.showLight, this.showLight.target);
+    this.pickups = new Pickups(scene);
     (window as unknown as { __nm: DriveGame }).__nm = this;
     startBridge();
     const unlock = () => {
@@ -293,6 +301,7 @@ export class DriveGame {
     this.removeCar();
     this.endRace();
     this.leaveHighway();
+    this.pickups?.clear();
     this.slowmo = 1;
     this.cam.mode = 'cinematic';
     // cut straight to the parked car
@@ -334,11 +343,6 @@ export class DriveGame {
     // restarting mid-run: the damage so far stays with the car (no coins for an unfinished run)
     this.saveRun(0);
     const setup = useGarage.getState().setup();
-    if (setup.progress.health < MIN_HEALTH) {
-      useGarage.setState({ notice: 'Your car needs a repair before it can drive' });
-      if (this.phase !== 'title') this.toTitle();
-      return;
-    }
     this.removeCar();
     this.setup = setup;
     this.basePaint.setHex(paintOf(setup.vehicle.color, VEHICLES[setup.type].palette[0]));
@@ -353,11 +357,12 @@ export class DriveGame {
       this.race = new RaceSession(this.world, this.traffic, this.scene, setup.type, rivalPaintFor(this.basePaint), seed);
       this.race.rival.gripMul = this.condGrip(setup);
       start = this.race.grid();
-    } else if (this.mode === 'highway') {
+    } else if (this.mode === 'highway' || this.mode === 'chase') {
       this.endRace();
+      this.endChase();
       this.highway ??= new Highway(this.scene, this.world.physics);
       this.onHighway = true;
-      this.highway.begin();
+      this.highway.begin(this.mode === 'chase' ? 'chase' : 'highway');
       start = this.highway.startPose();
       this.focus.set(start.x, 0, start.z);
       // out here the city is not drawn at all
@@ -373,6 +378,10 @@ export class DriveGame {
       for (const v of [...this.traffic.vehicles]) if (Math.hypot(v.x - start.x, v.z - start.z) < 45) this.traffic.remove(v);
     }
     this.leaveShowroom();
+    if (this.mode === 'chase') {
+      this.chase = new Chase(this.world.physics, this.highway!);
+      this.chase.begin(VEHICLES[setup.type].maxSpeed * setup.top);
+    }
     const car = new DrivableVehicle(this.world.physics, setup.type, start.x, 0.02, start.z, start.yaw, this.basePaint, 'player', displayName(setup.vehicle));
     car.headlights = true;
     car.gripMul = setup.grip * this.condGrip(setup);
@@ -385,7 +394,8 @@ export class DriveGame {
     car.onImpact = (dv) => this.onImpact(dv);
     this.car = car;
     this.scorer = new Scorer(this.mode, {
-      health: setup.progress.health,
+      // a wreck still drives: it limps out, and wrenches on the road fix it for free
+      health: startHealth(setup.progress.health),
       damageTaken: setup.damageTaken,
       scoreMul: setup.scoreMul,
       nearMul: setup.nearMul,
@@ -395,6 +405,8 @@ export class DriveGame {
       startBoost: setup.startBoost,
     });
     this.runSaved = false;
+    this.pickups.clear();
+    this.pickT = 2;
     this.damageLook();
     this.rivalTag = null;
     this.lastInter = -1;
@@ -408,7 +420,7 @@ export class DriveGame {
     this.cam.snap();
     this.audio.setCar(engineFor(VEHICLES[setup.type]));
     this.audio.engineStart();
-    useNM.getState().set({ result: null, popups: [] });
+    useNM.getState().set({ result: null, popups: [], ending: null, chase: null });
     this.setPhase('countdown');
   }
 
@@ -439,7 +451,15 @@ export class DriveGame {
     this.startRun(true);
   }
 
+  private endChase() {
+    this.chase?.dispose();
+    this.chase = null;
+    this.audio.sirens([]);
+    useNM.getState().set({ chase: null });
+  }
+
   private leaveHighway() {
+    this.endChase();
     this.highway?.end();
     this.onHighway = false;
     if (this.world) {
@@ -457,6 +477,8 @@ export class DriveGame {
     car.pos.x += dx;
     car.pos.z += dz;
     this.cam.shift(dx, dz);
+    this.pickups.shift(dx, dz);
+    this.chase?.shift(dx, dz);
     this.focus.x += dx;
     this.focus.z += dz;
     this.skids.clear();
@@ -521,9 +543,11 @@ export class DriveGame {
     if (this.race) return this.finishRace();
     const setup = this.setup!;
     const name = displayName(setup.vehicle);
-    const mode = this.mode === 'highway' ? 'highway' : 'score';
+    const mode = this.mode === 'highway' ? 'highway' : this.mode === 'chase' ? 'chase' : 'score';
     const rank = st.record({ score: s.score, car: name, cond: this.cond.label, date: Date.now(), nearMisses: s.nearMisses, bestCombo: s.bestCombo }, mode);
-    const coins = mode === 'highway' ? highwayCoins(s.score, setup) : runCoins(s.score, setup);
+    // no clock on the open road: coins taper off past a point so a long drive is not a coin farm
+    const coins = mode === 'score' ? runCoins(s.score, setup) : highwayCoins(s.score, setup);
+    const ch = this.chase;
     this.saveRun(coins, s.score);
     hostBridge()?.send({ type: 'mygarage:run', vehicleId: setup.vehicle.id, mode, score: s.score, coins, health: Math.round(s.health) });
     st.set({
@@ -546,9 +570,11 @@ export class DriveGame {
         rank,
         mode,
         garage: this.garageResult(coins),
+        chase: ch ? { escapes: ch.escapes, takedowns: ch.takedowns, heat: ch.maxHeat, pursuit: Math.round(ch.totalPursuit), longest: Math.round(ch.longestPursuit), roadblocks: ch.roadblocks } : undefined,
       },
     });
     this.audio.engineStop();
+    this.audio.sirens([]);
     this.setPhase('results');
   }
 
@@ -607,7 +633,11 @@ export class DriveGame {
     const p = this.car.pos;
     if (this.onHighway) {
       const hc = this.highway!.nearest(p.x, p.z, 7);
-      if (hc) {
+      const cop = this.chase?.nearest(p.x, p.z, 7) ?? null;
+      const dCop = cop ? Math.hypot(cop.car.pos.x - p.x, cop.car.pos.z - p.z) - cop.car.spec.length / 2 : Infinity;
+      const dCar = hc ? Math.hypot(hc.x - p.x, hc.z - p.z) - hc.len / 2 : Infinity;
+      if (cop && dCop <= dCar) this.chase!.youHit(cop);
+      else if (hc) {
         this.scorer.touched(hc.id);
         this.highway!.crash(hc, dv);
       }
@@ -648,8 +678,10 @@ export class DriveGame {
     }
   }
 
-  private wreck() {
-    if (!this.scorer.over) this.scorer.end('wrecked');
+  private wreck(busted = false) {
+    if (!this.scorer.over) this.scorer.end(busted ? 'busted' : 'wrecked');
+    useNM.getState().set({ ending: busted ? 'busted' : 'wrecked' });
+    if (busted) this.audio.busted();
     this.flushEvents();
     this.slowmo = 0.3;
     this.orbit = this.car ? this.car.yaw + Math.PI * 0.6 : 0;
@@ -704,6 +736,7 @@ export class DriveGame {
       world.physics.advance(dt, (h) => {
         car?.control(h, input, control);
         race?.control(h, go);
+        this.chase?.control(h);
       });
     }
     if (this.onHighway && car) {
@@ -749,8 +782,14 @@ export class DriveGame {
     if (hw) {
       if (!this.paused) {
         const lv = car?.body.linvel();
-        hw.update(dt, car && lv ? { x: car.pos.x, z: car.pos.z, vx: lv.x, vz: lv.z, len: car.spec.length, width: car.spec.width } : null);
-        if (car) hw.syncBodies(car.pos.x, car.pos.z);
+        const ch = this.chase;
+        const drv = ch?.drivers();
+        hw.update(dt, car && lv ? { x: car.pos.x, z: car.pos.z, vx: lv.x, vz: lv.z, len: car.spec.length, width: car.spec.width } : null, drv?.all, drv?.sirens);
+        if (car) hw.syncBodies(car.pos.x, car.pos.z, ch ? ch.cops.map((c) => c.car.pos) : []);
+        if (ch && car && hw.you && this.phase === 'run') {
+          ch.update(dt, hw.you, car);
+          this.chaseEvents(ch);
+        }
       }
       hw.follow(this.camera, (this.scene.fog as THREE.FogExp2 | null)?.color ?? null, rawDt);
     } else {
@@ -773,8 +812,10 @@ export class DriveGame {
 
     // scoring
     if (this.phase === 'run' && car && !this.paused) this.score(dt, car);
+    if (!this.paused) this.updatePickups(dt, car);
 
     // flipped over: a wreck in free drive, back on the route in a race
+    if (car && this.phase === 'run' && this.chase?.busted) this.wreck(true);
     if (car && this.phase === 'run') {
       const up = new THREE.Vector3(0, 1, 0).applyQuaternion(car.quat);
       this.flipT = up.y < 0.35 ? this.flipT + dt : 0;
@@ -797,6 +838,7 @@ export class DriveGame {
         const thr = this.phase === 'run' && (input.down('KeyW') || input.down('ArrowUp')) ? 1 : 0;
         this.audio.engine({ rpm: Math.min(1.2, car.rpm + (this.boosting ? 0.12 : 0)), throttle: thr, speed: Math.abs(car.forwardSpeed), boost: this.boosting });
       }
+      this.sirenSound(rawDt);
       const sliding = car && this.phase === 'run' && !this.paused && (car.drifting || (car.handbrake && car.speed > 8));
       this.audio.skid(sliding ? Math.min(1, Math.max(0.35, Math.abs(car.slipAngle) / 30)) * Math.min(1, car.speed / 15) : 0);
     }
@@ -807,6 +849,37 @@ export class DriveGame {
       this.hudT = 0.05;
       this.publish();
     }
+  }
+
+  /** the two nearest police sirens, placed round the camera, with their Doppler shift */
+  private sirenSound(dt: number) {
+    const ch = this.chase;
+    if (!ch || this.paused || (this.phase !== 'run' && this.phase !== 'wreck' && this.phase !== 'countdown')) {
+      this.audio.sirens([], dt);
+      return;
+    }
+    const cam = this.camera.position;
+    const cf = new THREE.Vector3();
+    this.camera.getWorldDirection(cf);
+    const rx = -cf.z;
+    const rz = cf.x;
+    const rl = Math.hypot(rx, rz) || 1;
+    const lv0 = this.car?.body.linvel() ?? { x: 0, z: 0 };
+    const list = ch.cops
+      .filter((c) => c.lights)
+      .map((c) => {
+        const dx = c.car.pos.x - cam.x;
+        const dz = c.car.pos.z - cam.z;
+        const d = Math.hypot(dx, dz) || 1;
+        const lv = c.car.body.linvel();
+        // closing speed: how fast the gap between it and the listener shrinks
+        const closing = -((lv.x - lv0.x) * dx + (lv.z - lv0.z) * dz) / d;
+        // the screen's right is (-fz, fx) for a camera looking along (fx, fz)
+        return { dist: d, pan: (dx * rx + dz * rz) / rl / d, closing };
+      })
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 2);
+    this.audio.sirens(list, dt);
   }
 
   private raceEvents(race: RaceSession, car: DrivableVehicle) {
@@ -967,7 +1040,7 @@ export class DriveGame {
         others.push({ id: v.id, x: v.x, z: v.z, yaw: v.yaw, v: v.v, width: spec.width, length: spec.length });
       }
     }
-    const road = this.onHighway ? { oncoming: false, street: '' } : this.roadInfo(car.pos.x, car.pos.z, yaw);
+    const road = this.onHighway ? { oncoming: this.highway!.oncomingSide(), street: '' } : this.roadInfo(car.pos.x, car.pos.z, yaw);
     this.scorer.update({ x: car.pos.x, z: car.pos.z, yaw, vx: lv.x, vz: lv.z, width: car.spec.width, length: car.spec.length }, others, {
       oncoming: road.oncoming,
       drift: { active: car.drifting, angle: Math.abs(car.slipAngle) },
@@ -983,6 +1056,7 @@ export class DriveGame {
     }
     this.lastInter = it;
     if (this.onHighway) this.highwayBonuses(dt, car);
+    if (this.chase?.state === 'pursuit') this.scorer.pursuit(dt, this.chase.heat);
     this.flushEvents();
     if (this.scorer.over === 'time') this.finish();
   }
@@ -1004,6 +1078,114 @@ export class DriveGame {
     }
   }
 
+  /** wrenches: one waits on the road ahead of a damaged car; driving through it fixes the car for free */
+  private updatePickups(dt: number, car: DrivableVehicle | null) {
+    const pk = this.pickups;
+    pk.update(dt, this.time);
+    if (!car || this.phase !== 'run') return;
+    if (pk.collect(car.pos.x, car.pos.z)) {
+      this.scorer.repair(REPAIR_AMOUNT);
+      this.damageLook();
+      this.audio.repair();
+      this.cam.shake = Math.max(this.cam.shake, 0.15);
+      this.pickT = 4;
+      this.flushEvents();
+    }
+    // left behind (or the road went another way): let it go and lay another
+    for (const p of [...pk.items]) {
+      if (this.pickupBehind(p, car)) {
+        pk.remove(p);
+        this.pickT = Math.min(this.pickT, 1);
+      }
+    }
+    this.pickT -= dt;
+    if (pk.items.length || this.pickT > 0 || this.scorer.health >= 92 || this.scorer.over) return;
+    this.pickT = 0.6;
+    const d = 170 + Math.random() * 90;
+    const at: { x: number; z: number; road?: Pickup['road'] } | null = this.onHighway ? this.highway!.spotAhead(d) : this.race ? this.race.spotAhead(d) : this.citySpotAhead(car, d);
+    if (at) pk.add(at.x, at.z, at.road);
+  }
+
+  private pickupBehind(p: Pickup, car: DrivableVehicle) {
+    const dx = p.x - car.pos.x;
+    const dz = p.z - car.pos.z;
+    const d = Math.hypot(dx, dz);
+    const ahead = dx * Math.sin(car.yaw) + dz * Math.cos(car.yaw);
+    return d > 480 || (ahead < -20 && d > 20);
+  }
+
+  /** a point in a lane going the car's way, `d` metres ahead on the street it is driving along */
+  private citySpotAhead(car: DrivableVehicle, d: number): { x: number; z: number } | null {
+    const city = this.world!.city;
+    const fx = Math.sin(car.yaw);
+    const fz = Math.cos(car.yaw);
+    const alongZ = Math.abs(fz) > Math.abs(fx);
+    const lines = alongZ ? city.vLines : city.hLines;
+    let li = -1;
+    let bd = 12;
+    lines.forEach((l, i) => {
+      const dd = Math.abs((alongZ ? car.pos.x : car.pos.z) - l.pos);
+      if (dd < bd) {
+        bd = dd;
+        li = i;
+      }
+    });
+    if (li < 0) return null;
+    const ax = alongZ ? 0 : Math.sign(fx);
+    const az = alongZ ? Math.sign(fz) : 0;
+    const px = car.pos.x + ax * d;
+    const pz = car.pos.z + az * d;
+    const lanes = (this.lineLanes.get((alongZ ? 'v' : 'h') + li) ?? []).filter((l) => l.dx * ax + l.dz * az > 0.5);
+    let best: { x: number; z: number } | null = null;
+    let bl = Infinity;
+    for (const l of lanes) {
+      const sAt = (px - l.x0) * l.dx + (pz - l.z0) * l.dz;
+      if (sAt < 6 || sAt > l.length - 6) continue;
+      const x = l.x0 + l.dx * sAt;
+      const z = l.z0 + l.dz * sAt;
+      // the lane nearest the car's own line
+      const lat = Math.abs((alongZ ? x - car.pos.x : z - car.pos.z));
+      if (lat < bl) {
+        bl = lat;
+        best = { x, z };
+      }
+    }
+    if (!best) return null;
+    // not in the middle of a junction
+    if (this.intersectionAt(best.x, best.z) >= 0) return null;
+    return best;
+  }
+
+  /** the police: popups, bonuses and sounds for what just happened in the chase */
+  private chaseEvents(ch: Chase) {
+    const st = useNM.getState();
+    const s = this.scorer;
+    const heat = ch.heat;
+    for (const e of ch.events) {
+      if (e.kind === 'spotted') {
+        st.pushPopup({ kind: 'police', label: 'SPOTTED', sub: 'POLICE ON YOUR TAIL', points: 0 });
+        this.audio.radio();
+      } else if (e.kind === 'backup') this.audio.radio();
+      else if (e.kind === 'takedown') {
+        if (e.byYou) s.bonus('TAKEDOWN', 1500 * heat, this.boosting);
+        else s.bonus('COP CRASHED', 500 * heat, this.boosting);
+        this.audio.crash(0.6);
+      } else if (e.kind === 'escaped') {
+        s.bonus('ESCAPED', 2500 * heat, this.boosting);
+        this.audio.escaped();
+      } else if (e.kind === 'roadblock') {
+        st.pushPopup({ kind: 'police', label: 'ROADBLOCK', sub: `${e.dist} M AHEAD`, points: 0 });
+        this.audio.radio();
+      } else if (e.kind === 'dodged') s.bonus('ROADBLOCK DODGED', 1000 * heat, this.boosting);
+      else if (e.kind === 'heat') {
+        st.pushPopup({ kind: 'police', label: `HEAT ${e.heat}`, sub: e.heat >= 3 ? 'ROADBLOCKS AHEAD' : 'MORE UNITS', points: 0 });
+        this.audio.radio();
+      }
+    }
+    ch.events.length = 0;
+    this.flushEvents();
+  }
+
   /** popups and sounds for what the scorer just decided */
   private flushEvents() {
     const st = useNM.getState();
@@ -1019,6 +1201,7 @@ export class DriveGame {
         this.cam.shake = Math.max(this.cam.shake, 0.12 * (e.tier ?? 1));
       } else if (e.kind === 'bonus' || e.kind === 'drift') this.audio.combo(this.scorer.mult);
       else if (e.kind === 'bank') this.audio.bank(e.points);
+      else if (e.kind === 'repair') this.cam.shake = Math.max(this.cam.shake, 0.1);
       else if (e.kind === 'lost') this.audio.comboLost();
     }
     this.scorer.events.length = 0;
@@ -1117,6 +1300,7 @@ export class DriveGame {
     }
     if (this.car) r.push(this.car.getDrawable(night));
     if (this.race) r.push(this.race.rival.getDrawable(night));
+    if (this.chase) for (const c of this.chase.cops) r.push(c.car.getDrawable(night));
     if (this.phase === 'title' && this.showroom) {
       const st = useGarage.getState().setup();
       const h = st.progress.health;
@@ -1131,6 +1315,14 @@ export class DriveGame {
     const s = this.scorer;
     const car = this.car;
     const road = car && this.world && !this.onHighway ? this.roadInfo(car.pos.x, car.pos.z, car.yaw) : { oncoming: false, street: '' };
+    let pickup: { dist: number; arrow: number } | null = null;
+    const pk = this.pickups?.items[0];
+    if (pk && car && this.phase === 'run') {
+      const cf = new THREE.Vector3();
+      this.camera.getWorldDirection(cf);
+      const toYaw = Math.atan2(pk.x - car.pos.x, pk.z - car.pos.z);
+      pickup = { dist: Math.round(Math.hypot(pk.x - car.pos.x, pk.z - car.pos.z)), arrow: Math.round((-wrapAngle(toYaw - Math.atan2(cf.x, cf.z)) * 180) / Math.PI) };
+    }
     useNM.getState().setHud({
       speed: car ? Math.round(Math.abs(car.forwardSpeed) * 3.6) : 0,
       score: s.score,
@@ -1150,7 +1342,30 @@ export class DriveGame {
       health: s.health,
       lastHit: s.health <= RULES.bigHitCap * s.opts.damageTaken,
       distance: s.distance,
+      pickup,
     });
+    const ch = this.chase;
+    if (ch && (this.phase === 'run' || this.phase === 'countdown')) {
+      const you = this.highway?.you;
+      let roadblock: number | null = null;
+      if (you) for (const c of ch.cops) {
+        if (c.role !== 'roadblock' || c.disabled) continue;
+        const d = c.d.s - you.s;
+        if (d > 0 && d < 400 && (roadblock === null || d < roadblock)) roadblock = Math.round(d);
+      }
+      useNM.getState().set({
+        chase: {
+          state: ch.state,
+          heat: ch.heat,
+          escape: ch.escape,
+          bust: ch.bust,
+          cops: ch.cops.filter((c) => !c.disabled && c.role === 'pursuit').length,
+          cooldown: Math.max(0, Math.ceil(ch.cooldownT)),
+          roadblock,
+          close: car ? ch.cops.reduce((m, c) => (c.disabled || c.role !== 'pursuit' ? m : Math.min(m, c.car.pos.distanceTo(car.pos))), Infinity) : Infinity,
+        },
+      });
+    }
     if (this.onHighway && this.highway) {
       this.roadT -= 0.05;
       if (this.roadT <= 0) {

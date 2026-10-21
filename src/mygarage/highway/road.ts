@@ -13,6 +13,11 @@
 //
 // Pieces also carry what is on and around them: the scenery zone, tunnels, water, roadworks that
 // close a lane, overpasses, signs, and the road for the other direction off to the left.
+//
+// The police chase lays a different road (profile 'chase'): no forks, and it alternates between
+// downtown, where it is a two-way street between buildings with tight corners and cross streets,
+// and open stretches of motorway. Its heading stays within a bound of where it started, so however
+// it winds it never comes back across itself.
 
 export const LANE_W = 3.4;
 /** the left guardrail (median side) and the right one past a 3 m shoulder */
@@ -21,8 +26,14 @@ export const RAIL_R_OFF = 3.4;
 export const STEP = 2;
 /** lanes the other way */
 export const COMPANION_LANES = 3;
+/** a downtown street: the pavement on each side, and the gap between the two directions (a double line) */
+export const SIDEWALK = 3.6;
+export const STREET_GAP = 0.3;
+/** cross streets: width of the opening */
+export const JUNCTION_W = 12;
 
-export type Zone = 'fields' | 'forest' | 'coast' | 'desert' | 'city';
+export type Zone = 'fields' | 'forest' | 'coast' | 'desert' | 'city' | 'downtown';
+export type Profile = 'highway' | 'chase';
 
 export interface ZoneInfo {
   label: string;
@@ -38,7 +49,11 @@ export const ZONES: Record<Zone, ZoneInfo> = {
   coast: { label: 'Coast', traffic: 0.7, busy: 'light traffic' },
   desert: { label: 'Desert', traffic: 0.8, busy: 'light traffic' },
   city: { label: 'City', traffic: 1.55, busy: 'heavy traffic' },
+  downtown: { label: 'Downtown', traffic: 1.15, busy: 'heavy traffic' },
 };
+
+/** the open zones (everything but downtown streets) */
+export const OPEN_ZONES: Zone[] = ['fields', 'forest', 'coast', 'desert', 'city'];
 
 export interface Works {
   /** the lane closed in the middle of the piece */
@@ -85,6 +100,10 @@ export interface Piece {
   gore: { side: 'left' | 'right'; end: number; other: Path } | null;
   /** lamps along the median */
   lamps: boolean;
+  /** a downtown street: pavements and buildings instead of shoulders and rails, the other direction right beside */
+  street: boolean;
+  /** local s of the middle of each cross street */
+  junctions: number[];
   seed: number;
 }
 
@@ -176,6 +195,22 @@ export class Path {
     return true;
   }
 
+  /** lanes the other way */
+  get compLanes() {
+    return this.plan.compLanes;
+  }
+
+  /** a downtown street at s (you can drive across into the other direction's lanes) */
+  street(s: number) {
+    return this.pieceAt(s).street;
+  }
+
+  /** lateral position (in this path's frame) of the middle of the other direction's lane i, or null */
+  oncomingLat(i: number, s: number): number | null {
+    const g = this.companionGap(s);
+    return g === null ? null : -(g + laneLat(i));
+  }
+
   /** gap to the other direction's road at s, or null where there is none */
   companionGap(s: number): number | null {
     const p = this.pieceAt(s);
@@ -230,10 +265,13 @@ interface Plan {
   companion: number | null;
   companionLeft: number;
   lamps: boolean;
+  /** lanes the other way */
+  compLanes: number;
 }
 
 function freshPlan(lanes: number, zone: Zone): Plan {
   return {
+    compLanes: COMPANION_LANES,
     lanes,
     zone,
     zoneLeft: 2500,
@@ -269,16 +307,39 @@ export class Rand {
 
 type Spec = Omit<Piece, 'path' | 'index' | 's0' | 'xs' | 'zs' | 'hs'>;
 
+/** the heading bound of the chase road either side of where it started (about 50 degrees) */
+export const CHASE_BOUND = 0.88;
+
+const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
 /** Lays road ahead: curves and straights, and decides where tunnels, water, works and forks go. */
 export class RoadGen {
   readonly rng: Rand;
+  /** the heading the road started on (the chase road keeps near it) */
+  private h0 = 0;
 
-  constructor(seed: number) {
+  constructor(
+    seed: number,
+    readonly profile: Profile = 'highway',
+  ) {
     this.rng = new Rand(seed);
   }
 
   /** a new road starting at a pose */
   root(start: Pose, zone: Zone = 'fields') {
+    this.h0 = start.h;
+    if (this.profile === 'chase') {
+      // downtown: two lanes each way, a long first block to get going on
+      const p = new Path(null, start, 2, 'downtown');
+      const pl = p.plan;
+      pl.compLanes = 2;
+      pl.companion = STREET_GAP;
+      pl.lamps = true;
+      pl.zoneLeft = this.rng.range(1300, 1900);
+      pl.nextFork = Infinity;
+      this.add(p, { ...this.blank(p), len: 360, street: true, junctions: [150, 300] });
+      return p;
+    }
     const p = new Path(null, start, 4, zone);
     // a straight to start on, with nothing in the way
     this.add(p, { ...this.blank(p), len: 600 });
@@ -302,6 +363,8 @@ export class RoadGen {
       sign: null,
       gore: null,
       lamps: pl.lamps,
+      street: false,
+      junctions: [],
       seed: Math.floor(this.rng.next() * 1e9),
     };
   }
@@ -345,6 +408,7 @@ export class RoadGen {
   }
 
   private segment(path: Path) {
+    if (this.profile === 'chase') return this.chaseSegment(path);
     const r = this.rng;
     const pl = path.plan;
     const fresh = path.length < 900 && path.parent !== null;
@@ -428,6 +492,100 @@ export class RoadGen {
       pl.zone = r.pick((['fields', 'forest', 'coast', 'desert', 'city'] as Zone[]).filter((z) => z !== pl.zone));
       pl.zoneLeft = r.range(2500, 4500);
     }
+  }
+
+  /**
+   * A corner that keeps the road's heading inside the bound: clothoid in, arc, clothoid out, turning
+   * back toward the start heading when it has wandered, and no sharper than `maxA` radians.
+   * Returns the pieces (empty if there is no room to turn).
+   */
+  private corner(path: Path, base: Spec, R: number, minA: number, maxA: number, trans: number): Spec[] {
+    const r = this.rng;
+    const dh = wrap(path.end.h - this.h0);
+    const sign = Math.abs(dh) > 0.3 ? -Math.sign(dh) : r.next() < 0.5 ? 1 : -1;
+    const room = CHASE_BOUND - 0.01 - sign * dh;
+    const a = Math.min(r.range(minA, maxA), room);
+    if (a < 0.2) return [];
+    // lengths in whole steps (as add() lays them), then the curvature that turns exactly `a`
+    const T = Math.max(STEP, Math.round(Math.min(trans, (a * R) / 2) / STEP) * STEP);
+    const arc = Math.max(STEP, Math.round((a * R - T) / STEP) * STEP);
+    const k = (sign * a) / (T + arc);
+    return [
+      { ...base, len: T, k0: 0, k1: k },
+      { ...base, len: arc, k0: k, k1: k },
+      { ...base, len: T, k0: k, k1: 0 },
+    ];
+  }
+
+  /** the police chase road: downtown blocks and corners, then motorway, then downtown again */
+  private chaseSegment(path: Path) {
+    const r = this.rng;
+    const pl = path.plan;
+    const base = this.blank(path);
+    const specs: Spec[] = [];
+    if (pl.zone === 'downtown') {
+      const street = { ...base, street: true, lamps: true, zone: 'downtown' as Zone, companion: { d0: STREET_GAP, d1: STREET_GAP } };
+      if (pl.zoneLeft <= 0) {
+        // out of town: the street opens into a boulevard, the other way bends off behind a median
+        const gap = r.range(10, 14);
+        const zone = r.pick(OPEN_ZONES);
+        specs.push({ ...street, len: 200, n0: pl.lanes, n1: 3, companion: { d0: STREET_GAP, d1: gap } });
+        pl.lanes = 3;
+        pl.companion = gap;
+        pl.zone = zone;
+        pl.zoneLeft = r.range(1400, 2300);
+        pl.lamps = zone === 'city';
+        pl.nextTunnel = Math.min(pl.nextTunnel, r.range(300, 900));
+        pl.nextWorks = Math.max(pl.nextWorks, 500);
+      } else {
+        // a block with a cross street, then a corner onto the next street
+        const block = r.range(70, 200);
+        const junctions = block > 60 ? [r.range(18, block - 18)] : [];
+        if (block > 170) junctions.push(block - 14);
+        specs.push({ ...street, len: block, junctions: junctions.filter((u, i, a) => i === 0 || u - a[i - 1] > 40) });
+        specs.push(...this.corner(path, street, r.range(42, 115), 0.5, 1.6, 16));
+      }
+    } else {
+      const flags = { zone: pl.zone, lamps: pl.zone === 'city', companion: { d0: pl.companion ?? 12, d1: pl.companion ?? 12 } };
+      if (pl.zoneLeft <= 0) {
+        // back into town: the median closes up and the buildings come in
+        specs.push({ ...base, ...flags, len: 220, street: true, lamps: true, zone: 'downtown', n0: pl.lanes, n1: 2, companion: { d0: pl.companion ?? 12, d1: STREET_GAP } });
+        pl.lanes = 2;
+        pl.companion = STREET_GAP;
+        pl.zone = 'downtown';
+        pl.zoneLeft = r.range(1200, 2000);
+        pl.lamps = true;
+      } else {
+        const tunnel = pl.nextTunnel <= 0 && (pl.zone === 'forest' || pl.zone === 'desert' || pl.zone === 'fields');
+        if (tunnel) pl.nextTunnel = r.range(2500, 4500);
+        const water = !tunnel && pl.nextWater <= 0 && pl.zone !== 'city' && pl.zone !== 'desert';
+        if (water) pl.nextWater = r.range(2500, 5000);
+        const works = !tunnel && pl.nextWorks <= 0;
+        const f = { ...flags, tunnel, water, lamps: flags.lamps || tunnel };
+        if (works) {
+          pl.nextWorks = r.range(2000, 3800);
+          const len = r.range(420, 560);
+          specs.push({ ...base, ...f, len, works: { lane: r.next() < 0.6 ? pl.lanes - 1 : 0, from: 90, full: 150, to: len - 70 } });
+        } else if (r.next() < 0.7) {
+          const c = this.corner(path, { ...base, ...f }, r.range(260, 700), 0.35, 1.1, 90);
+          specs.push(...(c.length ? c : [{ ...base, ...f, len: r.range(200, 420) }]));
+        } else specs.push({ ...base, ...f, len: r.range(200, 480) });
+      }
+    }
+    let total = 0;
+    for (const sp of specs) {
+      if (!sp.street && pl.nextOverpass <= total + sp.len && !sp.tunnel && !sp.works && Math.abs(sp.k0) < 1e-6 && Math.abs(sp.k1) < 1e-6 && sp.len > 200) {
+        sp.overpass = sp.len * 0.5;
+        pl.nextOverpass = r.range(1300, 2600);
+      }
+      if (!sp.street && pl.nextSign <= total + sp.len && !sp.tunnel && !sp.overpass && sp.len > 220) {
+        sp.sign = { at: 60, left: `Downtown  ${Math.round(r.range(2, 9))} km` };
+        pl.nextSign = r.range(1800, 3200);
+      }
+      this.add(path, sp);
+      total += sp.len;
+    }
+    for (const k of ['zoneLeft', 'nextTunnel', 'nextWater', 'nextWorks', 'nextOverpass', 'nextSign'] as const) pl[k] -= total;
   }
 
   /** the signs, then the split: left lanes to one place, right lanes to another */

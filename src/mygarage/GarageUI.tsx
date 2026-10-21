@@ -33,7 +33,7 @@ import { useGarage, hostBridge } from './garage/store';
 import { ARCHETYPES, ARCHETYPE, topSpeedKmh, zeroToHundred, type ArchetypeId } from './garage/archetypes';
 import { knownMakes, knownModels, makeName } from './garage/catalog';
 import { archetypeOf, paintOf, type GarageVehicle } from './garage/vehicle';
-import { MAX_LEVEL, MIN_HEALTH, progressOf, repairCost, upgradeCost, UPGRADES, type UpgradeId } from './garage/progress';
+import { LIMP_HEALTH, MAX_LEVEL, progressOf, repairCost, startHealth, upgradeCost, UPGRADES, type UpgradeId } from './garage/progress';
 import { RULES } from './scoring';
 import { VEHICLES } from '../sim/vehicles';
 import { engineFor } from '../engine/engineSound';
@@ -128,7 +128,8 @@ export function GarageCard() {
   const a = setup.archetype;
   const h = setup.progress.health;
   const cost = repairCost(a, h);
-  const hits = hitsLeft(h, setup.damageTaken);
+  // a wreck still drives, limping out at LIMP_HEALTH
+  const hits = hitsLeft(startHealth(h), setup.damageTaken);
   const Perk = PERK_ICON[a.id];
   const damaged = h < RULES.damagedBelow;
   return (
@@ -177,7 +178,7 @@ export function GarageCard() {
           <div className="grid grid-cols-3 gap-2">
             <Stat icon={<Gauge size={14} strokeWidth={1.8} />} value={`${topSpeedKmh(a.type, setup.top)}`} label="km/h top" />
             <Stat icon={<Zap size={14} strokeWidth={1.8} />} value={`${zeroToHundred(a.type, setup.power).toFixed(1)} s`} label="0–100 km/h" />
-            <Stat icon={<Shield size={14} strokeWidth={1.8} />} value={h < MIN_HEALTH ? '—' : hits} label={hits === 1 ? 'hard hit' : 'hard hits'} />
+            <Stat icon={<Shield size={14} strokeWidth={1.8} />} value={hits} label={hits === 1 ? 'hard hit' : 'hard hits'} />
           </div>
           <div className="flex items-center gap-2.5 text-[13px]">
             <Perk size={16} strokeWidth={1.7} className="text-brand shrink-0" />
@@ -188,9 +189,9 @@ export function GarageCard() {
       </div>
 
       {cost > 0 && (
-        <div className={`rounded-xl p-3 flex items-center gap-3 ${h < MIN_HEALTH ? 'bg-alert/10' : 'bg-tile'}`}>
+        <div className="rounded-xl p-3 flex items-center gap-3 bg-tile">
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium">{h < MIN_HEALTH ? 'Too damaged to drive' : damaged ? 'Damaged' : 'A few scratches'}</div>
+            <div className="text-[13px] font-medium">{h < LIMP_HEALTH ? `Limps out at ${LIMP_HEALTH}%` : damaged ? 'Damaged' : 'A few scratches'}</div>
             <Bar value={h / 100} tone={healthTone(h)} className="w-full mt-1.5" />
           </div>
           <Button
@@ -253,7 +254,6 @@ function Workshop() {
   const a = setup.archetype;
   const h = setup.progress.health;
   const cost = repairCost(a, h);
-  const broke = h < MIN_HEALTH && save.coins < cost / 2;
   const host = hostBridge()?.connected;
   return (
     <Panel id="workshop" title="Workshop" onClose={() => g.setPanel('none')}>
@@ -276,24 +276,24 @@ function Workshop() {
           <span className="font-semibold tabular-nums text-[14px]">{Math.round(h)}%</span>
         </div>
         <Bar value={h / 100} tone={healthTone(h)} className="w-full" />
+        {cost > 0 && (
+          <div className="flex items-center gap-2 text-[13px] text-ink-2">
+            <Wrench size={14} strokeWidth={1.8} className="text-brand shrink-0" />
+            Free fixes on the road: drive through a wrench
+          </div>
+        )}
         <div className="flex gap-2 flex-wrap">
-          {broke ? (
-            <Button id="btn-patch" size="sm" onClick={() => g.patch()}>
-              Free patch-up
-            </Button>
-          ) : (
-            <Button
-              id="btn-repair-full"
-              size="sm"
-              disabled={cost === 0}
-              onClick={() => {
-                g.repair();
-                nm.audio.ui('buy');
-              }}
-            >
-              {cost === 0 ? 'Like new' : <RepairLabel cost={cost} coins={save.coins} health={h} />}
-            </Button>
-          )}
+          <Button
+            id="btn-repair-full"
+            size="sm"
+            disabled={cost === 0 || save.coins <= 0}
+            onClick={() => {
+              g.repair();
+              nm.audio.ui('buy');
+            }}
+          >
+            {cost === 0 ? 'Like new' : <RepairLabel cost={cost} coins={save.coins} health={h} />}
+          </Button>
           {host && cost > 0 && (
             <Button
               variant="secondary"
@@ -602,21 +602,14 @@ export function GarageResults({ g }: { g: GarageResult }) {
         <Tile label="Wallet" value={<Coins n={save.coins} />} />
         <Tile label="Condition" value={<span className={g.damage > 0 ? 'text-alert' : ''}>{g.damage > 0 ? `${Math.round(h)}% (−${g.damage})` : `${Math.round(h)}%`}</span>} />
       </Tiles>
-      {(cost > 0 && save.coins > 0) || (h < MIN_HEALTH && cost > 0 && save.coins <= cost / 2) ? (
+      {cost > 0 && save.coins > 0 && (
         <div className="flex gap-2 flex-wrap">
-          {cost > 0 && save.coins > 0 && (
-            <Button id="btn-repair-result" size="sm" onClick={() => useGarage.getState().repair()}>
-              <Wrench size={15} strokeWidth={1.8} />
-              <RepairLabel cost={cost} coins={save.coins} health={h} />
-            </Button>
-          )}
-          {h < MIN_HEALTH && cost > 0 && save.coins <= cost / 2 && (
-            <Button id="btn-patch-result" variant="secondary" size="sm" onClick={() => useGarage.getState().patch()}>
-              Free patch-up
-            </Button>
-          )}
+          <Button id="btn-repair-result" variant="secondary" size="sm" onClick={() => useGarage.getState().repair()}>
+            <Wrench size={15} strokeWidth={1.8} />
+            <RepairLabel cost={cost} coins={save.coins} health={h} />
+          </Button>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

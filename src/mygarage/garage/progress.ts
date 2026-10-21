@@ -69,10 +69,13 @@ export function repairCost(a: Archetype, health: number): number {
   return Math.ceil(Math.max(0, 100 - health) * 5 * a.perks.repairMul);
 }
 
-/** below this condition the car will not start a run until it is fixed */
-export const MIN_HEALTH = 10;
-/** a free patch-up gets a car that is out of coins back to this */
-export const PATCH_HEALTH = 35;
+/** a wrecked car still drives: it limps out at this condition (repairs on the road are free) */
+export const LIMP_HEALTH = 25;
+
+/** the condition a run starts at */
+export function startHealth(health: number) {
+  return Math.max(LIMP_HEALTH, Math.min(100, health));
+}
 
 /** everything the game needs to drive this car */
 export interface CarSetup {
@@ -177,15 +180,6 @@ export function repair(save: GarageSave, v: GarageVehicle): ActionResult {
   const pts = Math.floor(save.coins / per);
   if (pts <= 0) return { ok: false, reason: 'Not enough coins' };
   return { ok: true, save: { ...withCar(save, v, (q) => ({ ...q, health: Math.min(100, q.health + pts) })), coins: save.coins - Math.ceil(pts * per) } };
-}
-
-/** free patch-up so a broke player is never stuck: only when the car cannot start and coins cannot fix it */
-export function patchUp(save: GarageSave, v: GarageVehicle): ActionResult {
-  const p = progressOf(save, v);
-  const a = ARCHETYPE[archetypeOf(v).archetype];
-  if (p.health >= MIN_HEALTH) return { ok: false, reason: 'The car still runs' };
-  if (save.coins >= repairCost(a, p.health) / 2) return { ok: false, reason: 'You can afford a repair' };
-  return { ok: true, save: withCar(save, v, (q) => ({ ...q, health: PATCH_HEALTH })) };
 }
 
 /** after a run: the car's new condition and the coins it earned */

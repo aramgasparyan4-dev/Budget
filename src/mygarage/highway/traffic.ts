@@ -3,11 +3,13 @@
 // Cars keep to lanes, follow the car ahead (intelligent driver model), overtake slower cars with
 // the indicator on, keep right when the way is clear, merge out of lanes that end or are coned
 // off, and pick a branch before each fork (more of them head for the busy side). The other
-// direction drives on its own road off to the left. You are part of the traffic: cars brake for
-// you and will not cut in right on top of you (but will cut in close when you come up fast).
+// direction drives on its own road off to the left (downtown, right beside you: those cars brake
+// for whatever is in their lane, you included, and can be hit). You and any police are part of the
+// traffic: cars brake for you and will not cut in right on top of you (but will cut in close when
+// you come up fast), and they move over for a police car coming up behind with its lights on.
 import * as THREE from 'three';
 import { VEHICLES } from '../../sim/vehicles';
-import { Path, laneLat, latBetween, aheadOf, ZONES, COMPANION_LANES, Rand } from './road';
+import { Path, laneLat, latBetween, aheadOf, ZONES, Rand } from './road';
 
 export interface HCar {
   id: number;
@@ -70,6 +72,9 @@ export class Traffic {
   private spawnT = 0;
   /** metres you have driven: the road fills up as you go */
   travelled = 0;
+  /** everyone not in the traffic (you, the police) for this update */
+  private drivers: Driver[] = [];
+  private youDriver: Driver | null = null;
 
   constructor(private rng: Rand) {}
 
@@ -84,7 +89,7 @@ export class Traffic {
     const r = this.rng;
     if (s < 0 || s > path.length) return null;
     if (!oncoming && !path.laneOpen(lane, s)) return null;
-    if (oncoming && path.companionGap(s) === null) return null;
+    if (oncoming && (path.companionGap(s) === null || lane >= path.compLanes)) return null;
     for (const o of this.cars) if (o.path === path && o.oncoming === oncoming && o.lane === lane && Math.abs(o.s - s) < 34) return null;
     const heavy = !oncoming && lane >= 2 && r.next() < (lane >= path.lanes(s) - 1.5 ? 0.3 : 0.1);
     const list = heavy ? HEAVY : CARS;
@@ -146,7 +151,7 @@ export class Traffic {
       const p = c.path.pose(c.s, -(gap + laneLat(c.lane)));
       c.x = p.x;
       c.z = p.z;
-      c.yaw = p.h + Math.PI;
+      c.yaw = p.h + Math.PI + c.spin;
       return;
     }
     const p = c.path.pose(c.s, c.lat);
@@ -154,8 +159,8 @@ export class Traffic {
     c.z = p.z;
   }
 
-  /** is a lane clear (of cars and you) from `back` metres behind (path, s) to `front` ahead? */
-  laneClear(path: Path, lane: number, s: number, back: number, front: number, self: HCar | null, you: Driver | null) {
+  /** is a lane clear (of cars, you and the police) from `back` metres behind (path, s) to `front` ahead? */
+  laneClear(path: Path, lane: number, s: number, back: number, front: number, self: HCar | null, drivers: Driver[] = this.drivers) {
     const lat = laneLat(lane);
     for (const o of this.cars) {
       if (o === self || o.oncoming) continue;
@@ -164,10 +169,12 @@ export class Traffic {
       const ol = latBetween(o.lat, o.path, path);
       if (ol !== null && (Math.abs(ol - lat) < 2.6 || (o.lane === lane && o.path === path))) return false;
     }
-    if (you) {
+    for (const you of drivers) {
       const d = aheadOf(path, s, you.path, you.s);
       const yl = latBetween(you.lat, you.path, path);
-      if (d !== null && yl !== null && d > -back && d < front && Math.abs(yl - lat) < 2.9) return false;
+      // a police car coming up fast gets room by its speed (you get cut up close: that is the game)
+      const b = you === this.youDriver ? back : Math.max(back, (you.v - (self?.v ?? 0)) * 2.5);
+      if (d !== null && yl !== null && d > -b && d < front && Math.abs(yl - lat) < 2.9) return false;
     }
     return true;
   }
@@ -179,9 +186,24 @@ export class Traffic {
     c.lane = target;
   }
 
-  /** what a car has to do about lanes: leave one that ends or is closed, get to its branch */
-  private mustMove(c: HCar): number {
+  /** a police car with its lights on right behind: which way to move over (right if there is a lane, else left), or 0 */
+  private yieldFor(c: HCar, sirens: Driver[]): number {
     const p = c.path;
+    for (const sd of sirens) {
+      const d = aheadOf(sd.path, sd.s, p, c.s);
+      const sl = latBetween(sd.lat, sd.path, p);
+      if (d === null || sl === null || d < 4 || d > 70 || Math.abs(sl - c.lat) > 2.2) continue;
+      const n = Math.floor(p.lanes(c.s) + 0.4);
+      if (c.lane < n - 1 && p.laneOpen(c.lane + 1, c.s + 40)) return 1;
+      if (c.lane > 0) return -1;
+    }
+    return 0;
+  }
+
+  /** what a car has to do about lanes: make way, leave one that ends or is closed, get to its branch */
+  private mustMove(c: HCar, yieldDir: number): number {
+    const p = c.path;
+    if (yieldDir) return yieldDir;
     // the lane ends or is coned off ahead
     for (const d of [40, 140, 260]) {
       if (!p.laneOpen(c.lane, Math.min(p.length, c.s + d))) {
@@ -202,15 +224,20 @@ export class Traffic {
     return 0;
   }
 
-  update(dt: number, you: Driver | null) {
+  /**
+   * Move everyone on. `you` is the player (the road fills up with the distance you drive); `others`
+   * are other cars outside the traffic that it has to make room for (the police), and `sirens` those
+   * of them with their lights on.
+   */
+  update(dt: number, you: Driver | null, others: Driver[] = [], sirens: Driver[] = []) {
     if (dt <= 0) return;
     if (you) this.travelled += Math.max(0, you.v) * dt;
+    this.drivers = you ? [you, ...others] : others;
+    this.youDriver = you;
     const r = this.rng;
     for (const c of this.cars) {
       if (c.oncoming) {
-        c.s -= c.v * dt;
-        c.wheelRot += (c.v * dt) / VEHICLES[c.type].wheelRadius;
-        if (c.s > 0) this.place(c);
+        this.oncomingStep(c, dt);
         continue;
       }
       const p = c.path;
@@ -232,7 +259,7 @@ export class Traffic {
           lv = o.v;
         }
       }
-      if (you) {
+      for (const you of this.drivers) {
         const d = aheadOf(p, c.s, you.path, you.s);
         const yl = latBetween(you.lat, you.path, p);
         if (d !== null && yl !== null && d > -1 && d < 260) {
@@ -262,6 +289,8 @@ export class Traffic {
         if (u > pc.works.from - 80 && u < pc.works.to + 20) vDes = Math.min(vDes, 21);
       }
       if (pc.tunnel) vDes = Math.min(vDes, 29);
+      // downtown: city speeds
+      if (pc.street) vDes = Math.min(vDes, 12.5 + (c.id % 5) * 0.7);
       if (c.crashed) c.acc = -7;
       else {
         const a = 2.2;
@@ -274,13 +303,15 @@ export class Traffic {
         c.acc = clamp(acc, -9, a);
         // lanes: forced moves first, then overtaking and keeping right
         c.cool -= dt;
+        const yieldDir = sirens.length ? this.yieldFor(c, sirens) : 0;
+        if (yieldDir) c.cool = Math.min(c.cool, 0.2);
         if (c.changeT < 0 && c.signalT <= 0 && c.cool <= 0) {
           c.cool = 0.4 + r.next() * 0.5;
-          const must = this.mustMove(c);
+          const must = this.mustMove(c, yieldDir);
           let target = -1;
           if (must !== 0) {
             const t = c.lane + must;
-            if (this.laneClear(p, t, c.s, 10, 16, c, you)) target = t;
+            if (this.laneClear(p, t, c.s, 10, 16, c)) target = t;
           } else if (r.next() < 0.35) {
             c.cool = 1.5 + r.next() * 3;
             const n = Math.floor(p.lanes(c.s) + 0.4);
@@ -288,12 +319,12 @@ export class Traffic {
               for (const t of r.next() < 0.7 ? [c.lane - 1, c.lane + 1] : [c.lane + 1, c.lane - 1]) {
                 if (t < 0 || t >= n || !p.laneOpen(t, c.s + 200)) continue;
                 if (p.children && p.length - c.s < 800 && (t < p.split) !== (c.prefer === 0)) continue;
-                if (this.laneClear(p, t, c.s, 22, 34, c, you)) {
+                if (this.laneClear(p, t, c.s, 22, 34, c)) {
                   target = t;
                   break;
                 }
               }
-            } else if (c.lane < n - 1 && r.next() < 0.2 && c.vDes < (LANE_SPEED[c.lane] ?? 21) - 1 && p.laneOpen(c.lane + 1, c.s + 200) && this.laneClear(p, c.lane + 1, c.s, 30, 60, c, you)) {
+            } else if (c.lane < n - 1 && r.next() < 0.2 && c.vDes < (LANE_SPEED[c.lane] ?? 21) - 1 && p.laneOpen(c.lane + 1, c.s + 200) && this.laneClear(p, c.lane + 1, c.s, 30, 60, c)) {
               if (!(p.children && p.length - c.s < 800 && c.lane + 1 >= p.split && c.prefer === 0)) target = c.lane + 1;
             }
           }
@@ -348,6 +379,70 @@ export class Traffic {
     }
   }
 
+  /**
+   * The other direction: it follows the car ahead in its lane, and downtown (where you can get
+   * across to it) it also brakes for whatever is in its lane coming the other way, you included.
+   */
+  private oncomingStep(c: HCar, dt: number) {
+    const p = c.path;
+    const street = c.s > 0 && p.street(c.s);
+    if (c.crashed) {
+      c.acc = -7;
+      c.spin += c.spinV * dt;
+      c.spinV *= Math.exp(-2.2 * dt);
+    } else {
+      let gap = Infinity;
+      let lv = 0;
+      for (const o of this.cars) {
+        if (o === c || !o.oncoming || o.path !== p || o.lane !== c.lane) continue;
+        const d = c.s - o.s;
+        if (d <= 0 || d > 220) continue;
+        const g = d - (o.len + c.len) / 2;
+        if (g < gap) {
+          gap = g;
+          lv = o.v;
+        }
+      }
+      const ol = street ? p.oncomingLat(c.lane, c.s) : null;
+      if (ol !== null) {
+        for (const dr of this.drivers) {
+          const d = aheadOf(dr.path, dr.s, p, c.s);
+          const dl = latBetween(dr.lat, dr.path, p);
+          if (d === null || dl === null || d < -2 || d > 200) continue;
+          if (Math.abs(dl - ol) > (dr.width + c.width) / 2 + 0.4) continue;
+          const g = d - (dr.len + c.len) / 2;
+          if (g < gap) {
+            gap = g;
+            // something coming at it is as good as a wall
+            lv = Math.max(0, -dr.v);
+          }
+        }
+        // traffic going our way that ended up in its lane (a crash)
+        for (const o of this.cars) {
+          if (o.oncoming || !o.crashed) continue;
+          const d = aheadOf(o.path, o.s, p, c.s);
+          const lat = latBetween(o.lat, o.path, p);
+          if (d === null || lat === null || d < -2 || d > 120 || Math.abs(lat - ol) > 2.4) continue;
+          gap = Math.min(gap, d - (o.len + c.len) / 2);
+          lv = 0;
+        }
+      }
+      const vDes = street ? Math.min(c.vDes, 12.5 + (c.id % 5) * 0.7) : c.vDes;
+      const a = 2.2;
+      const b = 3.5;
+      let acc = a * (1 - (c.v / vDes) ** 4);
+      if (gap < 250) {
+        const ss = 4 + Math.max(0, c.v * 1.1 + (c.v * (c.v - lv)) / (2 * Math.sqrt(a * b)));
+        acc -= a * (ss / Math.max(0.5, gap)) ** 2;
+      }
+      c.acc = clamp(acc, -9, a);
+    }
+    c.v = Math.max(0, c.v + c.acc * dt);
+    c.s -= c.v * dt;
+    c.wheelRot += (c.v * dt) / VEHICLES[c.type].wheelRadius;
+    if (c.s > 0) this.place(c);
+  }
+
   /** keep the road ahead of you busy and let go of cars well behind (call a few times a second) */
   manage(dt: number, you: Driver, youX: number, youZ: number) {
     this.cars = this.cars.filter((c) => {
@@ -380,7 +475,7 @@ export class Traffic {
     }
     if (oncoming < 18) {
       const at = this.along(you.path, you.s + r.range(650, 900), true);
-      if (at && at.path.companionGap(at.s) !== null && at.path.companionGap(at.s)! < 150) this.spawn(at.path, at.s, Math.floor(r.next() * COMPANION_LANES), true);
+      if (at && at.path.companionGap(at.s) !== null && at.path.companionGap(at.s)! < 150) this.spawn(at.path, at.s, Math.floor(r.next() * at.path.compLanes), true);
     }
   }
 
@@ -410,13 +505,13 @@ export class Traffic {
     }
     for (let i = 0; i < 30; i++) {
       const at = this.along(you.path, you.s - 200 + this.rng.next() * 1000, true);
-      if (at) this.spawn(at.path, at.s, Math.floor(this.rng.next() * COMPANION_LANES), true);
+      if (at) this.spawn(at.path, at.s, Math.floor(this.rng.next() * at.path.compLanes), true);
     }
   }
 
   /** you hit it: it skids to a stop with its hazards on, in your way */
   crash(c: HCar, fromLat: number, impact: number) {
-    if (c.crashed || c.oncoming) return;
+    if (c.crashed) return;
     c.crashed = true;
     c.changeT = -1;
     c.signalT = 0;

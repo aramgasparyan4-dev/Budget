@@ -9,8 +9,9 @@ import { VEHICLES } from '../sim/vehicles';
 import type { VehicleRenderer } from '../render/VehicleRenderer';
 import { G } from '../render/globals';
 import type { OtherCar } from './scoring';
-import { RoadGen, Path, Piece, ZONES, laneLat, latBetween, Rand, type Zone } from './highway/road';
+import { RoadGen, Path, Piece, ZONES, laneLat, latBetween, Rand, type Profile, type Zone } from './highway/road';
 import { Traffic, type Driver, type HCar } from './highway/traffic';
+export type { Driver } from './highway/traffic';
 import { PieceBuilder, type Built } from './highway/build';
 
 /** where the road starts (and where the world is moved back to), far from the city */
@@ -23,6 +24,7 @@ const GROUND: Record<Zone, THREE.Color> = {
   coast: new THREE.Color().setRGB(0.2, 0.21, 0.09),
   desert: new THREE.Color().setRGB(0.42, 0.3, 0.16),
   city: new THREE.Color().setRGB(0.13, 0.15, 0.1),
+  downtown: new THREE.Color().setRGB(0.1, 0.1, 0.105),
 };
 
 export interface HighwayInfo {
@@ -97,10 +99,14 @@ export class Highway {
     return g;
   }
 
+  /** which road: the motorway, or the police chase's mix of downtown streets and motorway */
+  profile: Profile = 'highway';
+
   // ------------------------------------------------------------------ a drive
-  begin() {
+  begin(profile: Profile = 'highway') {
     this.end();
-    this.gen = new RoadGen(Math.floor(Math.random() * 1e9));
+    this.profile = profile;
+    this.gen = new RoadGen(Math.floor(Math.random() * 1e9), profile);
     const root = this.gen.root({ x: ORIGIN.x, z: ORIGIN.z, h: Math.PI / 2 });
     this.gen.extend(root, 2600);
     this.root = root;
@@ -112,6 +118,21 @@ export class Highway {
     this.groundMat.color.copy(GROUND[root.plan.zone]);
     this.group.visible = true;
     this.stream();
+  }
+
+  /** a point `d` metres ahead of you in an open lane (before any fork), or null */
+  spotAhead(d: number, rand: () => number = Math.random): { x: number; z: number; road: { pathId: number; s: number } } | null {
+    const you = this.you;
+    if (!you) return null;
+    const p = you.path;
+    const s = Math.min(you.s + d, p.length - 30);
+    if (s < you.s + 80) return null;
+    const n = Math.floor(p.lanes(s) + 0.4);
+    const open: number[] = [];
+    for (let i = 0; i < n; i++) if (p.laneOpen(i, s) && p.laneOpen(i, s - 30)) open.push(i);
+    if (!open.length) return null;
+    const q = p.pose(s, laneLat(open[Math.floor(rand() * open.length)]));
+    return { x: q.x, z: q.z, road: { pathId: p.id, s } };
   }
 
   /** where a drive starts: lane 1, 40 m in */
@@ -131,8 +152,11 @@ export class Highway {
     this.group.visible = false;
   }
 
-  /** every frame: where you are, the road around you, the traffic */
-  update(dt: number, car: { x: number; z: number; vx: number; vz: number; len: number; width: number } | null) {
+  /**
+   * Every frame: where you are, the road around you, the traffic. `others` are cars the traffic
+   * must make room for (the police; `sirens` those with their lights on).
+   */
+  update(dt: number, car: { x: number; z: number; vx: number; vz: number; len: number; width: number } | null, others: Driver[] = [], sirens: Driver[] = []) {
     const you = this.you;
     if (!you) return;
     if (car) this.track(car);
@@ -142,7 +166,7 @@ export class Highway {
       this.stream();
     }
     if (dt <= 0) return;
-    this.traffic.update(dt, car ? you : null);
+    this.traffic.update(dt, car ? you : null, others, sirens);
     const p = you.path.pose(you.s, you.lat);
     this.traffic.manage(dt, you, car?.x ?? p.x, car?.z ?? p.z);
   }
@@ -150,6 +174,18 @@ export class Highway {
   /** find you on the road (and which branch you took) */
   private track(car: { x: number; z: number; vx: number; vz: number; len: number; width: number }) {
     const you = this.you!;
+    const path = this.locate(you, car);
+    // committed to a branch: the other one is left behind
+    const parent = path?.parent;
+    if (path && parent?.children && !this.committed.has(path) && you.s > 50 && you.lat > -1.5 && you.lat < path.rightEdge(you.s) + 1) {
+      this.committed.add(path);
+      for (const c of parent.children) if (c !== path) c.abandoned = true;
+    }
+  }
+
+  /** where a car is on the road, starting from where it was last time; updates `d` (null if lost) */
+  locate(d: Driver, car: { x: number; z: number; vx: number; vz: number; len: number; width: number }): Path | null {
+    const you = d;
     let path = you.path;
     let pr = path.project(car.x, car.z, you.s);
     const outside = (p: Path, r: { s: number; lat: number; d: number }) => (r.d === Infinity ? 1e6 : Math.max(0, -2 - r.lat, r.lat - (p.rightEdge(r.s) + 4)));
@@ -170,7 +206,7 @@ export class Highway {
         pr = r;
       }
     }
-    if (pr.d === Infinity) return;
+    if (pr.d === Infinity) return null;
     you.path = path;
     you.s = pr.s;
     you.lat = pr.lat;
@@ -178,12 +214,7 @@ export class Highway {
     you.width = car.width;
     const h = path.pose(pr.s).h;
     you.v = car.vx * Math.sin(h) + car.vz * Math.cos(h);
-    // committed to a branch: the other one is left behind
-    const parent = path.parent;
-    if (parent?.children && !this.committed.has(path) && you.s > 50 && pr.lat > -1.5 && pr.lat < path.rightEdge(pr.s) + 1) {
-      this.committed.add(path);
-      for (const c of parent.children) if (c !== path) c.abandoned = true;
-    }
+    return path;
   }
 
   /** lay road ahead, build what is in view, drop what is far behind */
@@ -262,10 +293,16 @@ export class Highway {
   }
 
   // ------------------------------------------------------------------ the traffic
-  /** physics bodies for the cars near you (yours going your way only: the others are out of reach) */
-  syncBodies(x: number, z: number) {
+  /** a car you can hit: going your way, or the other way where nothing is between you (downtown) */
+  reachable(c: HCar) {
+    return !c.oncoming || (c.s > 0 && c.path.street(c.s));
+  }
+
+  /** physics bodies for the cars near you, or near any of `near` (the police) */
+  syncBodies(x: number, z: number, near: { x: number; z: number }[] = []) {
     for (const c of this.traffic.cars) {
-      const d = c.oncoming ? Infinity : Math.hypot(c.x - x, c.z - z);
+      let d = this.reachable(c) ? Math.hypot(c.x - x, c.z - z) : Infinity;
+      if (d < Infinity) for (const q of near) d = Math.min(d, Math.hypot(c.x - q.x, c.z - q.z));
       let b = this.bodies.get(c);
       if (d < 70) {
         if (!b) b = this.acquireBody(c);
@@ -310,7 +347,7 @@ export class Highway {
     let best: HCar | null = null;
     let bd = maxD;
     for (const c of this.traffic.cars) {
-      if (c.oncoming) continue;
+      if (!this.reachable(c)) continue;
       const d = Math.hypot(c.x - x, c.z - z) - c.len / 2;
       if (d < bd) {
         bd = d;
@@ -329,10 +366,18 @@ export class Highway {
   /** cars near you, for the near-miss scoring */
   others(x: number, z: number, out: OtherCar[]) {
     for (const c of this.traffic.cars) {
-      if (c.oncoming || Math.abs(c.x - x) > 32 || Math.abs(c.z - z) > 32) continue;
+      if (!this.reachable(c) || Math.abs(c.x - x) > 32 || Math.abs(c.z - z) > 32) continue;
       out.push({ id: c.id, x: c.x, z: c.z, yaw: c.yaw, v: c.v, width: c.width, length: c.len });
     }
     return out;
+  }
+
+  /** downtown, in the other direction's lanes */
+  oncomingSide() {
+    const you = this.you;
+    if (!you || !you.path.street(you.s)) return false;
+    const g = you.path.companionGap(you.s);
+    return g !== null && you.lat < -g / 2 - 0.4;
   }
 
   /** metres to the car right ahead of you in your lane (for the slipstream), or null */
@@ -408,6 +453,29 @@ export class Highway {
         }
       }
       if (pts.length > 1) out.push({ pts, width: p.rightEdge(p === you?.path ? you.s : 0), mine: !!you && (p === you.path || p.parent === you.path) });
+      // downtown the other direction is right beside: draw it too (each downtown stretch on its own)
+      let run: [number, number][] = [];
+      const flush = () => {
+        if (run.length > 1) out.push({ pts: run, width: p.compLanes * 3.4, mine: false });
+        run = [];
+      };
+      for (const pc of p.pieces) {
+        if (!pc.street) {
+          flush();
+          continue;
+        }
+        for (let i = 0; i < pc.xs.length; i += 5) {
+          if (Math.abs(pc.xs[i] - x) > radius || Math.abs(pc.zs[i] - z) > radius) {
+            flush();
+            continue;
+          }
+          const s = pc.s0 + i * 2;
+          const g = p.companionGap(s) ?? 0;
+          const q = p.pose(s, -g - (p.compLanes * 3.4) / 2);
+          run.push([q.x, q.z]);
+        }
+      }
+      flush();
     }
     return out;
   }

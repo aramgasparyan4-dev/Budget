@@ -11,8 +11,8 @@ import {
   finishRun,
   freshProgress,
   MAX_LEVEL,
-  MIN_HEALTH,
-  patchUp,
+  LIMP_HEALTH,
+  startHealth,
   progressOf,
   repair,
   repairCost,
@@ -212,9 +212,7 @@ check('full body armour buys a sedan an extra hit', hardHits(v('Toyota', 'Camry'
   const partial = repair({ ...hurt, coins: Math.floor(cost / 2) }, car);
   check('without enough coins, a partial repair', partial.ok && progressOf(partial.save, car).health > 30 && progressOf(partial.save, car).health < 100 && partial.save.coins >= 0);
   const wreck = finishRun({ ...save, coins: 0 }, car, 0, 0, 0);
-  const patched = patchUp(wreck, car);
-  check('a broke player with a wreck gets a free patch-up to drive again', patched.ok && progressOf(patched.save, car).health >= MIN_HEALTH);
-  check('but not when they can afford a repair', !patchUp({ ...wreck, coins: 1e5 }, car).ok);
+  check('a wreck still drives: it limps out at the limp-home condition', startHealth(progressOf(wreck, car).health) === LIMP_HEALTH && startHealth(80) === 80);
 }
 
 // ------------------------------------------------------------------ the garage details

@@ -12,6 +12,8 @@
 // In a race there is no clock and nothing ends the run: a big hit just stops the car. Near misses and
 // drifts still pop up and still fill the boost bar, which is what makes risky driving pay off there.
 // On the highway there is no clock either: the drive lasts until the car is wrecked or you end it.
+// A police chase is the same, and also ends if you are busted; time spent with the police on your
+// tail scores on its own, more at higher heat.
 
 export interface CarState {
   x: number;
@@ -40,7 +42,7 @@ export interface DriveContext {
   dt: number;
 }
 
-export type EventKind = 'near' | 'drift' | 'bank' | 'lost' | 'scrape' | 'bonus' | 'damage' | 'crash';
+export type EventKind = 'near' | 'drift' | 'bank' | 'lost' | 'scrape' | 'bonus' | 'damage' | 'crash' | 'repair' | 'police';
 
 export interface ScoreEvent {
   kind: EventKind;
@@ -77,6 +79,7 @@ export const RULES = {
   driftPassMul: 1.5,
   highwayNearGap: 1.15, // a pass down the middle of the next highway lane leaves ~1.5 m: that is just driving
   threadWindow: 0.6, // seconds between passes on either side that count as threading the needle
+  pursuitRate: 15, // chase: points per second with the police after you, per heat level
 };
 
 interface Track {
@@ -111,10 +114,10 @@ export class Scorer {
   damageTaken = 0;
 
   constructor(
-    readonly mode: 'score' | 'race' | 'highway' = 'score',
+    readonly mode: 'score' | 'race' | 'highway' | 'chase' = 'score',
     opts: Partial<ScorerOpts> = {},
   ) {
-    this.opts = { ...DEFAULT_OPTS, ...(mode === 'highway' ? { nearGap: RULES.highwayNearGap } : {}), ...opts };
+    this.opts = { ...DEFAULT_OPTS, ...(mode === 'highway' || mode === 'chase' ? { nearGap: RULES.highwayNearGap } : {}), ...opts };
     this.health = this.opts.health;
     this.boost = this.opts.startBoost;
   }
@@ -136,7 +139,9 @@ export class Scorer {
   boost = 0.35;
   time = RULES.startTime;
   elapsed = 0;
-  over: null | 'wrecked' | 'time' | 'ended' = null;
+  over: null | 'wrecked' | 'time' | 'ended' | 'busted' = null;
+  /** chase: points from time in pursuit */
+  pursuitPoints = 0;
   /** race: big hits taken */
   crashes = 0;
   private graceT = 0;
@@ -270,9 +275,9 @@ export class Scorer {
     }
     for (const [id, tr] of this.tracks) if (this.t - tr.lastSeen > 1) this.tracks.delete(id);
 
-    // combo banking (on the highway the combo window runs at half speed above 160 km/h)
+    // combo banking (on the highway and in a chase the combo window runs at half speed above 160 km/h)
     if (this.comboPoints > 0) {
-      this.comboT -= this.mode === 'highway' && kmh > 160 ? dt * 0.5 : dt;
+      this.comboT -= (this.mode === 'highway' || this.mode === 'chase') && kmh > 160 ? dt * 0.5 : dt;
       if (this.comboT <= 0) this.bank();
     }
 
@@ -326,6 +331,14 @@ export class Scorer {
     if (this.over) return;
     this.gainBoost(0.11 * dt);
     this.addCombo(40 * dt, boosting, 1.5);
+  }
+
+  /** chase: the police are after you; it scores straight away, more at higher heat */
+  pursuit(dt: number, heat: number) {
+    if (this.over) return;
+    const pts = RULES.pursuitRate * heat * dt * this.opts.scoreMul;
+    this.pursuitPoints += pts;
+    this.score += Math.round(this.pursuitPoints) - Math.round(this.pursuitPoints - pts);
   }
 
   /** a one-off bonus from the game layer (red light, etc.) */
@@ -396,18 +409,28 @@ export class Scorer {
     return 'scrape';
   }
 
+  /** a free fix on the road (a wrench pickup): condition back up by `amount`; returns what it gained */
+  repair(amount: number) {
+    if (this.over) return 0;
+    const before = this.health;
+    this.health = Math.min(100, this.health + amount);
+    const got = this.health - before;
+    if (got > 0) this.events.push({ kind: 'repair', label: 'REPAIRED', sub: `${Math.round(this.health)}%`, points: 0 });
+    return got;
+  }
+
   /** mark a car as touched so passing it no longer counts */
   touched(id: number) {
     const tr = this.tracks.get(id);
     if (tr) tr.touched = true;
   }
 
-  end(reason: 'wrecked' | 'time' | 'ended') {
+  end(reason: 'wrecked' | 'time' | 'ended' | 'busted') {
     if (this.over) return;
     this.over = reason;
     // running out of time (or ending a highway drive) still banks the combo, a drift in progress
-    // included; a wreck loses it
-    if (reason !== 'wrecked') {
+    // included; a wreck (or being busted) loses it
+    if (reason !== 'wrecked' && reason !== 'busted') {
       if (this.driftActive) this.endDrift();
       this.bank();
     } else if (this.comboPoints > 0) {

@@ -3,7 +3,7 @@ import type { EventKind } from './scoring';
 import type { HighwayInfo } from './Highway';
 
 export type Phase = 'loading' | 'title' | 'countdown' | 'run' | 'wreck' | 'results';
-export type Mode = 'score' | 'highway' | 'race';
+export type Mode = 'score' | 'highway' | 'chase' | 'race';
 
 export interface Popup {
   id: number;
@@ -33,6 +33,8 @@ export interface Hud {
   health: number; // car condition 0-100
   lastHit: boolean; // one more big hit wrecks it
   distance: number; // metres driven this run
+  /** the wrench waiting on the road: metres to it and its direction from the camera (degrees, 0 ahead) */
+  pickup: { dist: number; arrow: number } | null;
 }
 
 export interface RaceHud {
@@ -49,6 +51,29 @@ export interface RaceHud {
   rivalFinished: boolean;
   stunned: boolean; // stopped by a crash
   left: number; // seconds left to finish once the rival is home, else -1
+}
+
+/** the police chase, for the HUD */
+export interface ChaseHud {
+  state: 'patrol' | 'pursuit' | 'cooldown';
+  heat: number; // 1-5
+  escape: number; // 0..1
+  bust: number; // 0..1
+  cops: number; // after you right now
+  cooldown: number; // seconds until the next patrol
+  /** metres to a roadblock ahead, or null */
+  roadblock: number | null;
+  /** metres to the nearest police car after you (Infinity: none) */
+  close: number;
+}
+
+export interface ChaseResult {
+  escapes: number;
+  takedowns: number;
+  heat: number; // highest reached
+  pursuit: number; // seconds with the police after you
+  longest: number; // longest single pursuit, seconds
+  roadblocks: number;
 }
 
 export interface RaceResult {
@@ -70,7 +95,7 @@ export interface RaceStats {
 
 export interface RunResult {
   score: number;
-  reason: 'wrecked' | 'time' | 'ended';
+  reason: 'wrecked' | 'time' | 'ended' | 'busted';
   nearMisses: number;
   bestCombo: number;
   bestBank: number;
@@ -87,6 +112,7 @@ export interface RunResult {
   rank: number; // 1-based place in the local top 10, 0 if not in it
   mode: Mode;
   race?: RaceResult;
+  chase?: ChaseResult;
   garage?: GarageResult;
 }
 
@@ -111,6 +137,7 @@ export interface BestEntry {
 const BEST_KEY = 'near-miss-best-v1';
 const RACE_KEY = 'near-miss-race-v1';
 const HIGHWAY_KEY = 'mygarage-highway-best-v1';
+const CHASE_KEY = 'mygarage-chase-best-v1';
 
 function loadRace(): RaceStats {
   try {
@@ -140,6 +167,9 @@ interface NMState {
   mode: Mode;
   hud: Hud;
   race: RaceHud | null;
+  chase: ChaseHud | null;
+  /** how the run is ending (the banner over the slow-motion moment) */
+  ending: 'wrecked' | 'busted' | null;
   /** highway: the zone and the next fork */
   road: HighwayInfo | null;
   raceStats: RaceStats;
@@ -149,11 +179,13 @@ interface NMState {
   best: BestEntry[];
   /** highway top 10 (drives have no time limit, so they get their own list) */
   bestHighway: BestEntry[];
+  /** police chase top 10 */
+  bestChase: BestEntry[];
   set: (p: Partial<NMState>) => void;
   setHud: (h: Hud) => void;
   pushPopup: (p: Omit<Popup, 'id'>) => void;
   /** add a finished run to the local top 10 for its mode; returns its 1-based rank or 0 */
-  record: (e: BestEntry, mode?: 'score' | 'highway') => number;
+  record: (e: BestEntry, mode?: 'score' | 'highway' | 'chase') => number;
   /** count a finished race; returns true if the winning margin is a new best */
   recordRace: (won: boolean, margin: number) => boolean;
 }
@@ -186,30 +218,34 @@ export const useNM = create<NMState>((set, get) => ({
     health: 100,
     lastHit: false,
     distance: 0,
+    pickup: null,
   },
   race: null,
+  chase: null,
+  ending: null,
   road: null,
   raceStats: loadRace(),
   popups: [],
   result: null,
   best: loadBest(BEST_KEY),
   bestHighway: loadBest(HIGHWAY_KEY),
+  bestChase: loadBest(CHASE_KEY),
   set: (p) => set(p),
   setHud: (hud) => set({ hud }),
   pushPopup: (p) => {
     const item = { ...p, id: pid++ };
     set({ popups: [...get().popups, item].slice(-4) });
-    const long = p.kind === 'bank' || p.kind === 'lost' || p.kind === 'damage' || p.kind === 'crash';
+    const long = p.kind === 'bank' || p.kind === 'lost' || p.kind === 'damage' || p.kind === 'crash' || p.kind === 'police';
     setTimeout(() => set({ popups: get().popups.filter((x) => x.id !== item.id) }), long ? 2200 : 1400);
   },
   record: (e, mode = 'score') => {
     // a run that scored nothing is not a "personal best"
     if (e.score <= 0) return 0;
-    const field = mode === 'highway' ? 'bestHighway' : 'best';
+    const field = mode === 'highway' ? 'bestHighway' : mode === 'chase' ? 'bestChase' : 'best';
     const list = [...get()[field], e].sort((a, b) => b.score - a.score).slice(0, 10);
     set({ [field]: list });
     try {
-      localStorage.setItem(mode === 'highway' ? HIGHWAY_KEY : BEST_KEY, JSON.stringify(list));
+      localStorage.setItem(mode === 'highway' ? HIGHWAY_KEY : mode === 'chase' ? CHASE_KEY : BEST_KEY, JSON.stringify(list));
     } catch {
       /* storage unavailable: scores last for this visit only */
     }

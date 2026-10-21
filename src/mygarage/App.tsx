@@ -1,15 +1,38 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CircleHelp, CloudRain, Moon, Music, Play, Settings, Sun, Sunset, Trophy, Volume2, VolumeX, Zap, Car, RotateCcw, LogOut, Flag, Route, Timer } from 'lucide-react';
+import {
+  CircleHelp,
+  CloudRain,
+  Moon,
+  Music,
+  Play,
+  Settings,
+  Sun,
+  Sunset,
+  Trophy,
+  Volume2,
+  VolumeX,
+  Zap,
+  Car,
+  RotateCcw,
+  LogOut,
+  Flag,
+  Route,
+  Timer,
+  Wrench,
+  Siren,
+  Star,
+  TrafficCone,
+} from 'lucide-react';
 import { GameCanvas } from '../scene/GameCanvas';
 import { useStore } from '../state/store';
 import type { Preset } from '../state/settings';
 import { nm, CONDITIONS } from './DriveGame';
 import { useNM, type Mode, type Popup } from './store';
+import { HEAT_STEP } from './Chase';
 import { HighwayMap, RaceHud, RaceResults } from './RaceUI';
 import { RULES } from './scoring';
 import { GarageCard, GaragePanels, GarageResults, isTouch, RotateNotice, TouchControls, healthTone } from './GarageUI';
 import { useGarage } from './garage/store';
-import { MIN_HEALTH } from './garage/progress';
 import { Badge, Bar, Button, Coins, fmt, IconButton, Label, StatGrid, Wordmark } from './ui';
 
 // handles for automated tests and the browser console
@@ -67,6 +90,7 @@ function Loading() {
 const MODES: Record<Mode, { label: string; go: string; hint: string }> = {
   score: { label: 'Time attack', go: 'Drive', hint: 'Score before the clock runs out' },
   highway: { label: 'Highway', go: 'Drive', hint: 'No clock: drive until you stop or wreck' },
+  chase: { label: 'Police chase', go: 'Drive', hint: 'Streets and motorway with the police after you: escape, or get busted' },
   race: { label: 'Race', go: 'Race', hint: 'Beat a rival to the finish' },
 };
 
@@ -213,11 +237,16 @@ function Best() {
   const mode = useNM((s) => s.mode);
   const best = useNM((s) => s.best[0]?.score ?? 0);
   const hwy = useNM((s) => s.bestHighway[0]?.score ?? 0);
+  const chase = useNM((s) => s.bestChase[0]?.score ?? 0);
   const rs = useNM((s) => s.raceStats);
-  const n = mode === 'highway' ? hwy : best;
+  const n = mode === 'highway' ? hwy : mode === 'chase' ? chase : best;
   const text = mode === 'race' ? (rs.races ? `${rs.wins} / ${rs.races} won` : '—') : n > 0 ? fmt(n) : '—';
   return (
-    <span id="high-score" title={mode === 'race' ? 'Races won' : 'High score'} className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-mist text-[14px] font-medium tabular-nums">
+    <span
+      id="high-score"
+      title={mode === 'race' ? 'Races won' : 'High score'}
+      className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-mist text-[14px] font-medium tabular-nums"
+    >
       <Trophy size={16} strokeWidth={1.6} className="text-ink-2" />
       {text}
     </span>
@@ -247,7 +276,7 @@ function Title() {
     <div className="absolute inset-0 pointer-events-auto flex flex-col rise">
       <header className="h-16 short:h-12 shrink-0 bg-paper border-b border-line flex items-center gap-3 px-4 sm:px-6">
         <Wordmark size="text-[19px]" mark={28} />
-        <div className="hidden md:block ml-5">
+        <div className="hidden lg:block ml-5">
           <ModeTabs />
         </div>
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
@@ -265,7 +294,7 @@ function Title() {
       <div className="flex-1 min-h-0 flex flex-col sm:flex-row">
         {/* the 3D scene shows through here */}
         <div className="flex-1 min-h-[180px] relative pointer-events-none">
-          <div className="md:hidden absolute left-4 top-4 pointer-events-auto">
+          <div className="lg:hidden absolute left-4 top-4 pointer-events-auto max-w-[calc(100%-2rem)] overflow-x-auto">
             <ModeTabs />
           </div>
           <div className="absolute left-4 sm:left-6 bottom-4 sm:bottom-6">
@@ -306,9 +335,9 @@ function Countdown() {
 }
 
 function PopupItem({ p }: { p: Popup }) {
-  const bad = p.kind === 'lost' || p.kind === 'damage' || p.kind === 'crash';
+  const bad = p.kind === 'lost' || p.kind === 'damage' || p.kind === 'crash' || p.kind === 'police';
   const color = bad ? 'text-alert' : p.kind === 'bank' ? 'text-ink' : 'text-brand';
-  const big = p.kind === 'bank' || bad || p.tier === 3 || p.label === 'MASSIVE DRIFT';
+  const big = p.kind === 'bank' || bad || p.kind === 'repair' || p.tier === 3 || p.label === 'MASSIVE DRIFT';
   return (
     <div className={`flex items-center gap-2.5 rounded-full surface ${big ? 'px-5 h-12 pop-long' : 'px-4 h-10 pop'}`}>
       <div className={`font-bold tracking-wide ${color} ${big ? 'text-xl' : 'text-[15px]'}`}>{p.label}</div>
@@ -342,6 +371,7 @@ function Hud({ touch }: { touch: boolean }) {
       {h.damaged && !racing && <div className="absolute inset-0 damaged-vignette" />}
 
       {racing ? <RaceHud /> : <ScoreHud clock={mode === 'score'} />}
+      {mode === 'chase' && <ChaseHud />}
 
       <div className="absolute left-1/2 -translate-x-1/2 top-[34%] flex flex-col items-center gap-2">
         {popups.map((p) => (
@@ -349,32 +379,52 @@ function Hud({ touch }: { touch: boolean }) {
         ))}
       </div>
 
-      {/* speed, boost and condition (raised clear of the pedals on touch screens) */}
-      <Chip className={`absolute right-4 sm:right-6 px-4 py-3 w-56 ${touch ? 'bottom-[200px] scale-75 origin-bottom-right' : 'bottom-6'}`}>
-        <div className="flex items-baseline gap-1.5">
-          <div className="display text-[44px] leading-none">{h.speed}</div>
-          <div className="text-[13px] text-muted">km/h</div>
-        </div>
-        <div className="flex items-center gap-2 mt-3" title="Boost">
-          <Zap size={14} strokeWidth={1.8} className={h.boosting ? 'text-brand' : 'text-ink-2'} />
-          <Bar value={h.boost} tone="brand" className="flex-1" />
-        </div>
-        <div id="hud-condition" className="flex items-center gap-2 mt-2" title="Condition">
-          <Car size={14} strokeWidth={1.8} className="text-ink-2" />
-          <Bar value={h.health / 100} tone={healthTone(h.health)} className="flex-1" />
-          <span className="text-[12px] font-medium tabular-nums w-9 text-right">{Math.round(h.health)}%</span>
-        </div>
-      </Chip>
+      {/* speed, boost and condition (raised clear of the pedals on touch screens), and the way to a free repair */}
+      <div className={`absolute right-4 sm:right-6 flex flex-col items-end gap-2 ${touch ? 'bottom-[200px] scale-75 origin-bottom-right' : 'bottom-6'}`}>
+        {h.pickup && <PickupChip p={h.pickup} />}
+        <Chip className="px-4 py-3 w-56">
+          <div className="flex items-baseline gap-1.5">
+            <div className="display text-[44px] leading-none">{h.speed}</div>
+            <div className="text-[13px] text-muted">km/h</div>
+          </div>
+          <div className="flex items-center gap-2 mt-3" title="Boost">
+            <Zap size={14} strokeWidth={1.8} className={h.boosting ? 'text-brand' : 'text-ink-2'} />
+            <Bar value={h.boost} tone="brand" className="flex-1" />
+          </div>
+          <div id="hud-condition" className="flex items-center gap-2 mt-2" title="Condition">
+            <Car size={14} strokeWidth={1.8} className="text-ink-2" />
+            <Bar value={h.health / 100} tone={healthTone(h.health)} className="flex-1" />
+            <span className="text-[12px] font-medium tabular-nums w-9 text-right">{Math.round(h.health)}%</span>
+          </div>
+        </Chip>
+      </div>
 
       {!touch && h.street && <Chip className="absolute left-4 sm:left-6 bottom-6 px-3 h-8 flex items-center text-[12px] font-medium text-ink-2">{h.street}</Chip>}
     </div>
   );
 }
 
-/** time attack and highway: the clock (or the distance), the score and the combo */
+/** a wrench is waiting on the road: how far, and which way */
+function PickupChip({ p }: { p: { dist: number; arrow: number } }) {
+  return (
+    <div id="hud-pickup" className="surface rounded-full h-10 pl-1.5 pr-3 flex items-center gap-2 text-[13px] font-medium whitespace-nowrap">
+      <span className="w-7 h-7 rounded-full bg-brand text-white flex items-center justify-center">
+        <Wrench size={15} strokeWidth={2} />
+      </span>
+      Free repair
+      <span className="tabular-nums text-ink-2">{p.dist} m</span>
+      <svg width="18" height="18" viewBox="-27 -27 54 54" style={{ transform: `rotate(${p.arrow}deg)` }}>
+        <path d="M0 -22 L16 10 L0 2 L-16 10 Z" fill="#0077ff" />
+      </svg>
+    </div>
+  );
+}
+
+/** time attack, highway and chase: the clock (or the distance), the score and the combo */
 function ScoreHud({ clock }: { clock: boolean }) {
   const h = useNM((s) => s.hud);
   const road = useNM((s) => s.road);
+  const chase = useNM((s) => s.chase !== null);
   const low = h.time < 10;
   const comboFrac = Math.max(0, Math.min(1, h.comboT / RULES.comboWindow));
   return (
@@ -436,7 +486,7 @@ function ScoreHud({ clock }: { clock: boolean }) {
       </div>
 
       {h.damaged && (
-        <div id="damaged" className="absolute left-4 sm:left-6 top-[112px] sm:top-[124px]">
+        <div id="damaged" className={`absolute left-4 sm:left-6 ${chase ? 'top-[226px] sm:top-[238px]' : 'top-[112px] sm:top-[124px]'}`}>
           <Badge tone="alert" className={h.lastHit ? 'throb' : ''}>
             {h.lastHit ? 'One more hard hit wrecks it' : 'Damaged'}
           </Badge>
@@ -446,9 +496,58 @@ function ScoreHud({ clock }: { clock: boolean }) {
   );
 }
 
+/** the police chase: heat, how close you are to getting away (or to being busted), roadblocks */
+function ChaseHud() {
+  const c = useNM((s) => s.chase);
+  if (!c) return null;
+  const pursuit = c.state === 'pursuit';
+  const label = pursuit ? (c.escape > 0.02 ? 'Losing them' : 'Pursuit') : c.state === 'cooldown' ? 'Lost them' : 'Patrol';
+  return (
+    <>
+      {pursuit && c.close < 28 && <div className="absolute inset-0 police-glow" />}
+      <Chip id="hud-chase" className="absolute left-4 sm:left-6 top-[104px] sm:top-[116px] px-4 py-3 w-40">
+        <div className={`flex items-center gap-1.5 text-[12px] ${pursuit ? 'text-alert font-semibold' : 'text-ink-2'}`}>
+          <Siren size={13} strokeWidth={1.8} className={pursuit ? 'throb' : ''} /> {label}
+        </div>
+        <div id="hud-heat" className="flex gap-0.5 mt-1.5" title={`Heat ${c.heat}: rises every ${HEAT_STEP} s of pursuit`}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Star key={i} size={16} strokeWidth={1.6} className={i <= c.heat ? 'text-alert' : 'text-line'} fill={i <= c.heat ? 'currentColor' : 'none'} />
+          ))}
+        </div>
+        {pursuit ? (
+          <div className="mt-2">
+            <div className="flex justify-between text-[11px] text-ink-2">
+              <span>Escape</span>
+              <span className="tabular-nums">{c.cops} after you</span>
+            </div>
+            <Bar value={c.escape} tone="brand" className="w-full mt-1" />
+          </div>
+        ) : (
+          <div className="mt-2 text-[12px] text-ink-2">{c.state === 'cooldown' ? `Next patrol ${c.cooldown} s` : 'A patrol car is ahead'}</div>
+        )}
+      </Chip>
+      {c.bust > 0.04 && (
+        <div id="hud-bust" className="absolute left-1/2 -translate-x-1/2 top-[24%] surface rounded-2xl px-5 py-3 w-64 text-center">
+          <div className="text-[15px] font-bold text-alert">Get moving or get busted</div>
+          <Bar value={c.bust} tone="alert" className="w-full mt-2" />
+        </div>
+      )}
+      {c.roadblock !== null && (
+        <div
+          id="hud-roadblock"
+          className="absolute left-1/2 -translate-x-1/2 bottom-6 surface rounded-full h-10 px-4 flex items-center gap-2 text-[13px] font-medium whitespace-nowrap"
+        >
+          <TrafficCone size={16} strokeWidth={1.8} className="text-alert" />
+          Roadblock in {c.roadblock} m · find the gap
+        </div>
+      )}
+    </>
+  );
+}
+
 function Pause() {
   const paused = useNM((s) => s.paused);
-  const highway = useNM((s) => s.mode === 'highway');
+  const highway = useNM((s) => s.mode === 'highway' || s.mode === 'chase');
   if (!paused) return null;
   return (
     <div className="absolute inset-0 bg-night/40 flex items-center justify-center pointer-events-auto rise p-4">
@@ -499,20 +598,31 @@ function Results() {
       </ResultSheet>
     );
   }
-  const stats: [string, string][] = [
-    ['Near misses', fmt(r.nearMisses)],
-    ['Best multiplier', r.bestCombo > 1 ? `×${r.bestCombo}` : '—'],
-    ['Top speed', `${r.topSpeed} km/h`],
-    ['Distance', `${(r.distance / 1000).toFixed(1)} km`],
-    [r.mode === 'highway' ? 'Drove for' : 'Survived', r.seconds >= 60 ? `${Math.floor(r.seconds / 60)} min ${r.seconds % 60} s` : `${r.seconds} s`],
-    ['Closest pass', r.closest !== null ? `${Math.round(r.closest * 100)} cm` : '—'],
-  ];
-  const title = r.reason === 'wrecked' ? 'Wrecked' : r.reason === 'ended' ? 'Drive over' : "Time's up";
+  const time = (t: number) => (t >= 60 ? `${Math.floor(t / 60)} min ${t % 60} s` : `${t} s`);
+  const ch = r.chase;
+  const stats: [string, string][] = ch
+    ? [
+        ['Escapes', fmt(ch.escapes)],
+        ['Takedowns', fmt(ch.takedowns)],
+        ['Highest heat', `${ch.heat} / 5`],
+        ['Chased for', time(ch.pursuit)],
+        ['Near misses', fmt(r.nearMisses)],
+        ['Top speed', `${r.topSpeed} km/h`],
+      ]
+    : [
+        ['Near misses', fmt(r.nearMisses)],
+        ['Best multiplier', r.bestCombo > 1 ? `×${r.bestCombo}` : '—'],
+        ['Top speed', `${r.topSpeed} km/h`],
+        ['Distance', `${(r.distance / 1000).toFixed(1)} km`],
+        [r.mode === 'highway' ? 'Drove for' : 'Survived', r.seconds >= 60 ? `${Math.floor(r.seconds / 60)} min ${r.seconds % 60} s` : `${r.seconds} s`],
+        ['Closest pass', r.closest !== null ? `${Math.round(r.closest * 100)} cm` : '—'],
+      ];
+  const title = r.reason === 'wrecked' ? 'Wrecked' : r.reason === 'busted' ? 'Busted' : r.reason === 'ended' ? (ch ? 'Chase over' : 'Drive over') : "Time's up";
   return (
     <ResultSheet>
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div>
-          <div className={`text-2xl font-bold ${r.reason === 'wrecked' ? 'text-alert' : 'text-ink'}`}>{title}</div>
+          <div className={`text-2xl font-bold ${r.reason === 'wrecked' || r.reason === 'busted' ? 'text-alert' : 'text-ink'}`}>{title}</div>
           <div className="text-[14px] text-ink-2 mt-1">
             {r.car} · {r.cond}
           </div>
@@ -520,11 +630,7 @@ function Results() {
         <div className="text-right">
           <div className="display text-5xl leading-none">{fmt(r.score)}</div>
           <div className="mt-2 h-6">
-            {r.rank === 1 ? (
-              <Badge>New best</Badge>
-            ) : (
-              <span className="text-[13px] text-muted">{r.rank > 0 ? `#${r.rank} of your top 10` : 'Not in your top 10'}</span>
-            )}
+            {r.rank === 1 ? <Badge>New best</Badge> : <span className="text-[13px] text-muted">{r.rank > 0 ? `#${r.rank} of your top 10` : 'Not in your top 10'}</span>}
           </div>
         </div>
       </div>
@@ -537,27 +643,11 @@ function Results() {
 
 function ResultButtons({ again }: { again: string }) {
   const racing = useNM((s) => s.result?.mode === 'race');
-  // a car too damaged to start: the way on is the workshop, not another run
-  const broken = useGarage((s) => s.setup().progress.health < MIN_HEALTH);
   return (
     <div className="flex gap-2 flex-wrap">
-      {broken ? (
-        <Button
-          id="btn-again"
-          variant="alert"
-          size="lg"
-          onClick={() => {
-            nm.toTitle();
-            useGarage.getState().setPanel('workshop');
-          }}
-        >
-          Fix your car
-        </Button>
-      ) : (
-        <Button id="btn-again" size="lg" onClick={() => nm.startRun()}>
-          <Play size={16} strokeWidth={2} fill="currentColor" /> {again}
-        </Button>
-      )}
+      <Button id="btn-again" size="lg" onClick={() => nm.startRun()}>
+        <Play size={16} strokeWidth={2} fill="currentColor" /> {again}
+      </Button>
       {racing && (
         <Button id="btn-rematch" variant="secondary" size="lg" onClick={() => nm.retry()}>
           <RotateCcw size={16} strokeWidth={1.8} /> Same route
@@ -572,11 +662,13 @@ function ResultButtons({ again }: { again: string }) {
 
 function Wrecked() {
   const phase = useNM((s) => s.phase);
+  const busted = useNM((s) => s.ending === 'busted');
   if (phase !== 'wreck') return null;
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      <div className="pop-long rounded-full surface px-8 h-20 flex items-center">
-        <span className="display text-5xl sm:text-6xl text-alert">Wrecked</span>
+      {busted && <div className="absolute inset-0 police-glow" />}
+      <div id="ending" className="pop-long rounded-full surface px-8 h-20 flex items-center">
+        <span className="display text-5xl sm:text-6xl text-alert">{busted ? 'Busted' : 'Wrecked'}</span>
       </div>
     </div>
   );

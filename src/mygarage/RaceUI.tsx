@@ -314,6 +314,27 @@ export function HighwayMap({ size: fixed }: { size?: number }) {
         g.arc(c.x, c.z, 2.4 * px, 0, Math.PI * 2);
         g.fill();
       }
+      // a free repair: a blue ring
+      for (const p of nm.pickups.items) {
+        g.strokeStyle = '#0077ff';
+        g.fillStyle = '#ffffff';
+        g.lineWidth = 3 * px;
+        g.beginPath();
+        g.arc(p.x, p.z, 6 * px, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+      }
+      // the police: flashing red and blue (grey once out of it)
+      const flash = Math.floor(t / 250) % 2 === 0;
+      for (const c of nm.chase?.cops ?? []) {
+        g.fillStyle = c.disabled ? '#9a9a9a' : !c.lights ? '#111827' : flash ? '#fd396b' : '#0077ff';
+        g.strokeStyle = '#ffffff';
+        g.lineWidth = 1.5 * px;
+        g.beginPath();
+        g.arc(c.car.pos.x, c.car.pos.z, 4.2 * px, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+      }
       g.restore();
       // where the branches go
       const road = useNM.getState().road;

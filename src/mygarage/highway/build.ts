@@ -8,7 +8,7 @@ import { MeshBuilder, BASIC_LAYOUT, addBox, addCylinder, addCone, lin } from '..
 import { toBufferGeometry, buildPropModels } from '../../render/propModels';
 import { createPropMaterial, createLightPoolMaterial } from '../../render/materials';
 import type { PropType } from '../../world/types';
-import { Piece, Path, LANE_W, RAIL_L, RAIL_R_OFF, STEP, COMPANION_LANES, Rand } from './road';
+import { Piece, Path, LANE_W, RAIL_L, RAIL_R_OFF, STEP, SIDEWALK, STREET_GAP, JUNCTION_W, Rand } from './road';
 
 const C = {
   asphalt: lin([0.25, 0.25, 0.27]),
@@ -29,7 +29,18 @@ const C = {
   rock: lin([0.46, 0.4, 0.33]),
   orange: lin([0.95, 0.42, 0.05]),
   cushion: lin([0.95, 0.78, 0.05]),
+  pavement: lin([0.5, 0.49, 0.47]),
+  kerb: lin([0.62, 0.61, 0.58]),
+  hedge: lin([0.12, 0.22, 0.08]),
+  shop: lin([0.95, 0.78, 0.5]),
+  red: lin([0.85, 0.08, 0.06]),
+  green: lin([0.15, 1, 0.45]),
+  signal: lin([0.08, 0.08, 0.09]),
 };
+
+const AWNINGS = [lin([0.6, 0.1, 0.08]), lin([0.1, 0.32, 0.55]), lin([0.15, 0.4, 0.2]), lin([0.55, 0.45, 0.1]), lin([0.2, 0.2, 0.22])];
+/** the top of the pavements and kerbs */
+const KERB_Y = 0.14;
 
 const BUILDING_TONES = [lin([0.62, 0.6, 0.56]), lin([0.45, 0.47, 0.5]), lin([0.7, 0.66, 0.6]), lin([0.32, 0.35, 0.4]), lin([0.56, 0.5, 0.44])];
 const WINDOW = lin([1, 0.85, 0.55]);
@@ -126,6 +137,22 @@ export interface Built {
 }
 
 const TREE_KINDS: PropType[] = ['tree', 'conifer', 'palm', 'bush'];
+
+type Lat = (u: number) => number;
+/** what the street builder needs from build() */
+interface Kit {
+  P: (u: number, lat: number, y?: number) => V;
+  band: (u0: number, u1: number, la: Lat, lb: Lat, color: ArrayLike<number>, into?: Strip, y?: number, tile?: number, emit?: number) => void;
+  head: (u: number) => number;
+  deck: Strip;
+  marks: Strip;
+  pools: Strip;
+  mb: MeshBuilder;
+  body: RAPIER.RigidBody;
+  rng: Rand;
+  group: THREE.Group;
+  instanced: THREE.InstancedMesh[];
+}
 
 export class PieceBuilder {
   private deckMat: THREE.Material;
@@ -238,7 +265,8 @@ export class PieceBuilder {
     const eR = (u: number) => path.rightEdge(S(u));
     const railR = (u: number) => eR(u) + 3 * goreW(u, 'right') + 0.4 * goreW(u, 'right');
     const railL = (u: number) => RAIL_L * goreW(u, 'left');
-    for (let i = 0; i < n - 1; i++) {
+    const CL = path.compLanes;
+    if (!piece.street) for (let i = 0; i < n - 1; i++) {
       const u0 = i * STEP;
       const u1 = u0 + STEP;
       // verge, shoulder, lanes, shoulder, verge
@@ -252,7 +280,7 @@ export class PieceBuilder {
       const g1 = path.companionGap(S(u1));
       if (g0 !== null && g1 !== null && g0 < 150) {
         const gap = (u: number) => path.companionGap(S(u)) ?? g0;
-        const W = COMPANION_LANES * LANE_W;
+        const W = CL * LANE_W;
         band(u0, u1, (u) => -gap(u) + 1.3, (u) => -gap(u), C.shoulder);
         band(u0, u1, (u) => -gap(u), (u) => -gap(u) - W, C.asphalt);
         band(u0, u1, (u) => -gap(u) - W, (u) => -gap(u) - W - 3.4, C.shoulder);
@@ -263,7 +291,7 @@ export class PieceBuilder {
         };
         line((u) => -gap(u) - 0.15, C.yellow, false);
         line((u) => -gap(u) - W + 0.15, C.white, false);
-        for (let k = 1; k < COMPANION_LANES; k++) line((u) => -gap(u) - k * LANE_W, C.white, true);
+        for (let k = 1; k < CL; k++) line((u) => -gap(u) - k * LANE_W, C.white, true);
         // its rails (no collision: you cannot get there)
         if (!piece.tunnel) for (const l of [(u: number) => -gap(u) + 1.3, (u: number) => -gap(u) - W - 3.4]) this.rail(mb, P, u0, u1, l, false);
       }
@@ -323,7 +351,7 @@ export class PieceBuilder {
     }
 
     // ---------------------------------------------------------------- collision: rails and walls
-    for (let u = 0; u < piece.len - 0.1; u += 8) {
+    if (!piece.street) for (let u = 0; u < piece.len - 0.1; u += 8) {
       const u1 = Math.min(piece.len, u + 8);
       const hy = piece.tunnel ? 3.2 : 0.6;
       if (!(gore && gore.side === 'left' && u < gore.end)) this.segment(body, P(u, railL(u)), P(u1, railL(u1)), hy);
@@ -334,7 +362,7 @@ export class PieceBuilder {
     if (piece.tunnel) this.tunnel(mb, P, piece, railL, railR, path);
 
     // ---------------------------------------------------------------- lamps
-    if (piece.lamps || piece.tunnel) {
+    if ((piece.lamps || piece.tunnel) && !piece.street) {
       for (let s = Math.ceil(piece.s0 / 50) * 50; s < piece.s0 + piece.len; s += 50) {
         const u = s - piece.s0;
         const h = head(u);
@@ -373,7 +401,7 @@ export class PieceBuilder {
       const u = piece.overpass;
       const h = head(u);
       const gap = path.companionGap(S(u));
-      const minL = gap !== null && gap < 150 ? -gap - COMPANION_LANES * LANE_W - 12 : RAIL_L - 12;
+      const minL = gap !== null && gap < 150 ? -gap - CL * LANE_W - 12 : RAIL_L - 12;
       const maxR = railR(u) + 12;
       const mid = P(u, (minL + maxR) / 2, 0);
       const t = { tx: mid.x, ty: 0, tz: mid.z, ry: h };
@@ -450,12 +478,12 @@ export class PieceBuilder {
 
     // ---------------------------------------------------------------- water and the sea
     const sea = piece.zone === 'coast';
-    if ((piece.water || sea) && !piece.tunnel) {
+    if ((piece.water || sea) && !piece.tunnel && !piece.street) {
       for (let i = 0; i < n - 1; i += 5) {
         const u0 = i * STEP;
         const u1 = Math.min(piece.len, u0 + 5 * STEP);
         const gap = path.companionGap(S(u0));
-        const leftIn = gap !== null && gap < 150 ? -gap - COMPANION_LANES * LANE_W - 4.4 : railL(u0) - 1.2;
+        const leftIn = gap !== null && gap < 150 ? -gap - CL * LANE_W - 4.4 : railL(u0) - 1.2;
         // the sea on the left on the coast; both sides on a causeway
         band(u0, u1, () => leftIn, () => leftIn - 7, C.sand, water, -0.2, 20);
         band(u0, u1, () => leftIn - 7, () => -260, [0.12, 0.3, 0.38], water, -0.12, 30);
@@ -464,7 +492,10 @@ export class PieceBuilder {
     }
 
     // ---------------------------------------------------------------- trees, rocks, buildings
-    if (!piece.tunnel) this.scenery(piece, rng, mb, P, eR, railR, group, instanced, piece.water);
+    if (!piece.tunnel && !piece.street) this.scenery(piece, rng, mb, P, eR, railR, group, instanced, piece.water);
+
+    // ---------------------------------------------------------------- a downtown street
+    if (piece.street) this.street(piece, { P, band, head, deck, marks, pools, mb, body, rng, group, instanced });
 
     // ---------------------------------------------------------------- meshes
     const add = (g: THREE.BufferGeometry, mat: THREE.Material, shadow: boolean, order = 0) => {
@@ -588,9 +619,9 @@ export class PieceBuilder {
     };
     const leftStart = (u: number) => {
       const g = path.companionGap(piece.s0 + u);
-      return g !== null && g < 150 ? -g - COMPANION_LANES * LANE_W - 10 : RAIL_L - 7;
+      return g !== null && g < 150 ? -g - path.compLanes * LANE_W - 10 : RAIL_L - 7;
     };
-    const per = { forest: 0.09, fields: 0.022, coast: 0.016, desert: 0.012, city: 0.006 }[zone];
+    const per = { forest: 0.09, fields: 0.022, coast: 0.016, desert: 0.012, city: 0.006, downtown: 0 }[zone];
     for (const side of [-1, 1]) {
       if (water && side === 1) continue;
       if (zone === 'coast' && side === -1) continue;
@@ -647,6 +678,11 @@ export class PieceBuilder {
       }
     }
     void eR;
+    this.plant(counts, group, instanced);
+  }
+
+  /** instanced trees and bushes */
+  private plant(counts: Partial<Record<PropType, { x: number; z: number; s: number; r: number }[]>>, group: THREE.Group, instanced: THREE.InstancedMesh[]) {
     const mtx = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -663,6 +699,226 @@ export class PieceBuilder {
       im.computeBoundingSphere();
       group.add(im);
       instanced.push(im);
+    }
+  }
+
+  /**
+   * A downtown street: our lanes and the other direction's right beside them (a double yellow
+   * line, or a raised island where the two are still apart), kerbs and pavements, buildings with
+   * lit shop fronts along both sides, street lamps, and cross streets closed off with barriers, with
+   * zebra crossings and signals. The facades are walls: the street is the way through.
+   */
+  private street(piece: Piece, k: Kit) {
+    const { P, band, head, deck, marks, pools, mb, body, rng } = k;
+    const path = piece.path;
+    const len = piece.len;
+    const n = piece.xs.length;
+    const S = (u: number) => piece.s0 + Math.min(len, Math.max(0, u));
+    const eR = (u: number) => path.rightEdge(S(u));
+    const gap = (u: number) => path.companionGap(S(u)) ?? STREET_GAP;
+    const W = path.compLanes * LANE_W;
+    const edgeL = (u: number) => -gap(u) - W;
+    const faceR = (u: number) => eR(u) + SIDEWALK;
+    const faceL = (u: number) => edgeL(u) - SIDEWALK;
+    const inJ = (u: number, pad = 0) => piece.junctions.some((j) => Math.abs(u - j) < JUNCTION_W / 2 + pad);
+    const line = (u0: number, u1: number, l: Lat, color: ArrayLike<number>, w = 0.08) => band(u0, u1, (u) => l(u) - w, (u) => l(u) + w, color, marks, 0.035, 12, 0.06);
+    /** the face of a kerb along a lateral line (both ways round, so it shows from either side) */
+    const kerbFace = (u0: number, u1: number, l: Lat) => {
+      const a = P(u0, l(u0), 0.02);
+      const b = P(u1, l(u1), 0.02);
+      const a2 = { ...a, y: KERB_Y };
+      const b2 = { ...b, y: KERB_Y };
+      deck.quad(a, a2, b, b2, C.kerb, 6, 0);
+      deck.quad(a2, a, b2, b, C.kerb, 6, 0);
+    };
+
+    // ---------------------------------------------------------------- the road surface
+    for (let i = 0; i < n - 1; i++) {
+      const u0 = i * STEP;
+      const u1 = u0 + STEP;
+      const um = u0 + STEP / 2;
+      band(u0, u1, () => 0, eR, C.asphalt);
+      band(u0, u1, edgeL, (u) => -gap(u), C.asphalt);
+      // the middle: a double yellow line, or an island where the two directions are apart
+      if (gap(u0) > 0.9 && gap(u1) > 0.9) {
+        band(u0, u1, (u) => -gap(u), (u) => -gap(u) + 0.3, C.asphalt);
+        band(u0, u1, () => -0.3, () => 0, C.asphalt);
+        band(u0, u1, (u) => -gap(u) + 0.3, () => -0.3, C.hedge, deck, KERB_Y, 4);
+        kerbFace(u0, u1, () => -0.3);
+        kerbFace(u0, u1, (u) => -gap(u) + 0.3);
+        line(u0, u1, () => 0.15, C.yellow);
+        line(u0, u1, (u) => -gap(u) - 0.15, C.yellow);
+      } else {
+        band(u0, u1, (u) => -gap(u), () => 0, C.asphalt);
+        line(u0, u1, (u) => -gap(u) / 2 - 0.13, C.yellow, 0.06);
+        line(u0, u1, (u) => -gap(u) / 2 + 0.13, C.yellow, 0.06);
+      }
+      // edge lines and lane dashes, both ways (not across a junction)
+      const j = inJ(um);
+      if (!j) {
+        line(u0, u1, (u) => eR(u) - 0.2, C.white);
+        line(u0, u1, (u) => edgeL(u) + 0.2, C.white);
+      }
+      if ((piece.s0 + u0) % 12 < 3 && !j) {
+        for (let q = 1; q < Math.ceil(path.lanes(S(u0)) - 0.2); q++) if (q <= path.lanes(S(u0)) - 0.35) line(u0, u1, () => q * LANE_W, C.white);
+        for (let q = 1; q < path.compLanes; q++) line(u0, u1, (u) => -gap(u) - q * LANE_W, C.white);
+      }
+      // pavements and kerbs; across a junction the asphalt carries on instead
+      if (!j) {
+        band(u0, u1, eR, (u) => eR(u) + 0.3, C.kerb, deck, KERB_Y, 4);
+        band(u0, u1, (u) => eR(u) + 0.3, faceR, C.pavement, deck, KERB_Y, 3);
+        band(u0, u1, (u) => edgeL(u) - 0.3, edgeL, C.kerb, deck, KERB_Y, 4);
+        band(u0, u1, faceL, (u) => edgeL(u) - 0.3, C.pavement, deck, KERB_Y, 3);
+        kerbFace(u0, u1, eR);
+        kerbFace(u0, u1, edgeL);
+      } else {
+        band(u0, u1, eR, faceR, C.asphalt);
+        band(u0, u1, faceL, edgeL, C.asphalt);
+      }
+    }
+
+    // ---------------------------------------------------------------- the facades are walls
+    for (let u = 0; u < len - 0.1; u += 8) {
+      const u1 = Math.min(len, u + 8);
+      this.segment(body, P(u, faceR(u) + 0.15), P(u1, faceR(u1) + 0.15), 3);
+      this.segment(body, P(u, faceL(u) - 0.15), P(u1, faceL(u1) - 0.15), 3);
+    }
+
+    // ---------------------------------------------------------------- cross streets
+    for (const j of piece.junctions) {
+      const uA = j - JUNCTION_W / 2;
+      const uB = j + JUNCTION_W / 2;
+      const h = head(j);
+      for (const side of [1, -1] as const) {
+        const f0 = side === 1 ? faceR(j) : faceL(j);
+        const far = f0 + side * 70;
+        const a = () => f0;
+        const b = () => far;
+        band(uA + 2.4, uB - 2.4, a, b, C.asphalt);
+        band(uA, uA + 2.4, a, b, C.pavement, deck, KERB_Y, 3);
+        band(uB - 2.4, uB, a, b, C.pavement, deck, KERB_Y, 3);
+        for (let l = 4; l < 66; l += 6) band(j - 0.08, j + 0.08, () => f0 + side * l, () => f0 + side * (l + 3), C.white, marks, 0.035, 12, 0.06);
+        // a barrier across it where it meets the street
+        const bl = f0 + side * 0.4;
+        for (let u = uA + 2.6; u < uB - 2.6; u += 1.2) {
+          const p = P(u + 0.6, bl, 0);
+          addBox(mb, 0, 0.75, 0, 0.1, 0.32, 1.18, Math.round((u - uA) / 1.2) % 2 ? C.white : C.red, { tx: p.x, ty: 0, tz: p.z, ry: h }, 0.25);
+        }
+        for (const u of [uA + 2.6, uB - 2.6]) {
+          const p = P(u, bl, 0);
+          addBox(mb, 0, 0.45, 0, 0.12, 0.9, 0.12, C.pole, { tx: p.x, ty: 0, tz: p.z, ry: h });
+        }
+        // the blocks along it, and one closing its far end
+        for (const [ua, ub] of [
+          [Math.max(0, uA - 24), uA - 0.5],
+          [uB + 0.5, Math.min(len, uB + 24)],
+        ]) {
+          if (ub - ua < 5) continue;
+          const p = P((ua + ub) / 2, f0 + side * 47, 0);
+          const ht = 12 + rng.next() * 40;
+          addBox(mb, 0, ht / 2, 0, 42, ht, ub - ua, BUILDING_TONES[Math.floor(rng.next() * BUILDING_TONES.length)], { tx: p.x, ty: 0, tz: p.z, ry: h });
+        }
+        const e = P(j, far + side * 10, 0);
+        addBox(mb, 0, 14, 0, 20, 28, JUNCTION_W + 6, BUILDING_TONES[Math.floor(rng.next() * BUILDING_TONES.length)], { tx: e.x, ty: 0, tz: e.z, ry: h });
+      }
+      // zebra crossings either side of it
+      for (const [z0, z1] of [
+        [uA - 4.6, uA - 1.4],
+        [uB + 1.4, uB + 4.6],
+      ]) {
+        for (let l = edgeL(j) + 0.4; l < eR(j) - 0.5; l += 1.1) band(z0, z1, () => l, () => l + 0.55, C.white, marks, 0.035, 12, 0.06);
+      }
+      // signals: green for the main road, on mast arms over the lanes
+      for (const side of [1, -1] as const) {
+        const u = side === 1 ? uA - 1.4 : uB + 1.4;
+        const base = P(u, side === 1 ? eR(u) + 0.8 : edgeL(u) - 0.8, 0);
+        const t = { tx: base.x, ty: 0, tz: base.z, ry: h + (side === 1 ? 0 : Math.PI) };
+        const reach = Math.min(6, (side === 1 ? eR(u) : W) * 0.6);
+        addCylinder(mb, 0, 0, 0, 0.13, 0.1, 6, 8, C.pole, t);
+        addBox(mb, reach / 2, 5.9, 0, reach, 0.12, 0.12, C.pole, t);
+        addBox(mb, reach, 5.3, 0, 0.42, 1.2, 0.36, C.signal, t);
+        addBox(mb, reach, 5.68, -0.2, 0.24, 0.24, 0.06, C.red, t, 0.15);
+        addBox(mb, reach, 4.94, -0.2, 0.24, 0.24, 0.06, C.green, t, 3);
+      }
+    }
+
+    // ---------------------------------------------------------------- buildings, or hedges where the median is still open
+    const counts: Partial<Record<PropType, { x: number; z: number; s: number; r: number }[]>> = {};
+    for (const side of [1, -1] as const) {
+      const face = side === 1 ? faceR : faceL;
+      let u = rng.next() * 4;
+      while (u < len - 1) {
+        let w = 12 + rng.next() * 22;
+        let u1 = Math.min(len, u + w);
+        const hit = piece.junctions.find((j) => u1 > j - JUNCTION_W / 2 - 0.5 && u < j + JUNCTION_W / 2 + 0.5);
+        if (hit !== undefined) {
+          if (u < hit - JUNCTION_W / 2 - 4) u1 = hit - JUNCTION_W / 2 - 0.5;
+          else {
+            u = hit + JUNCTION_W / 2 + 0.5;
+            continue;
+          }
+        }
+        const mid = (u + u1) / 2;
+        if (gap(mid) > 2) {
+          // still a boulevard: a hedge along the pavement and trees behind it
+          for (let v = u; v < u1 - 0.1; v += 4) {
+            const a = P(v, face(v) + side * 0.4, 0);
+            const b = P(Math.min(u1, v + 4), face(Math.min(u1, v + 4)) + side * 0.4, 0);
+            addBox(mb, 0, 0.5, 0, 0.8, 1.0, Math.hypot(b.x - a.x, b.z - a.z) + 0.05, C.hedge, { tx: (a.x + b.x) / 2, ty: 0, tz: (a.z + b.z) / 2, ry: Math.atan2(b.x - a.x, b.z - a.z) });
+          }
+          if (rng.next() < 0.8) {
+            const p = P(mid, face(mid) + side * (4 + rng.next() * 20), 0);
+            (counts.tree ??= []).push({ x: p.x, z: p.z, s: 0.8 + rng.next() * 0.6, r: rng.next() * 6.28 });
+          }
+          u = u1;
+          continue;
+        }
+        // on the inside of a corner a long frontage would poke into the pavement: keep it short
+        const kk = piece.k0 + ((piece.k1 - piece.k0) * mid) / len;
+        const inside = (kk > 1e-4 && side === -1) || (kk < -1e-4 && side === 1);
+        let dep = 12 + rng.next() * 16;
+        if (inside) {
+          const rr = 1 / Math.abs(kk) - Math.abs(face(mid));
+          w = Math.min(u1 - u, Math.sqrt(8 * Math.max(4, rr) * 0.8));
+          u1 = u + w;
+          dep = Math.min(dep, Math.max(6, rr - 6));
+        }
+        const m2 = (u + u1) / 2;
+        const ww = u1 - u;
+        const ht = 9 + Math.pow(rng.next(), 1.8) * 75;
+        const p = P(m2, face(m2) + side * (dep / 2), 0);
+        const t = { tx: p.x, ty: 0, tz: p.z, ry: head(m2) };
+        addBox(mb, 0, ht / 2, 0, dep, ht, ww, BUILDING_TONES[Math.floor(rng.next() * BUILDING_TONES.length)], t);
+        // lit floors (dimmer than the motorway's distant towers: these are right beside you)
+        for (let fy = 6; fy < ht - 2; fy += 3.4) {
+          if (rng.next() < 0.35) continue;
+          addBox(mb, 0, fy, 0, dep + 0.06, 0.9, ww + 0.06, WINDOW, t, rng.next() < 0.5 ? 0.13 : 0.03);
+        }
+        // a lit shop front and an awning on the ground floor
+        if (ww > 6) {
+          addBox(mb, side * (dep / 2 + 0.04), 1.9, 0, 0.08, 2.4, ww - 1.6, C.shop, t, 0.08 + rng.next() * 0.12);
+          if (rng.next() < 0.6) addBox(mb, side * (dep / 2 + 0.75), 3.4, 0, 1.5, 0.3, ww - 1.2, AWNINGS[Math.floor(rng.next() * AWNINGS.length)], t);
+        }
+        u = u1 + rng.next() * 1.5;
+      }
+    }
+    this.plant(counts, k.group, k.instanced);
+
+    // ---------------------------------------------------------------- street lamps, either side in turn
+    for (let s = Math.ceil(piece.s0 / 26) * 26; s < piece.s0 + len; s += 26) {
+      const u = s - piece.s0;
+      if (inJ(u, 2)) continue;
+      const side = Math.round(s / 26) % 2 ? 1 : -1;
+      const base = P(u, side === 1 ? eR(u) + 0.6 : edgeL(u) - 0.6, 0);
+      const t = { tx: base.x, ty: 0, tz: base.z, ry: head(u) };
+      // local x points to the left of the road: toward it from the right pavement, away from it on the left
+      addCylinder(mb, 0, 0, 0, 0.12, 0.09, 8.2, 8, C.pole, t);
+      addBox(mb, side * 1.1, 8.1, 0, 2.2, 0.12, 0.12, C.pole, t);
+      addBox(mb, side * 2.2, 7.98, 0, 0.9, 0.16, 0.4, C.lamp, t, 1);
+      const c = P(u, side === 1 ? eR(u) - 2.6 : edgeL(u) + 2.6, 0.04);
+      const r = 10;
+      const q = (dx: number, dz: number, uu: number, vv: number): V => ({ x: c.x + dx, y: 0.04, z: c.z + dz, u: uu, v: vv });
+      pools.quad(q(-r, -r, 0, 0), q(r, -r, 1, 0), q(-r, r, 0, 1), q(r, r, 1, 1), [1, 1, 1], 1);
     }
   }
 

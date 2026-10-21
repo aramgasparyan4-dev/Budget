@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:e2e": "node scripts/e2e-drive.mjs",
-    "test:unit": "tsx scripts/scoring-test.ts && tsx scripts/drift-test.ts && tsx scripts/handling-test.ts && tsx scripts/race-unit-test.ts && tsx scripts/garage-test.ts && tsx scripts/highway-test.ts",
+    "test:unit": "tsx scripts/scoring-test.ts && tsx scripts/drift-test.ts && tsx scripts/handling-test.ts && tsx scripts/race-unit-test.ts && tsx scripts/garage-test.ts && tsx scripts/highway-test.ts && tsx scripts/chase-test.ts",
     "test:race": "tsx scripts/race-test.ts"
   },
   "dependencies": {

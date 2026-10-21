@@ -2,7 +2,7 @@
 // demo line-up), which one is active, coins, and each car's condition and upgrades.
 import { create } from 'zustand';
 import { HostBridge, GarageImport } from './bridge';
-import { buyUpgrade, carSetup, CarSetup, finishRun, GarageSave, loadSave, patchUp, progressOf, repair, storeSave, UpgradeId } from './progress';
+import { buyUpgrade, carSetup, CarSetup, finishRun, GarageSave, loadSave, progressOf, repair, storeSave, UpgradeId } from './progress';
 import { demoGarage, GarageVehicle, displayName, parseVehicle } from './vehicle';
 
 interface GarageState {
@@ -24,7 +24,6 @@ interface GarageState {
   removeVehicle: (id: string) => void;
   upgrade: (id: UpgradeId) => boolean;
   repair: () => boolean;
-  patch: () => boolean;
   /** after a run: condition and coins */
   finish: (health: number, coins: number, score: number) => void;
   importFromHost: (g: GarageImport, fromHost: boolean) => void;
@@ -92,15 +91,6 @@ export const useGarage = create<GarageState>((set, get) => ({
       return false;
     }
     set({ save: commit(r.save), notice: '' });
-    return true;
-  },
-  patch: () => {
-    const r = patchUp(get().save, get().active());
-    if (!r.ok) {
-      set({ notice: r.reason });
-      return false;
-    }
-    set({ save: commit(r.save), notice: 'Patched up enough to drive' });
     return true;
   },
   finish: (health, coins, score) => set({ save: commit(finishRun(get().save, get().active(), health, coins, score)) }),
