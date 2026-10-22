@@ -336,7 +336,7 @@ export class AudioEngine {
     horn.type = 'peaking';
     horn.frequency.value = 1500;
     horn.Q.value = 1.2;
-    horn.gain.value = 8;
+    horn.gain.value = 4;
     const tone = ctx.createBiquadFilter();
     tone.type = 'lowpass';
     tone.frequency.value = 4000;
@@ -369,7 +369,8 @@ export class AudioEngine {
       }
       // the Doppler shift as it comes and goes, quieter and duller with distance
       const dop = 343 / (343 - clamp(s.closing, -70, 70));
-      v.gain.gain.setTargetAtTime(0.13 / (1 + s.dist / 18), t, 0.08);
+      // well under the engine even right behind you; the second one quieter still
+      v.gain.gain.setTargetAtTime(((i ? 0.6 : 1) * 0.035) / (1 + Math.max(0, s.dist - 4) / 20), t, 0.08);
       v.pan.pan.setTargetAtTime(clamp(s.pan, -0.85, 0.85), t, 0.08);
       v.osc.frequency.setTargetAtTime(v.base * dop, t, 0.08);
       v.lfoGain.gain.setTargetAtTime(v.depth * dop, t, 0.08);

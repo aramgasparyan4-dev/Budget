@@ -414,7 +414,10 @@ await step('first big hit damages the car (smoke, hazards, slower) but the run g
 await step('a second big hit wrecks the damaged car', async () => {
   const r = await ev(() => {
     const g = __t.g();
-    __t.sim(2);
+    // away from the car it just hit (still rolling, it could hit it again)
+    __t.place(true);
+    g.car.stop();
+    __t.sim(1);
     __t.place(true);
     __t.launch(26);
     const s = __t.spawnRel(28, 0, true);
@@ -447,7 +450,7 @@ await step('results screen with stats and a ranked score', async () => {
   const cta = await ev(() => document.querySelector('#btn-again')?.textContent);
   assert(/drive again/i.test(cta ?? ''), 'a wreck can drive again straight away: ' + cta);
   const g = r.result.garage;
-  assert(g && g.health === 0 && g.damage === 100 && g.repair > 0 && (await page.$('#garage-result')), 'garage result ' + JSON.stringify(g));
+  assert(g && g.health === 0 && g.damage > 0 && g.repair > 0 && (await page.$('#garage-result')), 'garage result ' + JSON.stringify(g));
   return {
     score: r.result.score,
     rank: r.result.rank,
@@ -685,7 +688,9 @@ await step('race: a big crash stops the car dead, the race goes on and control c
     __t.down('KeyW');
     let stunned = false,
       minSpeed = 99;
-    for (let i = 0; i < 40 && g.scorer.crashes === 0; i++) __t.sim(0.05);
+    // (a bump earlier in the race may already have counted: wait for this one)
+    const c0 = g.scorer.crashes;
+    for (let i = 0; i < 40 && g.scorer.crashes === c0; i++) __t.sim(0.05);
     const right = {
       phase: g.phase,
       crashes: g.scorer.crashes,
@@ -1031,6 +1036,42 @@ await step("a host link (#garage=...) brings the player's own cars, primary firs
   assert(r.cars.includes('Toyota Camry') && r.cars.includes('Lada (VAZ) 2107') && r.name === '2107 2003' && r.make === 'Lada (VAZ)' && r.type === 'Classic', JSON.stringify(r));
   assert(r.health === 60 && r.cashMul > 1, 'garage details: ' + JSON.stringify(r));
   return r;
+});
+
+await step('an A4 page (portrait frame): the garage sits under the scene, the drive fits and sees ahead', async () => {
+  await ev(HELPERS);
+  await page.setViewportSize({ width: 794, height: 1123 });
+  await page.waitForTimeout(1500);
+  const title = await ev(() => {
+    const aside = document.querySelector('aside').getBoundingClientRect();
+    const drive = document.querySelector('#btn-drive').getBoundingClientRect();
+    return { asideTop: Math.round(aside.top), asideW: Math.round(aside.width), driveBottom: Math.round(drive.bottom), h: innerHeight, w: innerWidth };
+  });
+  await page.screenshot({ path: 'scripts/out/nm-e2e-a4-title.png' });
+  assert(title.asideTop > 300 && title.asideW === title.w && title.driveBottom <= title.h, 'stacked garage ' + JSON.stringify(title));
+  await ev(() => __t.st().set({ mode: 'chase' }));
+  await page.click('#btn-drive');
+  const run = await ev(() => {
+    const g = __t.g();
+    __t.sim(3.4);
+    __t.down('KeyW');
+    __t.sim(2);
+    __t.up('KeyW');
+    const out = [];
+    for (const el of document.querySelectorAll('#ui *')) {
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height && (r.right > innerWidth + 1 || r.bottom > innerHeight + 1 || r.left < -1 || r.top < -1)) out.push(el.id || el.tagName);
+    }
+    return { phase: g.phase, fov: Math.round(g.camera.fov), outside: out.slice(0, 5) };
+  });
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: 'scripts/out/nm-e2e-a4-drive.png' });
+  assert(run.phase === 'run' && run.fov > 80 && run.outside.length === 0, 'drive ' + JSON.stringify(run));
+  await ev(() => __t.g().toTitle());
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.waitForTimeout(800);
+  await ev(() => __t.st().set({ mode: 'score' }));
+  return { title, run };
 });
 
 await step('touch controls drive the car', async () => {

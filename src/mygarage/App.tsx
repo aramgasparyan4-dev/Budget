@@ -22,6 +22,7 @@ import {
   Siren,
   Star,
   TrafficCone,
+  CarFront,
 } from 'lucide-react';
 import { GameCanvas } from '../scene/GameCanvas';
 import { useStore } from '../state/store';
@@ -31,7 +32,7 @@ import { useNM, type Mode, type Popup } from './store';
 import { HEAT_STEP } from './Chase';
 import { HighwayMap, RaceHud, RaceResults } from './RaceUI';
 import { RULES } from './scoring';
-import { GarageCard, GaragePanels, GarageResults, isTouch, RotateNotice, TouchControls, healthTone } from './GarageUI';
+import { GarageCard, GaragePanels, GarageResults, isTouch, TouchControls, healthTone } from './GarageUI';
 import { useGarage } from './garage/store';
 import { Badge, Bar, Button, Coins, fmt, IconButton, Label, StatGrid, Wordmark } from './ui';
 
@@ -291,7 +292,8 @@ function Title() {
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 flex flex-col sm:flex-row">
+      {/* sidebar on the right in a wide frame; in a tall one (a phone held upright, an A4 page) the garage sits under the scene */}
+      <div className="flex-1 min-h-0 flex flex-col sm:landscape:flex-row">
         {/* the 3D scene shows through here */}
         <div className="flex-1 min-h-[180px] relative pointer-events-none">
           <div className="lg:hidden absolute left-4 top-4 pointer-events-auto max-w-[calc(100%-2rem)] overflow-x-auto">
@@ -301,12 +303,17 @@ function Title() {
             <Conditions />
           </div>
         </div>
-        <aside ref={aside} className="sm:w-[380px] lg:w-[420px] shrink-0 max-h-[62%] sm:max-h-none flex flex-col bg-paper border-t sm:border-t-0 sm:border-l border-line">
+        <aside
+          ref={aside}
+          className="sm:landscape:w-[380px] lg:landscape:w-[420px] shrink-0 max-h-[62%] sm:landscape:max-h-none flex flex-col bg-paper border-t sm:landscape:border-t-0 sm:landscape:border-l border-line"
+        >
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <GarageCard />
+            <div className="portrait:max-w-[620px] portrait:mx-auto">
+              <GarageCard />
+            </div>
           </div>
           {/* the one big button: always in view at the foot of the sidebar */}
-          <div className="shrink-0 p-4 sm:px-6 sm:pb-6 sm:pt-4 border-t border-line">
+          <div className="shrink-0 p-4 sm:px-6 sm:pb-6 sm:pt-4 border-t border-line portrait:flex portrait:justify-center [&>*]:portrait:max-w-[572px]">
             <Button id="btn-drive" size="xl" className="w-full" onClick={() => nm.startRun()}>
               <Play size={20} strokeWidth={2} fill="currentColor" />
               {MODES[mode].go}
@@ -364,7 +371,8 @@ function Hud({ touch }: { touch: boolean }) {
   const popups = useNM((s) => s.popups);
   const racing = useNM((s) => s.race !== null);
   const mode = useNM((s) => s.result?.mode ?? s.mode);
-  if (phase !== 'run' && phase !== 'countdown' && phase !== 'wreck') return null;
+  // the ending (wrecked, busted) has the screen to itself
+  if (phase !== 'run' && phase !== 'countdown') return null;
   return (
     <div className="absolute inset-0 pointer-events-none">
       {h.boosting && <div className="absolute inset-0 streaks throb" />}
@@ -575,10 +583,11 @@ function Pause() {
 }
 
 // ------------------------------------------------------------------ results
-function ResultSheet({ children }: { children: ReactNode }) {
+function ResultSheet({ children, stripe = null }: { children: ReactNode; stripe?: 'police' | 'alert' | null }) {
   return (
     <div className="absolute inset-0 bg-night/40 pointer-events-auto flex justify-center overflow-y-auto p-4 rise">
-      <div id="results" className="w-full max-w-[720px] my-auto bg-paper rounded-2xl float p-6 flex flex-col gap-5">
+      <div id="results" className="relative w-full max-w-[720px] my-auto bg-paper rounded-2xl float p-6 pt-7 flex flex-col gap-5 overflow-hidden">
+        {stripe && <div className={`absolute inset-x-0 top-0 h-1.5 ${stripe === 'police' ? 'stripe-police' : 'bg-alert'}`} />}
         {children}
       </div>
     </div>
@@ -618,13 +627,31 @@ function Results() {
         ['Closest pass', r.closest !== null ? `${Math.round(r.closest * 100)} cm` : '—'],
       ];
   const title = r.reason === 'wrecked' ? 'Wrecked' : r.reason === 'busted' ? 'Busted' : r.reason === 'ended' ? (ch ? 'Chase over' : 'Drive over') : "Time's up";
+  const why =
+    r.reason === 'busted'
+      ? `The police boxed you in at heat ${ch?.heat ?? 1}`
+      : r.reason === 'wrecked'
+        ? (r.garage?.health ?? 0) < 25
+          ? 'One hit too many. It limps out at 25% next time'
+          : 'Rolled it over'
+        : r.reason === 'ended'
+          ? 'You called it a day'
+          : 'The clock ran out';
+  const Icon = r.reason === 'busted' ? Siren : r.reason === 'wrecked' ? CarFront : r.reason === 'ended' ? Flag : Timer;
+  const tile = r.reason === 'busted' ? 'bg-night text-white' : r.reason === 'wrecked' ? 'bg-alert text-white' : 'bg-badge text-brand';
   return (
-    <ResultSheet>
+    <ResultSheet stripe={r.reason === 'busted' ? 'police' : r.reason === 'wrecked' ? 'alert' : null}>
       <div className="flex items-start justify-between gap-6 flex-wrap">
-        <div>
-          <div className={`text-2xl font-bold ${r.reason === 'wrecked' || r.reason === 'busted' ? 'text-alert' : 'text-ink'}`}>{title}</div>
-          <div className="text-[14px] text-ink-2 mt-1">
-            {r.car} · {r.cond}
+        <div className="flex items-start gap-3.5 min-w-0">
+          <div id="result-icon" className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${tile}`}>
+            <Icon size={24} strokeWidth={1.8} />
+          </div>
+          <div className="min-w-0">
+            <div className={`text-2xl font-bold leading-tight ${r.reason === 'wrecked' || r.reason === 'busted' ? 'text-alert' : 'text-ink'}`}>{title}</div>
+            <div className="text-[14px] text-ink mt-0.5">{why}</div>
+            <div className="text-[13px] text-muted mt-0.5">
+              {r.car} · {r.cond}
+            </div>
           </div>
         </div>
         <div className="text-right">
@@ -660,23 +687,138 @@ function ResultButtons({ again }: { again: string }) {
   );
 }
 
-function Wrecked() {
+/** cracks across the screen from where it hit: a few jagged lines out from a point, and two broken rings */
+function Cracks() {
+  const paths = useMemo(() => {
+    const cx = 960 + (Math.random() - 0.5) * 300;
+    const cy = 380 + (Math.random() - 0.5) * 160;
+    const rays: [number, number][][] = [];
+    const n = 12;
+    for (let i = 0; i < n; i++) {
+      let a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+      let x = cx;
+      let y = cy;
+      const pts: [number, number][] = [[x, y]];
+      const len = 260 + Math.random() * 900;
+      for (let r = 0; r < len; ) {
+        const step = 26 + Math.random() * 64;
+        r += step;
+        a += (Math.random() - 0.5) * 0.45;
+        x += Math.cos(a) * step;
+        y += Math.sin(a) * step;
+        pts.push([x, y]);
+      }
+      rays.push(pts);
+    }
+    const out = rays.map((pts) => 'M' + pts.map(([x, y]) => `${x.toFixed(0)} ${y.toFixed(0)}`).join(' L'));
+    // rings: join each ray to the next at about the same distance out, not quite all the way round
+    for (const R of [55, 150]) {
+      const at = rays.map((pts) =>
+        pts.reduce((b, p) => (Math.abs(Math.hypot(p[0] - cx, p[1] - cy) - R) < Math.abs(Math.hypot(b[0] - cx, b[1] - cy) - R) ? p : b), pts[1] ?? pts[0]),
+      );
+      for (let i = 0; i < at.length; i++) {
+        if (Math.random() < 0.25) continue;
+        const [x0, y0] = at[i];
+        const [x1, y1] = at[(i + 1) % at.length];
+        const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 20;
+        const my = (y0 + y1) / 2 + (Math.random() - 0.5) * 20;
+        out.push(`M${x0.toFixed(0)} ${y0.toFixed(0)} L${mx.toFixed(0)} ${my.toFixed(0)} L${x1.toFixed(0)} ${y1.toFixed(0)}`);
+      }
+    }
+    return out;
+  }, []);
+  return (
+    <svg className="absolute inset-0 w-full h-full crack-in" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" aria-hidden>
+      <g fill="none" strokeLinejoin="round" strokeLinecap="round">
+        {paths.map((d, i) => (
+          <path key={'s' + i} d={d} stroke="rgba(0,0,0,0.35)" strokeWidth="5" transform="translate(2 3)" />
+        ))}
+        {paths.map((d, i) => (
+          <path key={'w' + i} d={d} stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+function mmss(t: number) {
+  return t >= 60 ? `${Math.floor(t / 60)} min ${Math.round(t % 60)} s` : `${Math.round(t)} s`;
+}
+
+/** the moment it ends: the car wrecked (cracked glass, the colour drains), or busted (a stamp, police lights) */
+function Ending() {
   const phase = useNM((s) => s.phase);
   const busted = useNM((s) => s.ending === 'busted');
+  const chase = useNM((s) => s.chase);
+  const score = useNM((s) => s.hud.score);
+  const health = useNM((s) => Math.round(s.hud.health));
   if (phase !== 'wreck') return null;
+  if (busted) {
+    return (
+      <div id="ending" data-ending="busted" className="absolute inset-0 pointer-events-none overflow-hidden ending-busted">
+        <div className="absolute inset-x-0 top-0 h-3 lightbar" />
+        <div className="absolute inset-x-0 bottom-0 h-3 lightbar lightbar-alt" />
+        <div className="absolute inset-0 police-glow" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-8 px-4">
+          <div className="flex items-center gap-2 text-white/90 text-[13px] font-semibold tracking-[0.2em] uppercase">
+            <Siren size={16} strokeWidth={2} /> Police
+          </div>
+          <div className="stamp bg-paper/95 border-[5px] border-alert rounded-2xl px-8 sm:px-12 py-2">
+            <span className="block font-extrabold uppercase text-alert tracking-[0.08em] leading-none text-[clamp(44px,10vw,112px)]">Busted</span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2 rise">
+            {chase && <EndChip>Heat {chase.heat}</EndChip>}
+            {chase && chase.pursuit > 0 && <EndChip>Chased {mmss(chase.pursuit)}</EndChip>}
+            {chase && chase.takedowns > 0 && <EndChip>{chase.takedowns} taken out</EndChip>}
+            <EndChip>{fmt(score)} pts</EndChip>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      {busted && <div className="absolute inset-0 police-glow" />}
-      <div id="ending" className="pop-long rounded-full surface px-8 h-20 flex items-center">
-        <span className="display text-5xl sm:text-6xl text-alert">{busted ? 'Busted' : 'Wrecked'}</span>
+    <div id="ending" data-ending="wrecked" className="absolute inset-0 pointer-events-none overflow-hidden ending-wrecked">
+      <div className="absolute inset-0 wreck-flash" />
+      <Cracks />
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-4">
+        <div className="slam font-extrabold uppercase text-white tracking-[0.06em] leading-none text-[clamp(44px,10vw,120px)] [text-shadow:0_4px_24px_rgba(0,0,0,0.45)]">
+          Wrecked
+        </div>
+        <div className="h-1.5 w-28 rounded-full bg-alert grow-x" />
+        <div className="flex flex-wrap justify-center gap-2 rise">
+          <EndChip>{health > 0 ? 'Rolled over' : 'Condition 0%'}</EndChip>
+          {health < 25 && <EndChip>Limps out at 25% next time</EndChip>}
+        </div>
       </div>
     </div>
   );
 }
 
+function EndChip({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center h-8 px-3.5 rounded-full bg-white/15 text-white text-[13px] font-medium backdrop-blur-sm border border-white/20">{children}</span>
+  );
+}
+
+/**
+ * The interface is laid out for a frame at least 820 x 560: in a smaller one (a phone, the game
+ * placed on a page in another app) all of it is scaled down to fit rather than overlapping.
+ */
+function useUiScale() {
+  const get = () => Math.max(0.55, Math.min(1, window.innerWidth / 820, window.innerHeight / 560));
+  const [k, setK] = useState(get);
+  useEffect(() => {
+    const f = () => setK(get());
+    window.addEventListener('resize', f);
+    return () => window.removeEventListener('resize', f);
+  }, []);
+  return k;
+}
+
 export default function App() {
   const phase = useNM((s) => s.phase);
   const touch = useMemo(() => isTouch(), []);
+  const ui = useUiScale();
   useKeys();
   useEffect(
     () =>
@@ -688,15 +830,14 @@ export default function App() {
   return (
     <div className="relative w-full h-full">
       <GameCanvas engine={nm} />
-      <div className="absolute inset-0 pointer-events-none">
+      <div id="ui" className="absolute inset-0 pointer-events-none" style={ui < 1 ? { zoom: ui } : undefined}>
         {phase === 'title' && <Title />}
         <Hud touch={touch} />
         <Countdown />
-        <Wrecked />
+        <Ending />
         {touch && <TouchControls />}
         <Pause />
         <Results />
-        {touch && <RotateNotice />}
       </div>
       {phase === 'loading' && <Loading />}
     </div>

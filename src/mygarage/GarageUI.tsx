@@ -148,12 +148,14 @@ export function GarageCard() {
       </div>
 
       <div className="rounded-2xl border border-line overflow-hidden">
-        <button onClick={() => setPanel('garage')} aria-label="All cars" className="relative block w-full aspect-[2/1] bg-tile group">
+        <button onClick={() => setPanel('garage')} aria-label="All cars" className="relative block w-full aspect-[2/1] portrait:aspect-[5/2] bg-tile group">
           <CarImage v={v} health={h} className="absolute inset-0 w-full h-full p-2 transition-transform group-hover:scale-[1.03]" />
           <Badge tone={demo ? 'grey' : 'brand'} className="absolute left-3 top-3">
             {demo ? 'Test drive' : v.primary ? 'Primary' : 'Yours'}
           </Badge>
-          <span className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-md px-2 h-6 text-[13px] font-medium ${damaged ? 'bg-alert text-white' : 'bg-paper text-ink border border-line'}`}>
+          <span
+            className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-md px-2 h-6 text-[13px] font-medium ${damaged ? 'bg-alert text-white' : 'bg-paper text-ink border border-line'}`}
+          >
             <Car size={13} strokeWidth={1.8} />
             <span id="garage-health">{Math.round(h)}%</span>
           </span>
@@ -327,10 +329,17 @@ function Workshop() {
                   </span>
                 </div>
               </div>
-              <Button id={`up-${u.id}`} variant="secondary" size="sm" className="w-24" disabled={c === null || save.coins < c} onClick={() => {
+              <Button
+                id={`up-${u.id}`}
+                variant="secondary"
+                size="sm"
+                className="w-24"
+                disabled={c === null || save.coins < c}
+                onClick={() => {
                   g.upgrade(u.id);
                   nm.audio.ui('buy');
-                }}>
+                }}
+              >
                 {c === null ? 'Max' : <Coins n={c} />}
               </Button>
             </div>
@@ -700,25 +709,6 @@ export function TouchControls() {
           </button>
         )}
       </div>
-    </div>
-  );
-}
-
-/** phones held upright: driving needs the screen sideways */
-export function RotateNotice() {
-  const phase = useNM((s) => s.phase);
-  const [portrait, setPortrait] = useState(false);
-  useEffect(() => {
-    const f = () => setPortrait(window.innerHeight > window.innerWidth * 1.1);
-    f();
-    window.addEventListener('resize', f);
-    return () => window.removeEventListener('resize', f);
-  }, []);
-  if (!portrait || (phase !== 'run' && phase !== 'countdown')) return null;
-  return (
-    <div className="absolute inset-0 bg-paper flex flex-col items-center justify-center gap-3 text-center p-8 pointer-events-auto">
-      <Mark size={48} />
-      <div className="text-xl font-bold">Turn your phone sideways</div>
     </div>
   );
 }

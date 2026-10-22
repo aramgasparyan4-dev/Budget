@@ -6,6 +6,18 @@ import { clamp, damp, dampAngle, lerp } from '../core/math';
 
 export type CamMode = 'foot' | 'vehicle' | 'dialogue' | 'cinematic' | 'interior';
 
+/**
+ * A vertical field of view for this aspect ratio: in a frame narrower than about 8:7 (a phone held
+ * upright, a page) it opens up so you still see as much to the sides as you would there, up to 92
+ * degrees.
+ */
+export function fitFov(fov: number, aspect: number) {
+  const A = 1.15;
+  if (!(aspect > 0) || aspect >= A) return fov;
+  const half = Math.atan(Math.tan((fov * Math.PI) / 360) * A);
+  return Math.min(92, (Math.atan(Math.tan(half) / aspect) * 360) / Math.PI);
+}
+
 export class CameraController {
   yaw = 0;
   pitch = 0.22;
@@ -59,7 +71,7 @@ export class CameraController {
       cam.position.lerpVectors(this.cineFrom, this.cineTo, t);
       this.look.lerpVectors(this.cineLookFrom, this.cineLookTo, t);
       cam.lookAt(this.look);
-      cam.fov = damp(cam.fov, this.baseFov, 4, dt);
+      cam.fov = damp(cam.fov, fitFov(this.baseFov, cam.aspect), 4, dt);
       cam.updateProjectionMatrix();
       return;
     }
@@ -129,7 +141,7 @@ export class CameraController {
     }
     cam.lookAt(this.look);
     const fovTarget = vehicle ? this.baseFov + Math.min(opts.speed ?? 0, 45) * 0.32 : this.baseFov;
-    cam.fov = damp(cam.fov, fovTarget, 3, dt);
+    cam.fov = damp(cam.fov, fitFov(fovTarget, cam.aspect), 3, dt);
     cam.updateProjectionMatrix();
   }
 

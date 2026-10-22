@@ -19,6 +19,14 @@ node scripts/build-single.mjs index.html out.html   # everything in one HTML fil
 Needs a WebGL2 browser (recent Chrome, Edge, Firefox or Safari). `?preset=low|medium|high|ultra`
 in the URL overrides the graphics preset; `?touch=1` forces the on-screen controls.
 
+**Any frame, any shape:** the game fills whatever it is given: a browser window, a phone either
+way up, or a page in another app (an A4 page in Canva, an iframe). In a tall frame the garage
+sits under the scene, the driving camera opens its field of view (so you still see to the sides)
+and sits the car lower (so you see the road ahead); in a frame smaller than about 820 x 560 the
+whole interface scales down to fit instead of overlapping. In a sandboxed frame with no storage
+the game still runs; progress then lasts for the visit. Click into it first so it gets the
+keyboard.
+
 **Serving it:** `dist/` holds the page, a 0.6 MB (gzipped) script and the physics engine as
 `assets/rapier-*.wasm` (3 MB, 1.2 MB gzipped). Serve `.wasm` as `application/wasm` (so it
 compiles while it downloads) and compressed: many servers (nginx by default) do not compress
@@ -37,7 +45,8 @@ parked at a curb, and the garage in a sidebar. Its card shows a picture of your 
 the same 3D model you drive, in its paint, darker when damaged), its condition, top speed,
 0-100 km/h, how many hard hits it can take and what it is best at, with the repair, the workshop
 and "Switch car" (a grid of all your cars with their pictures). A big Drive button sits at the
-foot of the sidebar, always in view. On a phone held upright the sidebar moves under the scene.
+foot of the sidebar, always in view. In a tall frame (a phone held upright, an A4 page) the
+garage moves under the scene.
 
 Four modes:
 
@@ -177,19 +186,23 @@ motorway, every 1.2-2.3 km:
 
 **The police:** a patrol car waits parked on the pavement ahead. Drive past it (or hit it) and the
 chase is on: lights and siren, SPOTTED. The police cars are real cars in the physics: they close
-in from behind, ram your back corner to spin you, drop back after a hit and come again, block you
-from in front, and take the other direction's lanes downtown when theirs are blocked. They brake
-for corners and traffic, but not always in time. Traffic moves over for them.
+in from behind, ram your back corner to spin you, drop back for a moment after a hit and come
+again, block you from in front, and use the hard shoulder, the pavement and (downtown) the other
+direction's lanes when theirs are blocked. They corner nearly as hard as you and brake for
+traffic, but not always in time. Traffic moves over for them.
 
-- **Heat (1-5)** rises with every 40 s of pursuit and every two cars you take out: more police
-  cars (1, 2, 3, 3, 4 at once, backup arriving from behind), faster ones (tuned against your car's
-  top speed: a bit slower than you at first, a bit faster at heat 5), and from heat 3 roadblocks:
-  police cars angled across every lane but one, 500 m ahead (the HUD warns you).
-- **Escape:** stay more than 170 m from every police car and the escape meter fills (faster
-  beyond 320 m); close in under 110 m and it drains. Full: ESCAPED, a big bonus, and a quiet
-  spell until the next patrol car spots you (the heat stays).
-- **Busted:** slow to a crawl with a police car on you and the busted meter fills; about four
-  seconds and it is over (quicker with more of them). A wreck ends it too.
+- **Heat (1-5)** rises with every 30 s of pursuit and every two cars you take out: more police
+  cars (2, 3, 4, 4, 5 at once), faster ones (tuned against your car's top speed: about as fast as
+  you at heat 1, a quarter faster at heat 5, and quicker still when they have dropped back, even
+  if you are on the boost), and from heat 2 roadblocks: police cars angled across every lane but
+  one, 500 m ahead (the HUD warns you). Backup arrives from well behind you, and from heat 2 every
+  other car joins from up ahead to cut you off.
+- **Escape:** stay more than 240 m from every police car and the escape meter fills over 9 s
+  (5 s beyond 420 m); come within 170 m and it drains. While it is filling no backup is sent, so
+  the way out is to wreck or lose the ones on you and keep going. Full: ESCAPED, a big bonus, and
+  a quiet spell until the next patrol car spots you (the heat stays).
+- **Busted:** slow to a crawl with a police car within 10 m and the busted meter fills; about
+  three seconds and it is over (quicker with more of them). A wreck ends it too.
 - **Scoring:** points for every second with the police after you (more at higher heat), on top of
   near misses (oncoming ones downtown are worth double), drifts and slipstreams. TAKEDOWN for a
   police car you wreck, COP CRASHED for one that wrecks itself, ROADBLOCK DODGED, ESCAPED. No
@@ -197,6 +210,12 @@ for corners and traffic, but not always in time. Traffic moves over for them.
 - **HUD:** heat stars, pursuit / losing them / lost them, the escape meter and how many are after
   you, the busted meter when it fills, the roadblock warning, red and blue light at the edges of
   the screen when one is right on you, and the map with the police flashing on it.
+
+**How a run ends:** wrecked, the picture drains of colour and the screen cracks from the point of
+impact, under a big WRECKED; busted, a BUSTED stamp comes down under flashing red and blue light
+bars, with the heat, how long they chased you and your score. The results then say why it ended
+in a line (the police boxed you in at heat 3, one hit too many, rolled it over, out of time) next
+to an icon, with a red and blue stripe for a bust.
 
 ## Race
 
@@ -235,7 +254,7 @@ All synthesised with Web Audio (`src/engine/`):
   inverter whine and its reduction gear, rising with road speed, quieter when coasting. Road and
   wind noise grow with speed, and the tyres thump over joints in the road.
 - **The police:** sirens that switch between wail and yelp, placed left or right of you with
-  the Doppler shift as they come and go (the two nearest), police radio when they spot you or
+  the Doppler shift as they come and go (the two nearest, kept well under the engine), police radio when they spot you or
   call backup, a fanfare when you escape and a falling phrase when you are busted. Downtown,
   cars coming the other way honk when you are in their lane. A wrench pickup ratchets and chimes.
 - **Picking a car** plays its door, then it starts up: the starter cranks, it catches and settles,
@@ -291,10 +310,10 @@ commit 13737f4).
 
 ```bash
 npm run typecheck
-npm run test:unit    # scoring (31), drift (40), turning help (6), race rules (13), garage (28), highway road (12), chase (15)
+npm run test:unit    # scoring (31), drift (40), turning help (6), race rules (13), garage (28), highway road (12), chase (15), view (5)
 npm run test:race    # the rival AI racing itself through real physics and traffic (a few minutes)
 npm run dev &        # then, in another shell:
-npm run test:e2e     # drives the game in headless Chromium (37 checks)
+npm run test:e2e     # drives the game in headless Chromium (38 checks)
 ```
 
 `scripts/e2e-drive.mjs` covers the title screen and garage card, adding a car with the form,
@@ -306,7 +325,8 @@ crash, checkpoints, back on track, winning and losing), a highway drive (80 seco
 bends with an autopilot, no clock, the world brought back toward the start, a near miss, a
 crash, ending the drive for coins and its own best, the city coming back), a police chase
 (downtown two-way streets, the patrol car pulling out after you, being busted and the results),
-the high score after a reload, a `#garage=` host link, and the touch controls.
+the high score after a reload, a `#garage=` host link, an A4 portrait frame (the garage under the
+scene, a drive with nothing off the edge and the wider view), and the touch controls.
 `scripts/chase-test.ts` lays 40 km of chase road and checks it keeps its heading bound and never
 comes back across itself, that streets and motorway take turns, that cross streets sit on
 straights; that an oncoming car downtown stops for you in its lane, that downtown traffic keeps
@@ -325,8 +345,13 @@ and that roadworks close and reopen a lane. The suites also pass against the pro
   MEDIUM or LOW.
 - **Sound and music are untested by ear.** Levels were measured (nothing clips, the engine sits
   above the music) but nobody has listened to them.
-- **The police chase was tuned with an autopilot,** not by people playing it: how hard it is to
-  get away (and how often the police crash on their own) may need adjusting after real play.
+- **The police chase was tuned with an autopilot,** not by people playing it. A stand-in driver
+  (the police's own driving logic aimed far up the road, cornering hard, using the boost) gets
+  busted after one and a half to two and a half minutes of pursuit and escapes now and then at
+  heat 1; a person who takes police cars out may do better. It may need adjusting after real play.
+- **Not tried inside Canva.** It was tested in an A4-sized sandboxed iframe with storage blocked,
+  which is how such embeds usually run; Canva's own frame, size limits and permissions were not
+  checked.
 - **Touch controls were tested with emulated touch,** not on a phone.
 - **Coins and upgrades are kept on the client.** If they ever turn into something with real
   value, the host has to validate drives on its server.

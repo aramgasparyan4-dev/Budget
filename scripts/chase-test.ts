@@ -134,7 +134,8 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
     const street = root.street(me.s);
     const g = root.companionGap(me.s) ?? 0;
     const minLat = street ? -(g + 6.8) : -1.3;
-    const maxLat = root.rightEdge(me.s) + (street ? 0 : 3);
+    // the hard shoulder, or downtown the pavement, is allowed; past it is the rail or the buildings
+    const maxLat = root.rightEdge(me.s) + (street ? 3.6 : 3);
     worstOff = Math.max(worstOff, minLat - me.lat, me.lat - maxLat);
     closest = Math.min(closest, target.s - me.s);
   }

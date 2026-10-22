@@ -2,8 +2,9 @@
 //
 // It drives along the road like a person would: pure pursuit toward a point ahead in the lane it
 // has picked, braking for corners from the road's own curvature, and for whatever is in its way.
-// It picks its lane by how much free road each one has, downtown the other direction's lanes
-// included (for a police car with its lights on, that is allowed). Behind you it closes in fast;
+// It picks its lane by how much free road each one has, the hard shoulder or the pavement and
+// downtown the other direction's lanes included (for a police car with its lights on, that is
+// allowed). Behind you it closes in fast;
 // close up it aims at your back corner to spin you, drops back a little after each hit and comes
 // again, and in front of you it brakes in your path.
 // Stuck against something, it backs off and tries again; stuck for good, it says so.
@@ -81,6 +82,8 @@ export class CopDriver {
   /** touching you: how long; and how long it backs off for after a hit */
   private contactT = 0;
   backoffT = 0;
+  /** how hard it corners (m/s² sideways) */
+  aLat = A_LAT;
 
   /**
    * One frame. `me` is where the car is on the road (from Highway.locate), `you` the car it is
@@ -92,7 +95,9 @@ export class CopDriver {
     const gap = street ? (p.companionGap(me.s) ?? 0.3) : null;
     const W = p.compLanes * 3.4;
     const minLat = street ? -(gap! + W) + 1.1 : 0.9;
-    const maxLat = p.rightEdge(me.s) - 0.9;
+    // the hard shoulder (or the pavement downtown) is fair game
+    const shoulder = p.rightEdge(me.s) + 1.7;
+    const maxLat = shoulder;
 
     // --- what is in the road, in my frame
     const things: Thing[] = [];
@@ -147,7 +152,7 @@ export class CopDriver {
       else this.contactT = Math.max(0, this.contactT - dt);
       if (this.contactT > 0.45) {
         this.contactT = 0;
-        this.backoffT = 1.4 + Math.random() * 1.6;
+        this.backoffT = 0.8 + Math.random() * 0.8;
         this.pitSide = Math.random() < 0.5 ? 1 : -1;
       }
       if (this.backoffT > 0) {
@@ -161,6 +166,7 @@ export class CopDriver {
     const n = Math.floor(p.lanes(me.s) + 0.4);
     for (let i = 0; i < n; i++) if (p.laneOpen(i, me.s + 30)) cands.push(laneLat(i));
     if (street && gap !== null) for (let i = 0; i < p.compLanes; i++) cands.push(-(gap + laneLat(i)));
+    cands.push(shoulder);
     this.laneHold -= dt;
     const direct = clamp(want, minLat, maxLat);
     const straight = free(direct);
@@ -173,8 +179,9 @@ export class CopDriver {
       let bestScore = -Infinity;
       for (const c of cands) {
         const f = free(c).dist;
-        // the other direction's lanes only when ours are blocked and theirs are clear a long way
-        const score = f - Math.abs(c - want) * 2.5 + (Math.abs(c - this.tLat) < 0.5 ? 8 : 0) - (c < 0 ? (f > 100 ? 40 : 200) : 0);
+        // the shoulder, or the other direction's lanes, when ours are blocked and those are clear a way
+        const off = c < 0 ? (f > 70 ? 25 : 120) : c === shoulder ? (f > 50 ? 12 : 80) : 0;
+        const score = f - Math.abs(c - want) * 2.5 + (Math.abs(c - this.tLat) < 0.5 ? 8 : 0) - off;
         if (score > bestScore) {
           bestScore = score;
           best = c;
@@ -208,10 +215,10 @@ export class CopDriver {
     } else if (gapToYou !== null) {
       // closing in from behind, quicker the further back; in front, it slows into your path
       if (this.backoffT > 0) allow = Math.min(top, Math.max(0, you.v + clamp((gapToYou - 13) * 0.5, -6, 4)));
-      else if (gapToYou > 0) allow = Math.min(top, Math.max(0, you.v) + clamp(gapToYou * 0.18, 3, 30));
+      else if (gapToYou > 0) allow = Math.min(top, Math.max(0, you.v) + clamp(gapToYou * 0.25, 4, 35));
       else allow = Math.min(top, Math.max(5, you.v - 4));
     }
-    const corner = cornerLimit(p, me.s, car.speed);
+    const corner = cornerLimit(p, me.s, car.speed, this.aLat);
     if (corner < allow) {
       allow = corner;
       this.limit = 'corner';

@@ -168,6 +168,115 @@ body,
   animation: police 0.5s steps(1) infinite;
 }
 
+/* the ending: wrecked drains the colour and cracks the glass; busted is a stamp under police lights */
+.ending-wrecked {
+  background: radial-gradient(ellipse at center, rgba(7, 6, 9, 0.2) 25%, rgba(7, 6, 9, 0.78) 100%);
+  backdrop-filter: grayscale(0.85) contrast(1.1) brightness(0.8);
+  -webkit-backdrop-filter: grayscale(0.85) contrast(1.1) brightness(0.8);
+}
+.ending-busted {
+  background: radial-gradient(ellipse at center, rgba(8, 14, 40, 0.25) 20%, rgba(8, 14, 40, 0.82) 100%);
+  backdrop-filter: saturate(0.6) brightness(0.75);
+  -webkit-backdrop-filter: saturate(0.6) brightness(0.75);
+}
+@keyframes wreck-flash {
+  from {
+    background: rgba(253, 57, 107, 0.55);
+  }
+  to {
+    background: rgba(253, 57, 107, 0);
+  }
+}
+.wreck-flash {
+  animation: wreck-flash 0.6s ease-out both;
+}
+@keyframes crack-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.crack-in {
+  animation: crack-in 0.12s ease-out both;
+}
+@keyframes slam {
+  0% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(0.96);
+    opacity: 1;
+  }
+  70% {
+    transform: translateX(-6px) scale(1);
+  }
+  85% {
+    transform: translateX(5px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+.slam {
+  animation: slam 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.grow-x {
+  animation: grow-x 0.5s 0.25s ease-out both;
+}
+@keyframes stamp {
+  0% {
+    transform: rotate(-7deg) scale(2.4);
+    opacity: 0;
+  }
+  60% {
+    transform: rotate(-7deg) scale(0.94);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(-7deg) scale(1);
+    opacity: 1;
+  }
+}
+.stamp {
+  animation: stamp 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+/* a police light bar across the top and bottom: red then blue */
+@keyframes lightbar {
+  0%,
+  49% {
+    background: linear-gradient(90deg, rgba(255, 40, 60, 0.95) 0 50%, rgba(255, 40, 60, 0.15) 50% 100%);
+    box-shadow: 0 0 40px 10px rgba(255, 40, 60, 0.45);
+  }
+  50%,
+  100% {
+    background: linear-gradient(90deg, rgba(40, 110, 255, 0.15) 0 50%, rgba(40, 110, 255, 0.95) 50% 100%);
+    box-shadow: 0 0 40px 10px rgba(40, 110, 255, 0.45);
+  }
+}
+.lightbar {
+  animation: lightbar 0.5s steps(1) infinite;
+}
+.lightbar-alt {
+  animation-delay: -0.25s;
+}
+.stripe-police {
+  background: linear-gradient(90deg, #ff283c 0 50%, #286eff 50% 100%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pop,
   .pop-long,
@@ -175,7 +284,11 @@ body,
   .rise,
   .throb,
   .damaged-vignette,
-  .police-glow {
+  .police-glow,
+  .lightbar,
+  .slam,
+  .stamp,
+  .wreck-flash {
     animation-duration: 0.01s;
   }
 }

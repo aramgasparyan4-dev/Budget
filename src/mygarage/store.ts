@@ -65,6 +65,9 @@ export interface ChaseHud {
   roadblock: number | null;
   /** metres to the nearest police car after you (Infinity: none) */
   close: number;
+  /** seconds of pursuit so far, and police cars taken out */
+  pursuit: number;
+  takedowns: number;
 }
 
 export interface ChaseResult {

@@ -6,7 +6,7 @@ import { World } from '../engine/World';
 import type { WeatherParams } from '../render/Environment';
 import { G } from '../render/globals';
 import { VehicleRenderer } from '../render/VehicleRenderer';
-import { CameraController } from '../game/CameraController';
+import { CameraController, fitFov } from '../game/CameraController';
 import { DrivableVehicle } from '../game/DrivableVehicle';
 import { TrafficSystem, TVehicle } from '../sim/traffic/TrafficSystem';
 import { VEHICLES } from '../sim/vehicles';
@@ -749,7 +749,10 @@ export class DriveGame {
     }
 
     // camera and the point everything streams around
-    if (this.viewShifted && this.phase !== 'title') this.setViewShift(0, 0);
+    // a tall frame (a phone held upright, a page): the car sits lower so more of the road ahead shows
+    const tall = car && (this.phase === 'countdown' || this.phase === 'run') && this.camera.aspect < 1;
+    if (tall) this.setViewShift(0, -(1 - this.camera.aspect) * 0.4 * this.renderer.domElement.clientHeight);
+    else if (this.viewShifted && this.phase !== 'title') this.setViewShift(0, 0);
     if (car && (this.phase === 'countdown' || this.phase === 'run')) {
       this.cam.handleMouse(input, true);
       this.cam.baseFov = damp(this.cam.baseFov, this.baseFov + (this.boosting ? 12 : 0), 5, rawDt);
@@ -1038,7 +1041,7 @@ export class DriveGame {
     else this.camera.position.lerp(want, 1 - Math.exp(-dt * 4));
     this.attractSnap = false;
     this.camera.lookAt(v.x + fx * 10, 1.2, v.z + fz * 10);
-    this.camera.fov = damp(this.camera.fov, 60, 2, dt);
+    this.camera.fov = damp(this.camera.fov, fitFov(60, this.camera.aspect), 2, dt);
     this.camera.updateProjectionMatrix();
     this.focus.set(v.x, 0, v.z);
   }
@@ -1404,6 +1407,8 @@ export class DriveGame {
           cooldown: Math.max(0, Math.ceil(ch.cooldownT)),
           roadblock,
           close: car ? ch.cops.reduce((m, c) => (c.disabled || c.role !== 'pursuit' ? m : Math.min(m, c.car.pos.distanceTo(car.pos))), Infinity) : Infinity,
+          pursuit: Math.round(ch.totalPursuit),
+          takedowns: ch.takedowns,
         },
       });
     }
