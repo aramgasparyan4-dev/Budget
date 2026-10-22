@@ -1,6 +1,7 @@
-// Unit checks for the police chase: the road, the two-way downtown traffic and the police driver.
+// Unit checks for the police chase: the road (motorway, town, docks), the two-way downtown traffic
+// and the police driver.
 // Run with `npx tsx scripts/chase-test.ts`
-import { RoadGen, Path, CHASE_BOUND, JUNCTION_W, laneLat } from '../src/mygarage/highway/road';
+import { RoadGen, Path, CHASE_BOUND, CHASE_MOTORWAY, CHASE_TOWN, DOCKS_GATE, JUNCTION_W, laneLat } from '../src/mygarage/highway/road';
 import { Traffic, type Driver } from '../src/mygarage/highway/traffic';
 import { CopDriver, cornerLimit, curvature } from '../src/mygarage/highway/police';
 import { Rand } from '../src/mygarage/highway/road';
@@ -17,15 +18,15 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
   const h0 = 0.4;
   const gen = new RoadGen(4242, 'chase');
   const root = gen.root({ x: 0, z: 0, h: h0 });
-  gen.extend(root, 40000);
+  gen.extend(root, Infinity);
   let worstHead = 0;
   let maxJump = 0;
   let switches = 0;
   let minStreetR = Infinity;
   let badJunction = 0;
   let junctions = 0;
-  let streets = 0;
   let tunnels = 0;
+  let townTunnels = 0;
   let last = root.pieces[0].street;
   for (const p of root.pieces) {
     for (let i = 0; i < p.hs.length; i++) worstHead = Math.max(worstHead, Math.abs(wrap(p.hs[i] - h0)));
@@ -36,8 +37,8 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
     }
     if (p.street !== last) switches++;
     last = p.street;
-    if (p.street) streets++;
     if (p.tunnel) tunnels++;
+    if (p.tunnel && p.street) townTunnels++;
     if (p.street) for (const k of [p.k0, p.k1]) if (Math.abs(k) > 1e-9) minStreetR = Math.min(minStreetR, 1 / Math.abs(k));
     for (const j of p.junctions) {
       junctions++;
@@ -45,13 +46,20 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
       if (Math.abs(p.k0) > 1e-9 || Math.abs(p.k1) > 1e-9 || j < JUNCTION_W / 2 + 4 || j > p.len - JUNCTION_W / 2 - 4) badJunction++;
     }
   }
-  check('the chase road goes on (40 km) with no forks', root.length >= 40000 && root.children === null, root.length);
+  const town = root.pieces.find((p) => p.street)!;
+  const docks = root.pieces[root.pieces.length - 1];
+  check('the chase road ends: no forks, and nothing laid past the docks', root.children === null && root.plan.done && root.finish !== null);
+  const len = root.length;
+  gen.extend(root, Infinity);
+  check('asking for more road lays none', root.length === len, { len, now: root.length });
+  check('motorway first, then town: one switch, never back', switches === 1 && !root.pieces[0].street, switches);
+  check(`the motorway runs about ${CHASE_MOTORWAY / 1000} km, the town about ${CHASE_TOWN / 1000} km`, town.s0 > CHASE_MOTORWAY && town.s0 < CHASE_MOTORWAY + 1200 && docks.s0 - town.s0 > CHASE_TOWN - 50 && docks.s0 - town.s0 < CHASE_TOWN + 600, { town: town.s0, docks: docks.s0 });
+  check('the road ends at the docks, gates near the start of them', docks.zone === 'docks' && docks.street && root.finish === docks.s0 + DOCKS_GATE && root.length - root.finish! > 200, { zone: docks.zone, finish: root.finish, length: root.length });
   check('pieces join up', maxJump < 0.01, maxJump);
   check('its heading stays within the bound of where it started', worstHead <= CHASE_BOUND + 1e-6, worstHead);
-  check('downtown streets and motorway take turns', switches >= 10 && streets > 50, { switches, streets });
-  check('downtown corners are tight (40 m and up)', minStreetR >= 40 && minStreetR < 70, minStreetR);
-  check('cross streets on straights, with room', junctions > 40 && badJunction === 0, { junctions, badJunction });
-  check('tunnels out of town', tunnels > 0, tunnels);
+  check('downtown corners are tight (40-115 m)', minStreetR >= 40 && minStreetR < 116, minStreetR);
+  check('cross streets on straights, with room', junctions > 5 && badJunction === 0, { junctions, badJunction });
+  check('tunnels on the motorway, none in town', tunnels > 0 && townTunnels === 0, { tunnels, townTunnels });
   // it never comes back across itself: points far apart along it are far apart on the ground
   let close = Infinity;
   const pts: { s: number; x: number; z: number }[] = [];
@@ -65,30 +73,41 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
   const st = root.pieces.find((p) => p.street && p.companion && p.companion.d0 < 1)!;
   const mid = st.s0 + st.len / 2;
   check('downtown the other way is right beside, two lanes', root.street(mid) && (root.companionGap(mid) ?? 9) < 1 && root.compLanes === 2 && root.oncomingLat(0, mid)! < 0 && root.oncomingLat(0, mid)! > -4);
+  // every seed gets there in the same few kilometres
+  const lens: number[] = [];
+  for (let seed = 1; seed <= 12; seed++) {
+    const g = new RoadGen(seed, 'chase');
+    const r = g.root({ x: 0, z: 0, h: 0 });
+    g.extend(r, Infinity);
+    lens.push(Math.round(r.finish ?? -1));
+  }
+  check('every seed: the dock gates 4-6 km down the road', lens.every((l) => l > 4000 && l < 6000), lens);
 }
 
 // ------------------------------------------------------------------ traffic downtown
 {
   const gen = new RoadGen(77, 'chase');
   const root = gen.root({ x: 0, z: 0, h: 0 });
-  gen.extend(root, 3000);
+  gen.extend(root, Infinity);
+  // a straight stretch of town, well clear of the motorway
+  const T = root.pieces.find((p) => p.street && p.s0 > root.pieces.find((q) => q.street)!.s0 + 200 && p.k0 === 0 && p.k1 === 0 && p.len > 120)!.s0;
   const tr = new Traffic(new Rand(3));
   // an oncoming car heading for someone stopped in its lane, 60 m away
-  const c = tr.spawn(root, 200, 0, true)!;
-  const ol = root.oncomingLat(0, 140)!;
-  const you: Driver = { path: root, s: 140, lat: ol, v: 0, len: 4.6, width: 1.9 };
+  const c = tr.spawn(root, T + 100, 0, true)!;
+  const ol = root.oncomingLat(0, T + 40)!;
+  const you: Driver = { path: root, s: T + 40, lat: ol, v: 0, len: 4.6, width: 1.9 };
   c.v = 13;
   for (let i = 0; i < 400; i++) tr.update(1 / 30, you);
-  check('downtown, a car coming the other way stops for you in its lane', c.s > 140 + 3 && c.v < 0.5, { s: c.s, v: c.v });
+  check('downtown, a car coming the other way stops for you in its lane', c.s > T + 40 + 3 && c.v < 0.5, { s: c.s - T, v: c.v });
   // and our way: city speeds
   const t2 = new Traffic(new Rand(5));
-  const a = t2.spawn(root, 60, 1)!;
+  const a = t2.spawn(root, T, 1)!;
   for (let i = 0; i < 300; i++) t2.update(1 / 30, null);
   check('downtown traffic keeps to city speeds', a.v < 16.5 && a.v > 9, a.v);
   // a police car with its lights on behind: the car ahead moves over
   const t3 = new Traffic(new Rand(9));
-  const b = t3.spawn(root, 100, 0)!;
-  const cop: Driver = { path: root, s: 60, lat: laneLat(0), v: 25, len: 4.75, width: 1.88 };
+  const b = t3.spawn(root, T + 40, 0)!;
+  const cop: Driver = { path: root, s: T, lat: laneLat(0), v: 25, len: 4.75, width: 1.88 };
   for (let i = 0; i < 150; i++) {
     cop.s = Math.min(b.s - 20, cop.s + cop.v / 30);
     t3.update(1 / 30, null, [cop], [cop]);
@@ -101,7 +120,7 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
   // a simple car: bicycle model with a grip limit, driven by the police AI behind a target on the road
   const gen = new RoadGen(2024, 'chase');
   const root = gen.root({ x: 0, z: 0, h: 0.2 });
-  gen.extend(root, 9000);
+  gen.extend(root, Infinity);
   const target: Driver = { path: root, s: 220, lat: laneLat(1), v: 0, len: 4.6, width: 1.9 };
   const start = root.pose(80, laneLat(0));
   const car = { x: start.x, z: start.z, yaw: start.h, v: 15 };

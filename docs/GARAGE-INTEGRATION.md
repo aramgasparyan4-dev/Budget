@@ -72,11 +72,12 @@ All are posted to the host origin only.
 | ------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
 | `mygarage:ready`    | page loaded                                          | `version`                                                  |
 | `mygarage:progress` | after every change (run, repair, upgrade, car added) | `save`: coins, per-car condition and upgrades              |
-| `mygarage:run`      | a run, highway drive or race ended                   | `vehicleId`, `mode`, `score`, `coins`, `health`, `won?`    |
+| `mygarage:run`      | a police chase or race ended                         | `vehicleId`, `mode`, `score`, `coins`, `health`, `won?`    |
 | `mygarage:parts`    | "Parts for this car" in the workshop                 | `vehicleId`, `make`, `model`, `year`, `category`           |
 | `mygarage:services` | "Find a mechanic" when the car is damaged            | `vehicleId`, `make`, `model`, `year`, `category: 'repair'` |
 
-`mode` is `'score'` (time attack), `'highway'` or `'race'`.
+`mode` is `'chase'` or `'race'`; `won` is true for an escape or a win. Free drive sends no
+`run` message (it scores nothing and earns nothing), only `progress` if anything changed.
 
 `parts` and `services` are the hooks back into the site: open the compatible-parts search or
 the repair services listing for that exact car. The two buttons only appear once a host has

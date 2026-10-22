@@ -1,8 +1,8 @@
-// The police chase: a patrol car spots you, and from then on the police come after you on the
-// chase road (downtown streets and motorway, see highway/road.ts). The longer it goes on and the
-// more of them you take out, the higher the heat: more cars, faster ones, cars cutting you off from
-// up ahead, and roadblocks. Get well away for long enough and you escape (until the next patrol
-// spots you); slow right down with a police car on you and you are busted.
+// The police chase: a getaway. You start on the motorway with the police right behind you; the
+// road takes you into town and finally to the docks (see highway/road.ts): get through the dock
+// gates and you have escaped. The longer it goes on and the more of them you take out, the higher
+// the heat: more cars, faster ones, cars cutting you off from up ahead, and roadblocks. Slow right
+// down with a police car on you and you are busted.
 //
 // The police cars are real cars in the physics (they ram, spin and crash); highway/police.ts
 // drives them. DriveGame owns this and turns its events into popups, points and sounds.
@@ -14,19 +14,21 @@ import type { Highway, Driver } from './Highway';
 import { CopDriver } from './highway/police';
 import { aheadOf, laneLat } from './highway/road';
 
-export type ChaseState = 'patrol' | 'pursuit' | 'cooldown';
+export type ChaseState = 'pursuit' | 'escaped' | 'busted';
 
 export type ChaseEvent =
-  | { kind: 'spotted' }
+  | { kind: 'go' }
   | { kind: 'backup' }
   | { kind: 'takedown'; byYou: boolean }
+  | { kind: 'town' }
+  | { kind: 'docks' }
   | { kind: 'escaped' }
   | { kind: 'busted' }
   | { kind: 'roadblock'; dist: number }
   | { kind: 'dodged' }
   | { kind: 'heat'; heat: number };
 
-type Role = 'spotter' | 'pursuit' | 'roadblock';
+type Role = 'pursuit' | 'roadblock';
 
 export interface Cop {
   car: DrivableVehicle;
@@ -48,42 +50,39 @@ export interface Cop {
 /** pursuit cars by heat level */
 export const UNITS = [0, 2, 3, 4, 4, 5];
 /** seconds of pursuit per heat level */
-export const HEAT_STEP = 30;
-/** escaping: every police car further than this (m) fills the meter, over ESCAPE_T seconds */
-export const ESCAPE_FAR = 240;
-export const ESCAPE_T = 9;
-/** a police car closer than this drains it */
-export const ESCAPE_NEAR = 170;
+export const HEAT_STEP = 45;
+/** no roadblocks or cars cut in from ahead this close to the dock gates: the end is yours to reach */
+const CLEAR_END = 350;
 const PAINT = new THREE.Color(0x111827);
 const PARKED = { throttle: 0, brake: 0, steer: 0, handbrake: true };
 
 export class Chase {
   cops: Cop[] = [];
-  state: ChaseState = 'patrol';
+  state: ChaseState = 'pursuit';
   heat = 1;
   maxHeat = 1;
+  /** seconds since GO */
   time = 0;
-  pursuitT = 0;
-  totalPursuit = 0;
-  longestPursuit = 0;
-  /** 0..1: fills while you are well clear of the police */
-  escape = 0;
   /** 0..1: fills while you are stopped with a police car on you */
   bust = 0;
   takedowns = 0;
-  escapes = 0;
   roadblocks = 0;
   busted = false;
-  cooldownT = 0;
+  escaped = false;
+  /** where you started and where the dock gates are (s on the road) */
+  startS = 0;
   events: ChaseEvent[] = [];
   /** the last few things the police hit (for tuning and tests) */
   hits: { t: number; dv: number; what: string; lat: number; v: number; why: string }[] = [];
+  private started = false;
+  private inTown = false;
+  private nearDocks = false;
   private backupT = 0;
   private blockT = 25;
-  /** backup alternates: from behind, then cutting you off from ahead */
-  private fromAhead = false;
   private blockId = 0;
   private blocks: { id: number; s: number; touched: boolean; announced: boolean }[] = [];
+  /** backup alternates: from behind, then cutting you off from ahead */
+  private fromAhead = false;
   /** your car's top speed (m/s): the police are tuned against it */
   private yourTop = 50;
   private yourCar: DrivableVehicle | null = null;
@@ -93,21 +92,53 @@ export class Chase {
     private hw: Highway,
   ) {}
 
-  /** a fresh chase: a patrol car waits by the kerb a little way ahead */
+  /** the dock gates (s on the road), once the road has been laid that far */
+  get finish() {
+    return this.hw.you?.path.finish ?? null;
+  }
+
+  /** metres left to the dock gates */
+  get toDocks() {
+    const f = this.finish;
+    const you = this.hw.you;
+    return f === null || !you ? null : Math.max(0, f - you.s);
+  }
+
+  /** how far along the way to the docks you are, 0..1 (the whole road is laid at the start) */
+  get progress() {
+    const f = this.finish;
+    const you = this.hw.you;
+    if (f === null || !you) return 0;
+    return Math.max(0, Math.min(1, (you.s - this.startS) / Math.max(1, f - this.startS)));
+  }
+
+  /** where you are: out on the motorway, in town, or at the docks */
+  get stage(): 'motorway' | 'town' | 'docks' {
+    const you = this.hw.you;
+    if (!you) return 'motorway';
+    const pc = you.path.pieceAt(you.s);
+    return pc.zone === 'docks' ? 'docks' : pc.street ? 'town' : 'motorway';
+  }
+
+  /** a fresh chase: two police cars right behind you, lights on, waiting for GO */
   begin(yourTop: number) {
     this.dispose();
     this.yourTop = yourTop;
-    this.state = 'patrol';
+    this.state = 'pursuit';
     this.heat = this.maxHeat = 1;
-    this.time = this.pursuitT = this.totalPursuit = this.longestPursuit = 0;
-    this.escape = this.bust = 0;
-    this.takedowns = this.escapes = this.roadblocks = 0;
-    this.busted = false;
+    this.time = 0;
+    this.bust = 0;
+    this.takedowns = this.roadblocks = 0;
+    this.busted = this.escaped = false;
+    this.started = this.inTown = this.nearDocks = false;
     this.blockT = 25;
-    this.fromAhead = false;
+    this.backupT = 8;
     this.blocks = [];
+    this.fromAhead = false;
     const you = this.hw.you!;
-    this.spawnSpotter(you.s + 230);
+    this.startS = you.s;
+    this.spawn(you.s - 60, laneLat(0), 'pursuit');
+    this.spawn(you.s - 85, laneLat(2), 'pursuit');
   }
 
   dispose() {
@@ -164,7 +195,7 @@ export class Chase {
       role,
       hp: 100,
       disabled: false,
-      lights: role !== 'spotter',
+      lights: true,
       hitByYou: -10,
       block: -1,
       born: this.time,
@@ -177,17 +208,6 @@ export class Chase {
     return cop;
   }
 
-  /** parked up on the pavement (or the hard shoulder), waiting */
-  private spawnSpotter(s: number) {
-    const p = this.hw.you!.path;
-    for (let k = 0; k < 6; k++) {
-      const ss = s + k * 25;
-      const pc = p.pieceAt(ss);
-      if (pc.junctions.some((j) => Math.abs(ss - pc.s0 - j) < 12)) continue;
-      if (this.spawn(ss, p.rightEdge(ss) + 1.6, 'spotter')) return;
-    }
-  }
-
   /**
    * Backup: a car coming up from behind, out of sight, at your speed; or (from heat 2, every other
    * one) a car joining from up ahead, going slower than you, to cut you off.
@@ -195,7 +215,8 @@ export class Chase {
   private spawnBackup() {
     const you = this.hw.you!;
     const p = you.path;
-    const ahead = this.fromAhead && this.heat >= 2;
+    const f = this.finish;
+    const ahead = this.fromAhead && this.heat >= 2 && (f === null || you.s + 330 < f - CLEAR_END);
     this.fromAhead = !this.fromAhead;
     for (let k = 0; k < 5; k++) {
       const s = ahead ? you.s + 230 + k * 20 : you.s - 260 - k * 22;
@@ -256,8 +277,6 @@ export class Chase {
     if (this.hits.length > 30) this.hits.shift();
     if (cop.disabled) return;
     cop.hp -= (dv - 5) * 7.5;
-    // hitting the patrol car is one way to get its attention
-    if (cop.role === 'spotter' && this.state !== 'pursuit' && this.time - cop.hitByYou < 1.5) this.startPursuit();
     if (cop.hp <= 0) {
       cop.disabled = true;
       cop.lights = false;
@@ -291,25 +310,18 @@ export class Chase {
     return best;
   }
 
-  private startPursuit() {
-    this.state = 'pursuit';
-    this.pursuitT = 0;
-    this.escape = 0;
-    this.backupT = 6;
-    for (const c of this.cops) {
-      if (c.role === 'spotter') c.role = 'pursuit';
-      if (!c.disabled) c.lights = c.car.siren = true;
-    }
-    this.events.push({ kind: 'spotted' });
-  }
-
   // ------------------------------------------------------------------ every frame
   /** `car` is your car; `you` where it is on the road */
   update(dt: number, you: Driver, car: DrivableVehicle) {
     if (dt <= 0) return;
+    if (!this.started) {
+      this.started = true;
+      this.events.push({ kind: 'go' });
+    }
     this.time += dt;
     this.yourCar = car;
     const hw = this.hw;
+    const chasing = this.state === 'pursuit';
     // where each police car is, and what it does
     const others = this.cops.map((c) => c.d);
     for (const c of [...this.cops]) {
@@ -322,90 +334,78 @@ export class Chase {
         this.remove(c);
         continue;
       }
-      if (c.disabled || c.role === 'roadblock' || (c.role === 'spotter' && this.state !== 'pursuit')) {
+      if (c.disabled || c.role === 'roadblock') {
         // parked (the brake pedal at a standstill would reverse it)
         c.car.aiInput = PARKED;
         continue;
       }
-      const chasing = this.state === 'pursuit';
-      // the police are tuned against your car: about as fast as it at first, faster as the heat
-      // rises, and much faster when they have dropped back (even if you are on the boost)
+      // the police are tuned against your car: a little slower than it at first (a clean run down
+      // an open road pulls away), faster as the heat rises, and quicker when they have dropped well
+      // back (so a lead holds at about 150 m, even on the boost)
       const back = behind ?? 0;
-      const catchUp = 1 + Math.max(0, Math.min(0.45, (back - 40) / 220));
+      const catchUp = 1 + Math.max(0, Math.min(0.35, (back - 90) / 250));
       const spec = VEHICLES[8];
-      let want = this.yourTop * (0.96 + 0.06 * this.heat) * catchUp;
-      if (back > 60) want = Math.max(want, Math.abs(car.forwardSpeed) * 1.08);
-      c.car.topMul = Math.max(1, want / spec.maxSpeed);
-      c.car.powerMul = (1.25 + 0.12 * this.heat) * catchUp * Math.max(1, want / spec.maxSpeed);
+      let want = this.yourTop * (0.9 + 0.04 * this.heat) * catchUp;
+      if (back > 160) want = Math.max(want, Math.abs(car.forwardSpeed) * 1.06);
+      c.car.topMul = Math.max(0.6, want / spec.maxSpeed);
+      c.car.powerMul = (1.1 + 0.1 * this.heat) * catchUp * Math.max(1, want / spec.maxSpeed);
       c.ai.aLat = 11 + this.heat * 0.5;
       const ms = c.car.spec.steer / (1 + Math.abs(c.car.forwardSpeed) / 19);
       c.car.aiInput = c.ai.update(
         dt,
         c.d,
         { x: c.car.pos.x, z: c.car.pos.z, yaw: c.car.yaw, speed: c.car.forwardSpeed, wheelBase: c.car.spec.wheelBase, maxSteer: ms },
+        // once it is over they pull up
         chasing ? you : null,
         hw.traffic.cars,
         others,
         c.car.spec.maxSpeed * c.car.topMul,
       );
     }
+    if (!chasing) return;
 
-    const active = this.cops.filter((c) => !c.disabled && c.role !== 'roadblock' && (c.role !== 'spotter' || this.state === 'pursuit'));
-    let nearest = Infinity;
-    let onYou = 0;
-    for (const c of active) {
-      const d = c.car.pos.distanceTo(car.pos);
-      nearest = Math.min(nearest, d);
-      if (d < 10) onYou++;
-    }
-
-    if (this.state === 'patrol' || this.state === 'cooldown') {
-      if (this.state === 'cooldown') {
-        this.cooldownT -= dt;
-        // a new patrol car up ahead
-        if (this.cooldownT <= 0 && !this.cops.some((c) => c.role === 'spotter')) {
-          this.state = 'patrol';
-          this.spawnSpotter(you.s + 320);
-        }
-      }
-      // passing the patrol car (or hitting it) starts the chase
-      for (const c of this.cops) {
-        if (c.role !== 'spotter') continue;
-        const d = aheadOf(you.path, you.s, c.d.path, c.d.s);
-        if (d !== null && d < 25 && d > -30) {
-          this.startPursuit();
-          break;
-        }
-      }
-      if (this.state === 'patrol' && !this.cops.some((c) => c.role === 'spotter')) this.spawnSpotter(you.s + 320);
-      this.bust = Math.max(0, this.bust - dt);
+    // through the dock gates: away
+    const f = this.finish;
+    if (f !== null && you.s >= f) {
+      this.state = 'escaped';
+      this.escaped = true;
+      for (const c of this.cops) c.lights = c.car.siren = false;
+      this.events.push({ kind: 'escaped' });
       return;
     }
+    // where you are on the way
+    if (!this.inTown && you.path.street(you.s)) {
+      this.inTown = true;
+      this.events.push({ kind: 'town' });
+    }
+    if (!this.nearDocks && f !== null && f - you.s < 600) {
+      this.nearDocks = true;
+      this.events.push({ kind: 'docks' });
+    }
 
-    // ---- the pursuit
-    this.pursuitT += dt;
-    this.totalPursuit += dt;
-    this.longestPursuit = Math.max(this.longestPursuit, this.pursuitT);
-    const heat = Math.min(5, 1 + Math.floor(this.totalPursuit / HEAT_STEP) + Math.floor(this.takedowns / 2));
+    const active = this.cops.filter((c) => !c.disabled && c.role === 'pursuit');
+    let onYou = 0;
+    for (const c of active) if (c.car.pos.distanceTo(car.pos) < 10) onYou++;
+    const heat = Math.min(5, 1 + Math.floor(this.time / HEAT_STEP) + Math.floor(this.takedowns / 2));
     if (heat > this.heat) {
       this.heat = heat;
       this.maxHeat = Math.max(this.maxHeat, heat);
       this.events.push({ kind: 'heat', heat });
     }
-    // backup (not while they are losing track of you: then it is down to the ones already after you)
+    // backup
     this.backupT -= dt;
-    if (active.length < UNITS[this.heat] && this.backupT <= 0 && this.escape < 0.25) {
+    if (active.length < UNITS[this.heat] && this.backupT <= 0) {
       this.backupT = 1.2;
       if (this.spawnBackup()) {
         this.backupT = Math.max(2.5, 7 - this.heat);
         this.events.push({ kind: 'backup' });
       }
     }
-    // roadblocks from heat 2
+    // roadblocks from heat 3 (none in the last stretch before the gates)
     this.blockT -= dt;
-    if (this.heat >= 2 && this.blockT <= 0) {
+    if (this.heat >= 3 && this.blockT <= 0) {
       this.blockT = 50 - this.heat * 6;
-      this.spawnRoadblock(you.s + 520);
+      if (f === null || you.s + 520 < f - CLEAR_END) this.spawnRoadblock(you.s + 520);
     }
     for (const b of [...this.blocks]) {
       const d = b.s - you.s;
@@ -418,35 +418,15 @@ export class Chase {
         this.blocks.splice(this.blocks.indexOf(b), 1);
       }
     }
-    // escaping: well clear of every police car for a while (quicker the further away)
-    if (nearest > ESCAPE_FAR) this.escape = Math.min(1, this.escape + dt / (nearest > ESCAPE_FAR * 1.75 ? ESCAPE_T * 0.55 : ESCAPE_T));
-    else if (nearest < ESCAPE_NEAR) this.escape = Math.max(0, this.escape - dt / 2);
-    if (this.escape >= 1) {
-      this.escaped();
-      return;
-    }
     // busted: stopped with a police car on you
-    const slow = car.speed < 6;
-    if (slow && onYou > 0) this.bust = Math.min(1, this.bust + dt * (0.34 + 0.15 * (onYou - 1)));
-    else this.bust = Math.max(0, this.bust - dt * 0.5);
+    const slow = car.speed < 5;
+    if (slow && onYou > 0) this.bust = Math.min(1, this.bust + dt * (0.3 + 0.12 * (onYou - 1)));
+    else this.bust = Math.max(0, this.bust - dt * 0.6);
     if (this.bust >= 1 && !this.busted) {
       this.busted = true;
+      this.state = 'busted';
       this.events.push({ kind: 'busted' });
     }
-  }
-
-  private escaped() {
-    this.state = 'cooldown';
-    this.escapes++;
-    this.escape = 0;
-    this.bust = 0;
-    this.cooldownT = 18 + Math.random() * 10;
-    // they have lost you: the chasing cars (all well back by now) are gone, a roadblock stays put
-    for (const c of [...this.cops]) {
-      if (c.role === 'roadblock') c.lights = c.car.siren = false;
-      else this.remove(c);
-    }
-    this.events.push({ kind: 'escaped' });
   }
 
   private remove(c: Cop) {

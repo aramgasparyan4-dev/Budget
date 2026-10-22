@@ -14,10 +14,11 @@
 // Pieces also carry what is on and around them: the scenery zone, tunnels, water, roadworks that
 // close a lane, overpasses, signs, and the road for the other direction off to the left.
 //
-// The police chase lays a different road (profile 'chase'): no forks, and it alternates between
-// downtown, where it is a two-way street between buildings with tight corners and cross streets,
-// and open stretches of motorway. Its heading stays within a bound of where it started, so however
-// it winds it never comes back across itself.
+// The police chase lays a different road (profile 'chase'), with an end: a few kilometres of
+// motorway, then into town (a two-way street between buildings, with tight corners and cross
+// streets), and finally the docks, where the road ends at the water: get through the dock gates and
+// you have escaped. No forks; its heading stays within a bound of where it started, so however it
+// winds it never comes back across itself.
 
 export const LANE_W = 3.4;
 /** the left guardrail (median side) and the right one past a 3 m shoulder */
@@ -32,7 +33,7 @@ export const STREET_GAP = 0.3;
 /** cross streets: width of the opening */
 export const JUNCTION_W = 12;
 
-export type Zone = 'fields' | 'forest' | 'coast' | 'desert' | 'city' | 'downtown';
+export type Zone = 'fields' | 'forest' | 'coast' | 'desert' | 'city' | 'downtown' | 'docks';
 export type Profile = 'highway' | 'chase';
 
 export interface ZoneInfo {
@@ -50,7 +51,15 @@ export const ZONES: Record<Zone, ZoneInfo> = {
   desert: { label: 'Desert', traffic: 0.8, busy: 'light traffic' },
   city: { label: 'City', traffic: 1.55, busy: 'heavy traffic' },
   downtown: { label: 'Downtown', traffic: 1.15, busy: 'heavy traffic' },
+  docks: { label: 'Docks', traffic: 0.2, busy: 'quiet' },
 };
+
+/** the chase road: motorway, then town, then the docks (metres) */
+export const CHASE_MOTORWAY = 2400;
+export const CHASE_TOWN = 1500;
+/** the docks: the gate this far in (you are through: escaped), the water at the end */
+export const DOCKS_GATE = 250;
+export const DOCKS_LEN = 560;
 
 /** the open zones (everything but downtown streets) */
 export const OPEN_ZONES: Zone[] = ['fields', 'forest', 'coast', 'desert', 'city'];
@@ -131,6 +140,8 @@ export class Path {
   plan: Plan;
   /** the lane offset of this path's reference line from its parent's (a right branch starts `split` lanes over) */
   offset = 0;
+  /** the chase road: s of the dock gates (null until the road gets there) */
+  finish: number | null = null;
 
   constructor(
     readonly parent: Path | null,
@@ -267,10 +278,13 @@ interface Plan {
   lamps: boolean;
   /** lanes the other way */
   compLanes: number;
+  /** the road has reached its end */
+  done: boolean;
 }
 
 function freshPlan(lanes: number, zone: Zone): Plan {
   return {
+    done: false,
     compLanes: COMPANION_LANES,
     lanes,
     zone,
@@ -329,15 +343,16 @@ export class RoadGen {
   root(start: Pose, zone: Zone = 'fields') {
     this.h0 = start.h;
     if (this.profile === 'chase') {
-      // downtown: two lanes each way, a long first block to get going on
-      const p = new Path(null, start, 2, 'downtown');
+      // the motorway out of town, the other direction across a median; a long straight to start on
+      const p = new Path(null, start, 3, this.rng.pick(['fields', 'forest', 'desert'] as Zone[]));
       const pl = p.plan;
       pl.compLanes = 2;
-      pl.companion = STREET_GAP;
-      pl.lamps = true;
-      pl.zoneLeft = this.rng.range(1300, 1900);
+      pl.companion = 12;
+      pl.zoneLeft = CHASE_MOTORWAY;
       pl.nextFork = Infinity;
-      this.add(p, { ...this.blank(p), len: 360, street: true, junctions: [150, 300] });
+      pl.nextTunnel = this.rng.range(700, 1300);
+      pl.nextWorks = this.rng.range(1500, 2100);
+      this.add(p, { ...this.blank(p), len: 520 });
       return p;
     }
     const p = new Path(null, start, 4, zone);
@@ -404,7 +419,7 @@ export class RoadGen {
 
   /** lay road until the path reaches `until` metres (or ends at a fork) */
   extend(path: Path, until: number) {
-    while (path.length < until && !path.children) this.segment(path);
+    while (path.length < until && !path.children && !path.plan.done) this.segment(path);
   }
 
   private segment(path: Path) {
@@ -526,17 +541,12 @@ export class RoadGen {
     if (pl.zone === 'downtown') {
       const street = { ...base, street: true, lamps: true, zone: 'downtown' as Zone, companion: { d0: STREET_GAP, d1: STREET_GAP } };
       if (pl.zoneLeft <= 0) {
-        // out of town: the street opens into a boulevard, the other way bends off behind a median
-        const gap = r.range(10, 14);
-        const zone = r.pick(OPEN_ZONES);
-        specs.push({ ...street, len: 200, n0: pl.lanes, n1: 3, companion: { d0: STREET_GAP, d1: gap } });
-        pl.lanes = 3;
-        pl.companion = gap;
-        pl.zone = zone;
-        pl.zoneLeft = r.range(1400, 2300);
-        pl.lamps = zone === 'city';
-        pl.nextTunnel = Math.min(pl.nextTunnel, r.range(300, 900));
-        pl.nextWorks = Math.max(pl.nextWorks, 500);
+        // the end of the road: the docks, containers either side, the gates, then the water
+        const docks = this.add(path, { ...street, len: DOCKS_LEN, zone: 'docks' });
+        path.finish = docks.s0 + DOCKS_GATE;
+        pl.zone = 'docks';
+        pl.done = true;
+        return;
       } else {
         // a block with a cross street, then a corner onto the next street
         const block = r.range(70, 200);
@@ -548,12 +558,12 @@ export class RoadGen {
     } else {
       const flags = { zone: pl.zone, lamps: pl.zone === 'city', companion: { d0: pl.companion ?? 12, d1: pl.companion ?? 12 } };
       if (pl.zoneLeft <= 0) {
-        // back into town: the median closes up and the buildings come in
+        // into town: the median closes up and the buildings come in
         specs.push({ ...base, ...flags, len: 220, street: true, lamps: true, zone: 'downtown', n0: pl.lanes, n1: 2, companion: { d0: pl.companion ?? 12, d1: STREET_GAP } });
         pl.lanes = 2;
         pl.companion = STREET_GAP;
         pl.zone = 'downtown';
-        pl.zoneLeft = r.range(1200, 2000);
+        pl.zoneLeft = CHASE_TOWN;
         pl.lamps = true;
       } else {
         const tunnel = pl.nextTunnel <= 0 && (pl.zone === 'forest' || pl.zone === 'desert' || pl.zone === 'fields');
@@ -579,7 +589,7 @@ export class RoadGen {
         pl.nextOverpass = r.range(1300, 2600);
       }
       if (!sp.street && pl.nextSign <= total + sp.len && !sp.tunnel && !sp.overpass && sp.len > 220) {
-        sp.sign = { at: 60, left: `Downtown  ${Math.round(r.range(2, 9))} km` };
+        sp.sign = { at: 60, left: `Downtown  ${Math.max(1, Math.round((pl.zoneLeft - total) / 1000))} km   ·   Docks` };
         pl.nextSign = r.range(1800, 3200);
       }
       this.add(path, sp);

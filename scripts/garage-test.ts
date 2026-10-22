@@ -152,9 +152,9 @@ function hardHits(car: GarageVehicle, armor = 0) {
   const p = freshProgress(car);
   p.upgrades.armor = armor;
   const st = carSetup(car, p);
-  const s = new Scorer('score', { health: p.health, damageTaken: st.damageTaken });
+  const s = new Scorer('chase', { health: p.health, damageTaken: st.damageTaken });
   let hits = 0;
-  while (!s.over && hits < 10) {
+  while (s.health > 0 && hits < 10) {
     s.impact(30); // a very hard crash every time
     hits++;
     for (let i = 0; i < 120; i++)
@@ -163,7 +163,7 @@ function hardHits(car: GarageVehicle, armor = 0) {
   return hits;
 }
 const firstHit = ARCHETYPES.map((a) => {
-  const s = new Scorer('score', { damageTaken: carSetup(v('X', a.id, { archetype: a.id }), freshProgress(v('X', a.id))).damageTaken });
+  const s = new Scorer('chase', { damageTaken: carSetup(v('X', a.id, { archetype: a.id }), freshProgress(v('X', a.id))).damageTaken });
   return [a.id, s.impact(30)] as const;
 });
 check(
@@ -171,14 +171,14 @@ check(
   firstHit.every(([, r]) => r === 'damage'),
   firstHit,
 );
-check('a sedan is wrecked by the second', hardHits(v('Toyota', 'Camry')) === 2);
+check('a sedan is down to 0% after the second', hardHits(v('Toyota', 'Camry')) === 2);
 check('an off-roader takes three', hardHits(v('Toyota', 'Land Cruiser')) === 3, hardHits(v('Toyota', 'Land Cruiser')));
 check('full body armour buys a sedan an extra hit', hardHits(v('Toyota', 'Camry'), 5) === 3, hardHits(v('Toyota', 'Camry'), 5));
 {
-  const s = new Scorer('score', { health: 40 });
-  check('a car already at 40% is wrecked by one hard crash', s.impact(30) === 'wreck' && s.over === 'wrecked');
-  const t = new Scorer('score', { health: 100 });
-  t.impact(RULES.wreckImpact + 1);
+  const s = new Scorer('chase', { health: 40 });
+  check('a car at 40% is down to 0% after one hard crash, and keeps going', s.impact(30) === 'damage' && s.health === 0 && !s.over);
+  const t = new Scorer('chase', { health: 100 });
+  t.impact(RULES.bigImpact + 1);
   check('condition lost is tracked for the results', t.damageTaken > 50 && t.health < 50, { lost: t.damageTaken, h: t.health });
 }
 
@@ -211,8 +211,8 @@ check('full body armour buys a sedan an extra hit', hardHits(v('Toyota', 'Camry'
   check('repair brings it back to 100% for the quoted price', fixed.ok && progressOf(fixed.save, car).health === 100 && fixed.save.coins === 620 - cost, { cost });
   const partial = repair({ ...hurt, coins: Math.floor(cost / 2) }, car);
   check('without enough coins, a partial repair', partial.ok && progressOf(partial.save, car).health > 30 && progressOf(partial.save, car).health < 100 && partial.save.coins >= 0);
-  const wreck = finishRun({ ...save, coins: 0 }, car, 0, 0, 0);
-  check('a wreck still drives: it limps out at the limp-home condition', startHealth(progressOf(wreck, car).health) === LIMP_HEALTH && startHealth(80) === 80);
+  const flat = finishRun({ ...save, coins: 0 }, car, 0, 0, 0);
+  check('a car at 0% still drives: it limps out at the limp-home condition', startHealth(progressOf(flat, car).health) === LIMP_HEALTH && startHealth(80) === 80);
 }
 
 // ------------------------------------------------------------------ the garage details

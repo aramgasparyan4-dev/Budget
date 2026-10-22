@@ -79,14 +79,14 @@ export function RaceHud() {
         {!r.stunned && r.off && <div className="rounded-full surface px-5 h-10 flex items-center text-[14px] font-medium">Off the route · T to get back</div>}
       </div>
 
-      <RaceMap />
+      <CityMap id="race-map" />
       <RivalTag />
     </>
   );
 }
 
-/** rotating map, drawn light: streets in grey, the route in blue, gates, you and the rival */
-function RaceMap({ size: fixed }: { size?: number }) {
+/** rotating map of the city, drawn light: streets in grey, you in the middle; in a race also the route in blue, the gates and the rival */
+export function CityMap({ size: fixed, id }: { size?: number; id: string }) {
   const size = useMapSize(fixed);
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -100,7 +100,7 @@ function RaceMap({ size: fixed }: { size?: number }) {
       const race = nm.race;
       const car = nm.car;
       const city = nm.world?.city;
-      if (!cv || !race || !car || !city) return;
+      if (!cv || !car || !city) return;
       const g = cv.getContext('2d')!;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       if (cv.width !== size * dpr) {
@@ -137,28 +137,30 @@ function RaceMap({ size: fixed }: { size?: number }) {
         g.lineTo(s.x1, s.z1);
         g.stroke();
       }
-      // the route
-      g.strokeStyle = BRAND;
-      g.lineWidth = 5 * px;
-      g.lineJoin = 'round';
-      g.lineCap = 'round';
-      g.beginPath();
-      race.route.pts.forEach((p, i) => (i ? g.lineTo(p.x, p.z) : g.moveTo(p.x, p.z)));
-      g.stroke();
-      const dot = (x: number, z: number, r: number, fill: string, stroke = '#ffffff') => {
-        g.fillStyle = fill;
+      if (race) {
+        // the route
+        g.strokeStyle = BRAND;
+        g.lineWidth = 5 * px;
+        g.lineJoin = 'round';
+        g.lineCap = 'round';
         g.beginPath();
-        g.arc(x, z, r * px, 0, Math.PI * 2);
-        g.fill();
-        g.strokeStyle = stroke;
-        g.lineWidth = 2 * px;
+        race.route.pts.forEach((p, i) => (i ? g.lineTo(p.x, p.z) : g.moveTo(p.x, p.z)));
         g.stroke();
-      };
-      race.route.checkpoints.forEach((c, i) => {
-        if (i < race.player.next) return;
-        dot(c.x, c.z, i === race.player.next ? 6 : 3.5, c.finish ? '#0d0d0d' : i === race.player.next ? BRAND : '#c7c7c7');
-      });
-      dot(race.rival.pos.x, race.rival.pos.z, 5.5, rivalColor());
+        const dot = (x: number, z: number, r: number, fill: string, stroke = '#ffffff') => {
+          g.fillStyle = fill;
+          g.beginPath();
+          g.arc(x, z, r * px, 0, Math.PI * 2);
+          g.fill();
+          g.strokeStyle = stroke;
+          g.lineWidth = 2 * px;
+          g.stroke();
+        };
+        race.route.checkpoints.forEach((c, i) => {
+          if (i < race.player.next) return;
+          dot(c.x, c.z, i === race.player.next ? 6 : 3.5, c.finish ? '#0d0d0d' : i === race.player.next ? BRAND : '#c7c7c7');
+        });
+        dot(race.rival.pos.x, race.rival.pos.z, 5.5, rivalColor());
+      }
       g.restore();
       // you: an arrow in the middle pointing the way the car faces
       g.save();
@@ -182,7 +184,7 @@ function RaceMap({ size: fixed }: { size?: number }) {
   }, [size]);
   return (
     <div className="absolute right-4 sm:right-6 top-4 sm:top-6 rounded-full surface p-1">
-      <canvas id="race-map" ref={ref} style={{ width: size, height: size }} className="rounded-full block" />
+      <canvas id={id} ref={ref} style={{ width: size, height: size }} className="rounded-full block" />
     </div>
   );
 }
@@ -336,9 +338,41 @@ export function HighwayMap({ size: fixed }: { size?: number }) {
         g.stroke();
       }
       g.restore();
+      const you = hw.you;
+      // the way out: the dock gates, a dark pill with a label (pinned to the edge while still far off)
+      const fin = you?.path.finish;
+      if (you && fin != null) {
+        const q = you.path.pose(fin, you.path.rightEdge(fin) / 2);
+        const a = Math.PI + yaw;
+        const dx = q.x - pos.x;
+        const dz = q.z - pos.z;
+        let mx = (dx * Math.cos(a) - dz * Math.sin(a)) * zoom;
+        let my = (dx * Math.sin(a) + dz * Math.cos(a)) * zoom;
+        const r = Math.hypot(mx, my + size * 0.16);
+        const edge = size / 2 - 18;
+        if (r > edge) {
+          mx *= edge / r;
+          my = (my + size * 0.16) * (edge / r) - size * 0.16;
+        }
+        const x = size / 2 + mx;
+        const y = size * 0.66 + my;
+        g.save();
+        g.font = '600 11px Inter Variable, sans-serif';
+        g.textAlign = 'center';
+        const text = `Docks ${((fin - you.s) / 1000).toFixed(1)} km`;
+        const w = g.measureText(text).width + 14;
+        const cx = Math.max(w / 2 + 4, Math.min(size - w / 2 - 4, x));
+        const cy = Math.max(14, Math.min(size - 12, y));
+        g.fillStyle = '#0d0d0d';
+        g.beginPath();
+        g.roundRect(cx - w / 2, cy - 10, w, 20, 10);
+        g.fill();
+        g.fillStyle = '#ffffff';
+        g.fillText(text, cx, cy + 4);
+        g.restore();
+      }
       // where the branches go
       const road = useNM.getState().road;
-      const you = hw.you;
       if (road?.fork && you?.path.children) {
         g.save();
         g.font = '600 11px Inter Variable, sans-serif';

@@ -1,8 +1,8 @@
-// Highway mode: an endless motorway well north of the city. The road (highway/road.ts) winds,
-// forks, dives through tunnels and over water and changes scenery; this class streams it in
-// around the car, keeps track of where on the road you are, runs the traffic (highway/traffic.ts)
-// and its physics proxies, and keeps coordinates small by moving the whole world back toward
-// the start whenever you get far from it.
+// The police chase road, well north of the city: motorway, town, then the docks (highway/road.ts;
+// the generator's forking 'highway' profile from the old Highway mode still works here too). This
+// class streams it in around the car, keeps track of where on the road you are, runs the traffic
+// (highway/traffic.ts) and its physics proxies, and keeps coordinates small by moving the whole
+// world back toward the start whenever you get far from it.
 import * as THREE from 'three';
 import { RAPIER, GROUP, groups, type Physics } from '../engine/Physics';
 import { VEHICLES } from '../sim/vehicles';
@@ -25,6 +25,7 @@ const GROUND: Record<Zone, THREE.Color> = {
   desert: new THREE.Color().setRGB(0.42, 0.3, 0.16),
   city: new THREE.Color().setRGB(0.13, 0.15, 0.1),
   downtown: new THREE.Color().setRGB(0.1, 0.1, 0.105),
+  docks: new THREE.Color().setRGB(0.16, 0.16, 0.16),
 };
 
 export interface HighwayInfo {
@@ -108,11 +109,13 @@ export class Highway {
     this.profile = profile;
     this.gen = new RoadGen(Math.floor(Math.random() * 1e9), profile);
     const root = this.gen.root({ x: ORIGIN.x, z: ORIGIN.z, h: Math.PI / 2 });
-    this.gen.extend(root, 2600);
+    // the chase road has an end (the docks): lay all of it now, so the distance to go is known
+    this.gen.extend(root, profile === 'chase' ? Infinity : 2600);
     this.root = root;
     this.paths = new Set([root]);
     this.committed.clear();
-    this.you = { path: root, s: 40, lat: laneLat(1), v: 0, len: 4.6, width: 1.9 };
+    // in a chase you start a little way in, so the police can start behind you
+    this.you = { path: root, s: profile === 'chase' ? 200 : 40, lat: laneLat(1), v: 0, len: 4.6, width: 1.9 };
     this.traffic.reset();
     this.traffic.fill(this.you);
     this.groundMat.color.copy(GROUND[root.plan.zone]);
@@ -137,7 +140,16 @@ export class Highway {
 
   /** where a drive starts: lane 1, 40 m in */
   startPose() {
-    const p = this.root!.pose(40, laneLat(1));
+    const p = this.root!.pose(this.you!.s, laneLat(1));
+    return { x: p.x, z: p.z, yaw: p.h };
+  }
+
+  /** a pose on your road `ds` metres from you, in lane 1 (after a roll, or a teleport in tests) */
+  poseAhead(ds = 0) {
+    const you = this.you!;
+    const s = Math.max(5, Math.min(you.path.length - 5, you.s + ds));
+    const lanes = Math.floor(you.path.lanes(s) + 0.4);
+    const p = you.path.pose(s, laneLat(Math.min(1, lanes - 1)));
     return { x: p.x, z: p.z, yaw: p.h };
   }
 

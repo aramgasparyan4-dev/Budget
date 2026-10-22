@@ -250,7 +250,7 @@ export class RaceSession {
   }
 
   private rivalImpact(dv: number) {
-    if (this.time <= 0 || this.rivalGrace > 0 || dv < RULES.wreckImpact || this.rivalTime !== null) return;
+    if (this.time <= 0 || this.rivalGrace > 0 || dv < RULES.bigImpact || this.rivalTime !== null) return;
     this.rivalGrace = RULES.damageGrace;
     this.rivalCrashes++;
     this.rival.stop();

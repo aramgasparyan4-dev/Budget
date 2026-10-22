@@ -168,73 +168,27 @@ body,
   animation: police 0.5s steps(1) infinite;
 }
 
-/* the ending: wrecked drains the colour and cracks the glass; busted is a stamp under police lights */
-.ending-wrecked {
-  background: radial-gradient(ellipse at center, rgba(7, 6, 9, 0.2) 25%, rgba(7, 6, 9, 0.78) 100%);
-  backdrop-filter: grayscale(0.85) contrast(1.1) brightness(0.8);
-  -webkit-backdrop-filter: grayscale(0.85) contrast(1.1) brightness(0.8);
-}
+/* the end of a chase: busted is a stamp under police lights; escaped opens up in blue, the sea past the gates */
 .ending-busted {
   background: radial-gradient(ellipse at center, rgba(8, 14, 40, 0.25) 20%, rgba(8, 14, 40, 0.82) 100%);
   backdrop-filter: saturate(0.6) brightness(0.75);
   -webkit-backdrop-filter: saturate(0.6) brightness(0.75);
 }
-@keyframes wreck-flash {
+.ending-escaped {
+  background: radial-gradient(ellipse at center, rgba(0, 119, 255, 0.12) 20%, rgba(0, 46, 110, 0.78) 100%);
+  backdrop-filter: saturate(1.15) brightness(0.9);
+  -webkit-backdrop-filter: saturate(1.15) brightness(0.9);
+}
+@keyframes escape-flash {
   from {
-    background: rgba(253, 57, 107, 0.55);
+    background: rgba(255, 255, 255, 0.7);
   }
   to {
-    background: rgba(253, 57, 107, 0);
+    background: rgba(255, 255, 255, 0);
   }
 }
-.wreck-flash {
-  animation: wreck-flash 0.6s ease-out both;
-}
-@keyframes crack-in {
-  from {
-    opacity: 0;
-    transform: scale(1.04);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-.crack-in {
-  animation: crack-in 0.12s ease-out both;
-}
-@keyframes slam {
-  0% {
-    transform: scale(1.6);
-    opacity: 0;
-  }
-  55% {
-    transform: scale(0.96);
-    opacity: 1;
-  }
-  70% {
-    transform: translateX(-6px) scale(1);
-  }
-  85% {
-    transform: translateX(5px);
-  }
-  100% {
-    transform: translateX(0);
-  }
-}
-.slam {
-  animation: slam 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) both;
-}
-@keyframes grow-x {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-.grow-x {
-  animation: grow-x 0.5s 0.25s ease-out both;
+.escape-flash {
+  animation: escape-flash 0.7s ease-out both;
 }
 @keyframes stamp {
   0% {
@@ -253,6 +207,11 @@ body,
 .stamp {
   animation: stamp 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+.stamp-win {
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.3),
+    0 0 60px rgba(0, 119, 255, 0.55);
 }
 /* a police light bar across the top and bottom: red then blue */
 @keyframes lightbar {
@@ -286,9 +245,8 @@ body,
   .damaged-vignette,
   .police-glow,
   .lightbar,
-  .slam,
   .stamp,
-  .wreck-flash {
+  .escape-flash {
     animation-duration: 0.01s;
   }
 }

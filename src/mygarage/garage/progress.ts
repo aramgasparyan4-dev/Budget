@@ -69,7 +69,7 @@ export function repairCost(a: Archetype, health: number): number {
   return Math.ceil(Math.max(0, 100 - health) * 5 * a.perks.repairMul);
 }
 
-/** a wrecked car still drives: it limps out at this condition (repairs on the road are free) */
+/** a car at 0% still drives: it limps out at this condition (repairs on the road are free) */
 export const LIMP_HEALTH = 25;
 
 /** the condition a run starts at */
@@ -134,13 +134,8 @@ export function damageFactor(health: number) {
   return { power: 0.7 + 0.3 * h, top: 0.82 + 0.18 * h };
 }
 
-/** coins for a free-drive run */
-export function runCoins(score: number, s: CarSetup): number {
-  return Math.round((score / 20) * s.cashMul);
-}
-
-/** coins for a highway drive: as a run up to 20,000 points, a quarter of that rate beyond (drives have no end) */
-export function highwayCoins(score: number, s: CarSetup): number {
+/** coins for a police chase: a point is worth a twentieth of a coin up to 20,000, a quarter of that beyond */
+export function chaseCoins(score: number, s: CarSetup): number {
   return Math.round((Math.min(score, 20000) / 20 + Math.max(0, score - 20000) / 80) * s.cashMul);
 }
 

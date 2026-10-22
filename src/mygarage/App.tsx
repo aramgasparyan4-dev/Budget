@@ -17,12 +17,12 @@ import {
   LogOut,
   Flag,
   Route,
-  Timer,
   Wrench,
   Siren,
   Star,
   TrafficCone,
-  CarFront,
+  Anchor,
+  Clock,
 } from 'lucide-react';
 import { GameCanvas } from '../scene/GameCanvas';
 import { useStore } from '../state/store';
@@ -30,7 +30,7 @@ import type { Preset } from '../state/settings';
 import { nm, CONDITIONS } from './DriveGame';
 import { useNM, type Mode, type Popup } from './store';
 import { HEAT_STEP } from './Chase';
-import { HighwayMap, RaceHud, RaceResults } from './RaceUI';
+import { CityMap, HighwayMap, RaceHud, RaceResults } from './RaceUI';
 import { RULES } from './scoring';
 import { GarageCard, GaragePanels, GarageResults, isTouch, TouchControls, healthTone } from './GarageUI';
 import { useGarage } from './garage/store';
@@ -50,13 +50,16 @@ function useKeys() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
       if (useGarage.getState().panel !== 'none') return;
       if (e.code === 'Enter' && (st.phase === 'title' || st.phase === 'results')) nm.startRun();
-      else if (e.code === 'KeyR' && (st.phase === 'run' || st.phase === 'countdown' || st.phase === 'results' || st.phase === 'wreck')) nm.retry();
+      else if (e.code === 'KeyR' && (st.phase === 'run' || st.phase === 'countdown' || st.phase === 'results')) nm.retry();
       else if (e.code === 'Escape') {
         if (st.phase === 'run' || st.phase === 'countdown') nm.togglePause();
         else if (st.phase === 'results') nm.toTitle();
       } else if (e.code === 'KeyQ' && st.paused) nm.toTitle();
-      else if (e.code === 'KeyE' && st.paused) nm.endHighway();
-      else if (e.code === 'KeyT' && st.phase === 'run' && !st.paused) nm.backOnTrack();
+      else if (e.code === 'KeyE' && st.paused) nm.endDrive();
+      else if (e.code === 'KeyT' && st.phase === 'run' && !st.paused) {
+        if (nm.race) nm.backOnTrack();
+        else nm.recover();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -67,7 +70,7 @@ function useKeys() {
 function Loading() {
   const p = useNM((s) => s.progress);
   const t = useNM((s) => s.progressText);
-  const best = useNM((s) => s.best[0]?.score ?? 0);
+  const best = useNM((s) => s.bestChase[0]?.score ?? 0);
   const rs = useNM((s) => s.raceStats);
   return (
     <div className="absolute inset-0 bg-paper flex flex-col items-center justify-center gap-5 pointer-events-auto px-6">
@@ -76,7 +79,7 @@ function Loading() {
       <div className="text-[13px] text-muted h-5">{t}</div>
       <div id="high-score" className="text-[13px] text-ink-2 flex items-center gap-1.5">
         <Trophy size={14} strokeWidth={1.6} />
-        High score {best > 0 ? fmt(best) : '—'}
+        Best chase {best > 0 ? fmt(best) : '—'}
         {rs.races > 0 && (
           <>
             <span className="text-faint">·</span> Races won {rs.wins} / {rs.races}
@@ -89,9 +92,8 @@ function Loading() {
 
 // ------------------------------------------------------------------ title
 const MODES: Record<Mode, { label: string; go: string; hint: string }> = {
-  score: { label: 'Time attack', go: 'Drive', hint: 'Score before the clock runs out' },
-  highway: { label: 'Highway', go: 'Drive', hint: 'No clock: drive until you stop or wreck' },
-  chase: { label: 'Police chase', go: 'Drive', hint: 'Streets and motorway with the police after you: escape, or get busted' },
+  free: { label: 'Free drive', go: 'Drive', hint: 'Drive wherever you want: no clock, no score, no damage' },
+  chase: { label: 'Police chase', go: 'Drive', hint: 'Police on your tail: down the motorway, through town, out through the docks' },
   race: { label: 'Race', go: 'Race', hint: 'Beat a rival to the finish' },
 };
 
@@ -174,7 +176,7 @@ const KEYS: [string, string][] = [
   ['Space', 'Drift'],
   ['Esc', 'Pause'],
   ['R', 'Restart'],
-  ['T', 'Back on track (race)'],
+  ['T', 'Back on the road'],
 ];
 
 function Help() {
@@ -233,15 +235,13 @@ function SettingsMenu() {
   );
 }
 
-/** the best for the selected mode */
+/** the best for the selected mode (free drive keeps no score) */
 function Best() {
   const mode = useNM((s) => s.mode);
-  const best = useNM((s) => s.best[0]?.score ?? 0);
-  const hwy = useNM((s) => s.bestHighway[0]?.score ?? 0);
   const chase = useNM((s) => s.bestChase[0]?.score ?? 0);
   const rs = useNM((s) => s.raceStats);
-  const n = mode === 'highway' ? hwy : mode === 'chase' ? chase : best;
-  const text = mode === 'race' ? (rs.races ? `${rs.wins} / ${rs.races} won` : '—') : n > 0 ? fmt(n) : '—';
+  if (mode === 'free') return null;
+  const text = mode === 'race' ? (rs.races ? `${rs.wins} / ${rs.races} won` : '—') : chase > 0 ? fmt(chase) : '—';
   return (
     <span
       id="high-score"
@@ -370,15 +370,16 @@ function Hud({ touch }: { touch: boolean }) {
   const phase = useNM((s) => s.phase);
   const popups = useNM((s) => s.popups);
   const racing = useNM((s) => s.race !== null);
-  const mode = useNM((s) => s.result?.mode ?? s.mode);
-  // the ending (wrecked, busted) has the screen to itself
+  const mode = useNM((s) => s.mode);
+  // the ending (busted, escaped) has the screen to itself
   if (phase !== 'run' && phase !== 'countdown') return null;
+  const free = mode === 'free';
   return (
     <div className="absolute inset-0 pointer-events-none">
       {h.boosting && <div className="absolute inset-0 streaks throb" />}
-      {h.damaged && !racing && <div className="absolute inset-0 damaged-vignette" />}
+      {h.damaged && mode === 'chase' && <div className="absolute inset-0 damaged-vignette" />}
 
-      {racing ? <RaceHud /> : <ScoreHud clock={mode === 'score'} />}
+      {racing ? <RaceHud /> : free ? <FreeHud /> : <ScoreHud />}
       {mode === 'chase' && <ChaseHud />}
 
       <div className="absolute left-1/2 -translate-x-1/2 top-[34%] flex flex-col items-center gap-2">
@@ -390,6 +391,11 @@ function Hud({ touch }: { touch: boolean }) {
       {/* speed, boost and condition (raised clear of the pedals on touch screens), and the way to a free repair */}
       <div className={`absolute right-4 sm:right-6 flex flex-col items-end gap-2 ${touch ? 'bottom-[200px] scale-75 origin-bottom-right' : 'bottom-6'}`}>
         {h.pickup && <PickupChip p={h.pickup} />}
+        {h.damaged && mode === 'chase' && (
+          <div id="damaged">
+            <Badge tone="alert">Damaged</Badge>
+          </div>
+        )}
         <Chip className="px-4 py-3 w-56">
           <div className="flex items-baseline gap-1.5">
             <div className="display text-[44px] leading-none">{h.speed}</div>
@@ -399,11 +405,13 @@ function Hud({ touch }: { touch: boolean }) {
             <Zap size={14} strokeWidth={1.8} className={h.boosting ? 'text-brand' : 'text-ink-2'} />
             <Bar value={h.boost} tone="brand" className="flex-1" />
           </div>
-          <div id="hud-condition" className="flex items-center gap-2 mt-2" title="Condition">
-            <Car size={14} strokeWidth={1.8} className="text-ink-2" />
-            <Bar value={h.health / 100} tone={healthTone(h.health)} className="flex-1" />
-            <span className="text-[12px] font-medium tabular-nums w-9 text-right">{Math.round(h.health)}%</span>
-          </div>
+          {!free && (
+            <div id="hud-condition" className="flex items-center gap-2 mt-2" title="Condition">
+              <Car size={14} strokeWidth={1.8} className="text-ink-2" />
+              <Bar value={h.health / 100} tone={healthTone(h.health)} className="flex-1" />
+              <span className="text-[12px] font-medium tabular-nums w-9 text-right">{Math.round(h.health)}%</span>
+            </div>
+          )}
         </Chip>
       </div>
 
@@ -428,49 +436,32 @@ function PickupChip({ p }: { p: { dist: number; arrow: number } }) {
   );
 }
 
-/** time attack, highway and chase: the clock (or the distance), the score and the combo */
-function ScoreHud({ clock }: { clock: boolean }) {
+/** free drive: how far you have been, and the map. Nothing else */
+function FreeHud() {
   const h = useNM((s) => s.hud);
-  const road = useNM((s) => s.road);
-  const chase = useNM((s) => s.chase !== null);
-  const low = h.time < 10;
+  return (
+    <>
+      <Chip id="hud-distance" className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 w-40">
+        <div className="flex items-center gap-1.5 text-[12px] text-ink-2">
+          <Route size={13} strokeWidth={1.8} /> Free drive
+        </div>
+        <div className="display text-[32px] leading-tight">
+          {(h.distance / 1000).toFixed(1)}
+          <span className="text-[15px] font-medium text-muted"> km</span>
+        </div>
+      </Chip>
+      <CityMap id="city-map" />
+    </>
+  );
+}
+
+/** the chase: the score and the combo, and the map with the way to the docks */
+function ScoreHud() {
+  const h = useNM((s) => s.hud);
   const comboFrac = Math.max(0, Math.min(1, h.comboT / RULES.comboWindow));
   return (
     <>
-      {clock ? (
-        <Chip className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 w-36">
-          <div className="flex items-center gap-1.5 text-[12px] text-ink-2">
-            <Timer size={13} strokeWidth={1.8} /> Time
-          </div>
-          <div className={`display text-[32px] leading-tight ${low ? 'text-alert throb' : 'text-ink'}`}>{h.time.toFixed(1)}</div>
-          <Bar value={h.time / RULES.maxTime} tone={low ? 'alert' : 'brand'} className="w-full mt-1" />
-        </Chip>
-      ) : (
-        <Chip id="hud-distance" className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 w-40">
-          <div className="flex items-center gap-1.5 text-[12px] text-ink-2">
-            <Route size={13} strokeWidth={1.8} /> {road?.zone ?? 'Distance'}
-          </div>
-          <div className="display text-[32px] leading-tight">
-            {(h.distance / 1000).toFixed(1)}
-            <span className="text-[15px] font-medium text-muted"> km</span>
-          </div>
-        </Chip>
-      )}
-      {!clock && <HighwayMap />}
-      {!clock && road?.fork && (
-        <div id="hud-fork" className="absolute left-1/2 -translate-x-1/2 bottom-6 surface rounded-full h-10 pl-4 pr-1.5 flex items-center gap-3 text-[13px] whitespace-nowrap">
-          <span className="text-ink-2">Fork in {road.fork.dist} m</span>
-          <span className="flex items-center gap-1 rounded-full bg-mist h-7 px-3">
-            <span className="font-semibold">↖ {road.fork.left}</span>
-            <span className="text-muted">{road.fork.leftBusy}</span>
-          </span>
-          <span className="flex items-center gap-1 rounded-full bg-mist h-7 px-3">
-            <span className="text-muted">{road.fork.rightBusy}</span>
-            <span className="font-semibold">{road.fork.right} ↗</span>
-          </span>
-        </div>
-      )}
-
+      <HighwayMap />
       <div className="absolute left-1/2 -translate-x-1/2 top-4 sm:top-6 flex flex-col items-center gap-2">
         <Chip className="px-5 py-2 text-center min-w-36">
           <div className="text-[12px] text-ink-2">Score</div>
@@ -492,47 +483,57 @@ function ScoreHud({ clock }: { clock: boolean }) {
           )}
         </div>
       </div>
-
-      {h.damaged && (
-        <div id="damaged" className={`absolute left-4 sm:left-6 ${chase ? 'top-[226px] sm:top-[238px]' : 'top-[112px] sm:top-[124px]'}`}>
-          <Badge tone="alert" className={h.lastHit ? 'throb' : ''}>
-            {h.lastHit ? 'One more hard hit wrecks it' : 'Damaged'}
-          </Badge>
-        </div>
-      )}
     </>
   );
 }
 
-/** the police chase: heat, how close you are to getting away (or to being busted), roadblocks */
+const STAGES = [
+  ['motorway', 'Motorway'],
+  ['town', 'Town'],
+  ['docks', 'Docks'],
+] as const;
+
+/** the police chase: heat, who is after you, the way to the docks, and getting boxed in */
 function ChaseHud() {
   const c = useNM((s) => s.chase);
   if (!c) return null;
-  const pursuit = c.state === 'pursuit';
-  const label = pursuit ? (c.escape > 0.02 ? 'Losing them' : 'Pursuit') : c.state === 'cooldown' ? 'Lost them' : 'Patrol';
   return (
     <>
-      {pursuit && c.close < 28 && <div className="absolute inset-0 police-glow" />}
-      <Chip id="hud-chase" className="absolute left-4 sm:left-6 top-[104px] sm:top-[116px] px-4 py-3 w-40">
-        <div className={`flex items-center gap-1.5 text-[12px] ${pursuit ? 'text-alert font-semibold' : 'text-ink-2'}`}>
-          <Siren size={13} strokeWidth={1.8} className={pursuit ? 'throb' : ''} /> {label}
+      {c.close < 28 && <div className="absolute inset-0 police-glow" />}
+      <Chip id="hud-chase" className="absolute left-4 sm:left-6 top-4 sm:top-6 px-4 py-3 w-48">
+        <div className="flex items-center justify-between text-[12px]">
+          <span className="flex items-center gap-1.5 text-alert font-semibold">
+            <Siren size={13} strokeWidth={1.8} className="throb" /> {c.cops > 0 ? `${c.cops} after you` : 'Pursuit'}
+          </span>
+          <span className="flex items-center gap-1 text-ink-2 tabular-nums">
+            <Clock size={12} strokeWidth={1.8} />
+            {Math.floor(c.time / 60)}:{String(c.time % 60).padStart(2, '0')}
+          </span>
         </div>
-        <div id="hud-heat" className="flex gap-0.5 mt-1.5" title={`Heat ${c.heat}: rises every ${HEAT_STEP} s of pursuit`}>
+        <div id="hud-heat" className="flex gap-0.5 mt-1.5" title={`Heat ${c.heat}: rises every ${HEAT_STEP} s`}>
           {[1, 2, 3, 4, 5].map((i) => (
             <Star key={i} size={16} strokeWidth={1.6} className={i <= c.heat ? 'text-alert' : 'text-line'} fill={i <= c.heat ? 'currentColor' : 'none'} />
           ))}
         </div>
-        {pursuit ? (
-          <div className="mt-2">
-            <div className="flex justify-between text-[11px] text-ink-2">
-              <span>Escape</span>
-              <span className="tabular-nums">{c.cops} after you</span>
-            </div>
-            <Bar value={c.escape} tone="brand" className="w-full mt-1" />
+        <div id="hud-docks" className="mt-3">
+          <div className="flex items-baseline justify-between">
+            <span className="flex items-center gap-1.5 text-[12px] text-ink-2">
+              <Anchor size={13} strokeWidth={1.8} /> Docks
+            </span>
+            <span className="display text-[20px] leading-none">
+              {(c.toDocks / 1000).toFixed(1)}
+              <span className="text-[12px] font-medium text-muted"> km</span>
+            </span>
           </div>
-        ) : (
-          <div className="mt-2 text-[12px] text-ink-2">{c.state === 'cooldown' ? `Next patrol ${c.cooldown} s` : 'A patrol car is ahead'}</div>
-        )}
+          <Bar value={c.progress} tone="brand" className="w-full mt-1.5" />
+          <div className="flex justify-between mt-1 text-[11px]">
+            {STAGES.map(([k, label]) => (
+              <span key={k} className={k === c.stage ? 'text-ink font-semibold' : 'text-muted'}>
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
       </Chip>
       {c.bust > 0.04 && (
         <div id="hud-bust" className="absolute left-1/2 -translate-x-1/2 top-[24%] surface rounded-2xl px-5 py-3 w-64 text-center">
@@ -555,7 +556,7 @@ function ChaseHud() {
 
 function Pause() {
   const paused = useNM((s) => s.paused);
-  const highway = useNM((s) => s.mode === 'highway' || s.mode === 'chase');
+  const chase = useNM((s) => s.mode === 'chase');
   if (!paused) return null;
   return (
     <div className="absolute inset-0 bg-night/40 flex items-center justify-center pointer-events-auto rise p-4">
@@ -565,16 +566,16 @@ function Pause() {
           <Button id="btn-resume" size="lg" onClick={() => nm.togglePause()}>
             <Play size={16} strokeWidth={2} fill="currentColor" /> Resume
           </Button>
-          {highway && (
-            <Button id="btn-end" variant="secondary" size="lg" onClick={() => nm.endHighway()}>
-              <Flag size={16} strokeWidth={1.8} /> End drive
+          {chase && (
+            <Button id="btn-end" variant="secondary" size="lg" onClick={() => nm.endDrive()}>
+              <Flag size={16} strokeWidth={1.8} /> Give up
             </Button>
           )}
           <Button variant="secondary" size="lg" onClick={() => nm.retry()}>
             <RotateCcw size={16} strokeWidth={1.8} /> Restart
           </Button>
-          <Button variant="ghost" size="lg" onClick={() => nm.toTitle()}>
-            <LogOut size={16} strokeWidth={1.8} /> Quit
+          <Button id="btn-quit" variant="ghost" size="lg" onClick={() => nm.toTitle()}>
+            <LogOut size={16} strokeWidth={1.8} /> {chase ? 'Quit' : 'Back to the garage'}
           </Button>
         </div>
       </div>
@@ -583,11 +584,11 @@ function Pause() {
 }
 
 // ------------------------------------------------------------------ results
-function ResultSheet({ children, stripe = null }: { children: ReactNode; stripe?: 'police' | 'alert' | null }) {
+function ResultSheet({ children, stripe = null }: { children: ReactNode; stripe?: 'police' | 'brand' | null }) {
   return (
     <div className="absolute inset-0 bg-night/40 pointer-events-auto flex justify-center overflow-y-auto p-4 rise">
       <div id="results" className="relative w-full max-w-[720px] my-auto bg-paper rounded-2xl float p-6 pt-7 flex flex-col gap-5 overflow-hidden">
-        {stripe && <div className={`absolute inset-x-0 top-0 h-1.5 ${stripe === 'police' ? 'stripe-police' : 'bg-alert'}`} />}
+        {stripe && <div className={`absolute inset-x-0 top-0 h-1.5 ${stripe === 'police' ? 'stripe-police' : 'bg-brand'}`} />}
         {children}
       </div>
     </div>
@@ -607,47 +608,33 @@ function Results() {
       </ResultSheet>
     );
   }
-  const time = (t: number) => (t >= 60 ? `${Math.floor(t / 60)} min ${t % 60} s` : `${t} s`);
   const ch = r.chase;
-  const stats: [string, string][] = ch
-    ? [
-        ['Escapes', fmt(ch.escapes)],
-        ['Takedowns', fmt(ch.takedowns)],
-        ['Highest heat', `${ch.heat} / 5`],
-        ['Chased for', time(ch.pursuit)],
-        ['Near misses', fmt(r.nearMisses)],
-        ['Top speed', `${r.topSpeed} km/h`],
-      ]
-    : [
-        ['Near misses', fmt(r.nearMisses)],
-        ['Best multiplier', r.bestCombo > 1 ? `×${r.bestCombo}` : '—'],
-        ['Top speed', `${r.topSpeed} km/h`],
-        ['Distance', `${(r.distance / 1000).toFixed(1)} km`],
-        [r.mode === 'highway' ? 'Drove for' : 'Survived', r.seconds >= 60 ? `${Math.floor(r.seconds / 60)} min ${r.seconds % 60} s` : `${r.seconds} s`],
-        ['Closest pass', r.closest !== null ? `${Math.round(r.closest * 100)} cm` : '—'],
-      ];
-  const title = r.reason === 'wrecked' ? 'Wrecked' : r.reason === 'busted' ? 'Busted' : r.reason === 'ended' ? (ch ? 'Chase over' : 'Drive over') : "Time's up";
+  const stats: [string, string][] = [
+    ['Time', mmss(ch?.time ?? r.seconds)],
+    ['Takedowns', fmt(ch?.takedowns ?? 0)],
+    ['Highest heat', `${ch?.heat ?? 1} / 5`],
+    ['Near misses', fmt(r.nearMisses)],
+    ['Top speed', `${r.topSpeed} km/h`],
+    ['Docks', ch?.escaped ? 'Made it' : `${((ch?.left ?? 0) / 1000).toFixed(1)} km short`],
+  ];
+  const title = r.reason === 'escaped' ? 'Escaped' : r.reason === 'busted' ? 'Busted' : 'Chase over';
   const why =
-    r.reason === 'busted'
-      ? `The police boxed you in at heat ${ch?.heat ?? 1}`
-      : r.reason === 'wrecked'
-        ? (r.garage?.health ?? 0) < 25
-          ? 'One hit too many. It limps out at 25% next time'
-          : 'Rolled it over'
-        : r.reason === 'ended'
-          ? 'You called it a day'
-          : 'The clock ran out';
-  const Icon = r.reason === 'busted' ? Siren : r.reason === 'wrecked' ? CarFront : r.reason === 'ended' ? Flag : Timer;
-  const tile = r.reason === 'busted' ? 'bg-night text-white' : r.reason === 'wrecked' ? 'bg-alert text-white' : 'bg-badge text-brand';
+    r.reason === 'escaped'
+      ? `Out through the docks with ${ch?.heat ?? 1}-star heat`
+      : r.reason === 'busted'
+        ? `Boxed in ${((ch?.left ?? 0) / 1000).toFixed(1)} km from the docks`
+        : 'You gave yourself up';
+  const Icon = r.reason === 'escaped' ? Anchor : r.reason === 'busted' ? Siren : Flag;
+  const tile = r.reason === 'escaped' ? 'bg-brand text-white' : r.reason === 'busted' ? 'bg-night text-white' : 'bg-badge text-brand';
   return (
-    <ResultSheet stripe={r.reason === 'busted' ? 'police' : r.reason === 'wrecked' ? 'alert' : null}>
+    <ResultSheet stripe={r.reason === 'busted' ? 'police' : r.reason === 'escaped' ? 'brand' : null}>
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="flex items-start gap-3.5 min-w-0">
           <div id="result-icon" className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${tile}`}>
             <Icon size={24} strokeWidth={1.8} />
           </div>
           <div className="min-w-0">
-            <div className={`text-2xl font-bold leading-tight ${r.reason === 'wrecked' || r.reason === 'busted' ? 'text-alert' : 'text-ink'}`}>{title}</div>
+            <div className={`text-2xl font-bold leading-tight ${r.reason === 'busted' ? 'text-alert' : r.reason === 'escaped' ? 'text-brand' : 'text-ink'}`}>{title}</div>
             <div className="text-[14px] text-ink mt-0.5">{why}</div>
             <div className="text-[13px] text-muted mt-0.5">
               {r.car} · {r.cond}
@@ -663,7 +650,7 @@ function Results() {
       </div>
       <StatGrid stats={stats} />
       {r.garage && <GarageResults g={r.garage} />}
-      <ResultButtons again="Drive again" />
+      <ResultButtons again="Chase again" />
     </ResultSheet>
   );
 }
@@ -687,73 +674,26 @@ function ResultButtons({ again }: { again: string }) {
   );
 }
 
-/** cracks across the screen from where it hit: a few jagged lines out from a point, and two broken rings */
-function Cracks() {
-  const paths = useMemo(() => {
-    const cx = 960 + (Math.random() - 0.5) * 300;
-    const cy = 380 + (Math.random() - 0.5) * 160;
-    const rays: [number, number][][] = [];
-    const n = 12;
-    for (let i = 0; i < n; i++) {
-      let a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
-      let x = cx;
-      let y = cy;
-      const pts: [number, number][] = [[x, y]];
-      const len = 260 + Math.random() * 900;
-      for (let r = 0; r < len; ) {
-        const step = 26 + Math.random() * 64;
-        r += step;
-        a += (Math.random() - 0.5) * 0.45;
-        x += Math.cos(a) * step;
-        y += Math.sin(a) * step;
-        pts.push([x, y]);
-      }
-      rays.push(pts);
-    }
-    const out = rays.map((pts) => 'M' + pts.map(([x, y]) => `${x.toFixed(0)} ${y.toFixed(0)}`).join(' L'));
-    // rings: join each ray to the next at about the same distance out, not quite all the way round
-    for (const R of [55, 150]) {
-      const at = rays.map((pts) =>
-        pts.reduce((b, p) => (Math.abs(Math.hypot(p[0] - cx, p[1] - cy) - R) < Math.abs(Math.hypot(b[0] - cx, b[1] - cy) - R) ? p : b), pts[1] ?? pts[0]),
-      );
-      for (let i = 0; i < at.length; i++) {
-        if (Math.random() < 0.25) continue;
-        const [x0, y0] = at[i];
-        const [x1, y1] = at[(i + 1) % at.length];
-        const mx = (x0 + x1) / 2 + (Math.random() - 0.5) * 20;
-        const my = (y0 + y1) / 2 + (Math.random() - 0.5) * 20;
-        out.push(`M${x0.toFixed(0)} ${y0.toFixed(0)} L${mx.toFixed(0)} ${my.toFixed(0)} L${x1.toFixed(0)} ${y1.toFixed(0)}`);
-      }
-    }
-    return out;
-  }, []);
-  return (
-    <svg className="absolute inset-0 w-full h-full crack-in" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" aria-hidden>
-      <g fill="none" strokeLinejoin="round" strokeLinecap="round">
-        {paths.map((d, i) => (
-          <path key={'s' + i} d={d} stroke="rgba(0,0,0,0.35)" strokeWidth="5" transform="translate(2 3)" />
-        ))}
-        {paths.map((d, i) => (
-          <path key={'w' + i} d={d} stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
-        ))}
-      </g>
-    </svg>
-  );
-}
-
 function mmss(t: number) {
   return t >= 60 ? `${Math.floor(t / 60)} min ${Math.round(t % 60)} s` : `${Math.round(t)} s`;
 }
 
-/** the moment it ends: the car wrecked (cracked glass, the colour drains), or busted (a stamp, police lights) */
+/** the moment the chase ends: busted (a stamp under police lights) or escaped (out through the dock gates) */
 function Ending() {
   const phase = useNM((s) => s.phase);
-  const busted = useNM((s) => s.ending === 'busted');
+  const ending = useNM((s) => s.ending);
   const chase = useNM((s) => s.chase);
   const score = useNM((s) => s.hud.score);
-  const health = useNM((s) => Math.round(s.hud.health));
-  if (phase !== 'wreck') return null;
-  if (busted) {
+  if (phase !== 'ending' || !ending) return null;
+  const chips = (
+    <div className="flex flex-wrap justify-center gap-2 rise">
+      {chase && <EndChip>{mmss(chase.time)}</EndChip>}
+      {chase && <EndChip>Heat {chase.heat}</EndChip>}
+      {chase && chase.takedowns > 0 && <EndChip>{chase.takedowns} taken out</EndChip>}
+      <EndChip>{fmt(score)} pts</EndChip>
+    </div>
+  );
+  if (ending === 'busted') {
     return (
       <div id="ending" data-ending="busted" className="absolute inset-0 pointer-events-none overflow-hidden ending-busted">
         <div className="absolute inset-x-0 top-0 h-3 lightbar" />
@@ -766,29 +706,22 @@ function Ending() {
           <div className="stamp bg-paper/95 border-[5px] border-alert rounded-2xl px-8 sm:px-12 py-2">
             <span className="block font-extrabold uppercase text-alert tracking-[0.08em] leading-none text-[clamp(44px,10vw,112px)]">Busted</span>
           </div>
-          <div className="flex flex-wrap justify-center gap-2 rise">
-            {chase && <EndChip>Heat {chase.heat}</EndChip>}
-            {chase && chase.pursuit > 0 && <EndChip>Chased {mmss(chase.pursuit)}</EndChip>}
-            {chase && chase.takedowns > 0 && <EndChip>{chase.takedowns} taken out</EndChip>}
-            <EndChip>{fmt(score)} pts</EndChip>
-          </div>
+          {chips}
         </div>
       </div>
     );
   }
   return (
-    <div id="ending" data-ending="wrecked" className="absolute inset-0 pointer-events-none overflow-hidden ending-wrecked">
-      <div className="absolute inset-0 wreck-flash" />
-      <Cracks />
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-4">
-        <div className="slam font-extrabold uppercase text-white tracking-[0.06em] leading-none text-[clamp(44px,10vw,120px)] [text-shadow:0_4px_24px_rgba(0,0,0,0.45)]">
-          Wrecked
+    <div id="ending" data-ending="escaped" className="absolute inset-0 pointer-events-none overflow-hidden ending-escaped">
+      <div className="absolute inset-0 escape-flash" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-8 px-4">
+        <div className="flex items-center gap-2 text-white/90 text-[13px] font-semibold tracking-[0.2em] uppercase">
+          <Anchor size={16} strokeWidth={2} /> Port exit
         </div>
-        <div className="h-1.5 w-28 rounded-full bg-alert grow-x" />
-        <div className="flex flex-wrap justify-center gap-2 rise">
-          <EndChip>{health > 0 ? 'Rolled over' : 'Condition 0%'}</EndChip>
-          {health < 25 && <EndChip>Limps out at 25% next time</EndChip>}
+        <div className="stamp stamp-win bg-brand rounded-2xl px-8 sm:px-12 py-2 border-[5px] border-paper">
+          <span className="block font-extrabold uppercase text-white tracking-[0.08em] leading-none text-[clamp(44px,10vw,112px)]">Escaped</span>
         </div>
+        {chips}
       </div>
     </div>
   );

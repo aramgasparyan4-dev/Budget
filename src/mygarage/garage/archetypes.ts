@@ -71,7 +71,7 @@ export const ARCHETYPES: Archetype[] = [
     name: 'Family sedan',
     type: 10,
     best: 'Earns the most',
-    perk: '+20% coins from every drive',
+    perk: '+20% coins from every chase and race',
     examples: 'Camry, Corolla, Elantra, Passat, Optima',
     perks: P({ cashMul: 1.2 }),
   },

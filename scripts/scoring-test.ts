@@ -1,4 +1,4 @@
-// Unit checks for Near Miss scoring: run with `npx tsx scripts/scoring-test.ts`
+// Unit checks for the scoring rules: run with `npx tsx scripts/scoring-test.ts`
 import { Scorer, RULES, CarState, OtherCar } from '../src/mygarage/scoring';
 
 let failed = 0;
@@ -98,17 +98,16 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
   });
 }
 {
-  // free drive: the first big hit damages the car, the second ends the run
+  // a chase: big hits damage the car, nothing ever wrecks it
   const s = pass({ gap: 0.6 });
   const before = s.comboPoints;
-  const t0 = s.time;
-  const r1 = s.impact(RULES.wreckImpact + 1);
+  const r1 = s.impact(RULES.bigImpact + 1);
   check(
-    'first big hit damages the car, loses the combo and some time',
-    r1 === 'damage' && s.damaged && !s.over && before > 0 && s.comboPoints === 0 && s.time < t0 && s.events.some((e) => e.kind === 'damage'),
-    { r1, before, time: s.time, t0 },
+    'a big hit damages the car and loses the combo',
+    r1 === 'damage' && s.damaged && !s.over && before > 0 && s.comboPoints === 0 && s.events.some((e) => e.kind === 'damage'),
+    { r1, before },
   );
-  const r2 = s.impact(RULES.wreckImpact + 3);
+  const r2 = s.impact(RULES.bigImpact + 3);
   check('the same crash bouncing on does not count twice', r2 === 'none' && !s.over, { r2 });
   const car: CarState = {
     x: 0,
@@ -135,8 +134,16 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
       boosting: false,
       dt: 1 / 60,
     });
-  const r4 = s.impact(RULES.wreckImpact + 1);
-  check('second big hit wrecks the run', r4 === 'wreck' && s.over === 'wrecked', { r4 });
+  const r4 = s.impact(RULES.bigImpact + 1);
+  for (let i = 0; i < 60 * (RULES.damageGrace + 0.2); i++)
+    s.update(car, [], {
+      oncoming: false,
+      drift: NO_DRIFT,
+      boosting: false,
+      dt: 1 / 60,
+    });
+  const r5 = s.impact(RULES.bigImpact + 8);
+  check('more big hits take it down to 0% at worst, and nothing ends the run', r4 === 'damage' && r5 === 'damage' && s.health === 0 && !s.over, { r4, r5, health: s.health });
 }
 {
   // race: big hits stop you but never end anything, and there is no clock
@@ -152,7 +159,7 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
   };
   const results: string[] = [];
   for (let k = 0; k < 3; k++) {
-    results.push(s.impact(RULES.wreckImpact + 4));
+    results.push(s.impact(RULES.bigImpact + 4));
     for (let i = 0; i < 60 * (RULES.damageGrace + 0.2); i++)
       s.update(car, [], {
         oncoming: false,
@@ -166,14 +173,14 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
     crashes: s.crashes,
     health: s.health,
   });
-  for (let i = 0; i < 60 * (RULES.startTime + 5); i++)
+  for (let i = 0; i < 60 * 90; i++)
     s.update(car, [], {
       oncoming: false,
       drift: NO_DRIFT,
       boosting: false,
       dt: 1 / 60,
     });
-  check('race: no clock', !s.over, { over: s.over, time: s.time });
+  check('race: no clock', !s.over, { over: s.over });
   const p = pass({ gap: 0.6 });
   const rp = new Scorer('race');
   // near misses still fill the boost in a race
@@ -182,24 +189,18 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
   check('race: near misses still count and fill the boost', q.nearMisses === 1 && q.boost > boost0 && p.nearMisses === 1, { boost: q.boost, boost0 });
 }
 {
-  const s = new Scorer();
-  const car: CarState = {
-    x: 0,
-    z: 0,
-    yaw: 0,
-    vx: 0,
-    vz: 0,
-    width: W,
-    length: L,
-  };
-  for (let i = 0; i < 60 * (RULES.startTime + 1); i++)
-    s.update(car, [], {
-      oncoming: false,
-      drift: NO_DRIFT,
-      boosting: false,
-      dt: 1 / 60,
-    });
-  check('clock runs out', s.over === 'time' && s.time === 0);
+  // free drive: nothing to score, nothing to break
+  const s = new Scorer('free', { startBoost: 0 });
+  const q = pass({ gap: 0.4, scorer: s, seconds: 4 });
+  const r = s.impact(RULES.bigImpact + 10);
+  for (let i = 0; i < 60 * 10; i++) s.update({ x: 0, z: 0, yaw: 0, vx: 0, vz: 20, width: W, length: L }, [], { oncoming: true, drift: { active: true, angle: 30 }, boosting: false, dt: 1 / 60 });
+  check('free drive: no points, no damage, no end', q.nearMisses === 0 && s.events.length === 0 && s.score === 0 && r === 'none' && s.health === 100 && !s.over && s.distance > 300, {
+    near: q.nearMisses,
+    events: s.events,
+    r,
+    health: s.health,
+  });
+  check('free drive: the boost fills up again by itself', s.boost > 0.5, s.boost);
 }
 {
   const s = new Scorer();
@@ -219,7 +220,7 @@ function pass(opts: { gap: number; otherYaw?: number; otherV?: number; speed?: n
       boosting: false,
       dt: 1 / 60,
     });
-  check('oncoming lane builds combo points and keeps the clock up', s.comboPoints > 100 && s.time > RULES.startTime - 3, { cp: s.comboPoints, t: s.time });
+  check('oncoming lane builds combo points', s.comboPoints > 100, { cp: s.comboPoints });
 }
 {
   // boost: drains, and multiplies points earned while active
@@ -362,37 +363,34 @@ function drift(seconds: number, angle: number, after = 0.5) {
   const plain = pass({ gap: 0.6 }).events.find((x) => x.kind === 'near')!.points;
   check('near miss mid-drift is worth 1.5x and says so', !!e && e.points >= plain * 1.45 && !!e.sub?.includes('DRIFTING'), { e, plain });
 }
-// highway: no clock, a drive ends when you end it or the car is wrecked
+// the chase: no clock; it ends when you get away, are busted, or end it
 {
-  const s = new Scorer('highway');
+  const s = new Scorer('chase');
   const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 40, width: W, length: L };
-  for (let t = 0; t < RULES.maxTime * 3; t += 1 / 30) s.update(car, [], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 30 });
-  check('highway: no clock, the drive goes on', s.over === null && s.elapsed > RULES.maxTime * 2.9, { over: s.over, elapsed: s.elapsed });
-  const r1 = s.impact(RULES.wreckImpact + 1);
-  check('highway: a big hit damages the car without costing time', r1 === 'damage' && s.health < 100 && s.time === RULES.startTime, { r1, health: s.health, time: s.time });
+  for (let t = 0; t < 180; t += 1 / 30) s.update(car, [], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 30 });
+  check('chase: no clock, the drive goes on', s.over === null && s.elapsed > 179, { over: s.over, elapsed: s.elapsed });
+  s.pursuit(10, 3);
+  check('chase: time with the police after you scores, more at higher heat', s.score === Math.round(RULES.pursuitRate * 3 * 10), s.score);
 }
 {
-  const s = new Scorer('highway');
-  s.impact(RULES.wreckImpact + 2);
-  for (let t = 0; t < 2; t += 1 / 30) s.update({ x: 0, z: 0, yaw: 0, vx: 0, vz: 30, width: W, length: L }, [], { oncoming: false, drift: NO_DRIFT, boosting: false, dt: 1 / 30 });
-  const r2 = s.impact(RULES.wreckImpact + 6);
-  check('highway: the second big hit wrecks an average car', r2 === 'wreck' && s.over === 'wrecked', { r2, over: s.over });
-}
-{
-  const s = pass({ gap: 0.6, scorer: new Scorer('highway'), seconds: 3.2 });
+  const s = pass({ gap: 0.6, scorer: new Scorer('chase'), seconds: 3.2 });
   const before = s.score;
   const unbanked = s.comboPoints;
-  s.end('ended');
-  check('highway: ending the drive banks the combo', s.over === 'ended' && unbanked > 0 && s.score > before && s.comboPoints === 0, { before, after: s.score, unbanked });
+  s.end('escaped');
+  check('chase: getting away banks the combo', s.over === 'escaped' && unbanked > 0 && s.score > before && s.comboPoints === 0, { before, after: s.score, unbanked });
+  const b = pass({ gap: 0.6, scorer: new Scorer('chase'), seconds: 3.2 });
+  const was = b.score;
+  b.end('busted');
+  check('chase: being busted loses it', b.over === 'busted' && b.score === was && b.comboPoints === 0 && b.events.some((e) => e.kind === 'lost'), { was, after: b.score });
 }
 {
-  const wide = pass({ gap: 1.4, scorer: new Scorer('highway'), seconds: 3 });
-  const tight = pass({ gap: 1.0, scorer: new Scorer('highway'), seconds: 3 });
-  check('highway: a pass down the middle of the next lane is just driving; a close one counts', wide.nearMisses === 0 && tight.nearMisses === 1, { wide: wide.nearMisses, tight: tight.nearMisses });
+  const wide = pass({ gap: 1.4, scorer: new Scorer('chase'), seconds: 3 });
+  const tight = pass({ gap: 1.0, scorer: new Scorer('chase'), seconds: 3 });
+  check('chase: a pass down the middle of the next lane is just driving; a close one counts', wide.nearMisses === 0 && tight.nearMisses === 1, { wide: wide.nearMisses, tight: tight.nearMisses });
 }
 {
   // one car each side in quick succession
-  const s = new Scorer('highway');
+  const s = new Scorer('chase');
   const car: CarState = { x: 0, z: 0, yaw: 0, vx: 0, vz: 35, width: W, length: L };
   const a: OtherCar = { id: 1, x: W / 2 + 0.93 + 0.5, z: 30, yaw: 0, v: 20, width: 1.86, length: 4.65 };
   const b: OtherCar = { id: 2, x: -(W / 2 + 0.93 + 0.5), z: 36, yaw: 0, v: 20, width: 1.86, length: 4.65 };
@@ -405,7 +403,7 @@ function drift(seconds: number, angle: number, after = 0.5) {
   check('threading between two cars is a bonus', s.nearMisses === 2 && s.events.some((e) => e.label === 'THREADED'), s.events.map((e) => e.label));
 }
 {
-  const s = new Scorer('highway', { startBoost: 0 });
+  const s = new Scorer('chase', { startBoost: 0 });
   for (let i = 0; i < 60; i++) s.slipstream(1 / 30, false);
   check('a slipstream refills the boost', s.boost > 0.15 && s.comboPoints > 0, { boost: s.boost, combo: s.comboPoints });
 }

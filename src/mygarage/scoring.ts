@@ -1,19 +1,19 @@
-// Near Miss scoring rules. Pure logic (no rendering, physics or DOM) so it can be tested in Node.
+// Scoring rules. Pure logic (no rendering, physics or DOM) so it can be tested in Node.
 //
-// A run lives on a draining clock. Risky driving refills it and builds a combo:
-//  - near miss: passing a car with less than 1.7 m of side clearance, faster than it, without touching
+// Risky driving builds a combo:
+//  - near miss: passing a car close (under 1.15 m of side clearance on the chase road's wide lanes,
+//    1.7 m in the city), faster than it, without touching
 //  - oncoming lane: driving against traffic
 //  - drift: a slide held for a while, scored by angle, speed and length; passes made mid-drift count 1.5x
 // Every event raises the combo multiplier. The combo banks into the score after a few quiet seconds;
 // a scrape loses whatever is unbanked. Hits also cost the car condition (0-100%): a big hit takes
-// about half of an average car, so a fresh one survives one and the second ends the run; tougher
-// cars and body armour take more. A car at 0% is wrecked.
+// about half of an average car; tougher cars and body armour take less. Nothing is ever wrecked: a
+// car at 0% keeps going, slower and smoking.
 //
-// In a race there is no clock and nothing ends the run: a big hit just stops the car. Near misses and
-// drifts still pop up and still fill the boost bar, which is what makes risky driving pay off there.
-// On the highway there is no clock either: the drive lasts until the car is wrecked or you end it.
-// A police chase is the same, and also ends if you are busted; time spent with the police on your
-// tail scores on its own, more at higher heat.
+// A police chase has no clock: it ends when you reach the docks (escaped), are busted, or end it;
+// time spent with the police on your tail scores on its own, more at higher heat. In a race a big hit
+// stops the car for a moment; near misses and drifts still pop up and still fill the boost bar. Free
+// drive scores nothing and takes no damage: the boost just fills up again by itself.
 
 export interface CarState {
   x: number;
@@ -53,8 +53,6 @@ export interface ScoreEvent {
 }
 
 export const RULES = {
-  startTime: 40,
-  maxTime: 60,
   comboWindow: 4, // seconds without an event before the combo banks
   maxMult: 10,
   nearGap: 1.7, // metres of side clearance that still count (a lane-centred pass in the next lane is ~1.6)
@@ -64,23 +62,25 @@ export const RULES = {
   minRelSpeed: 6,
   boostDrain: 0.24, // per second
   boostMul: 1.5,
-  scrapeTimePenalty: 3,
-  wreckImpact: 11, // velocity change (m/s) of a big hit: damages the car, the second one ends the run
+  bigImpact: 11, // velocity change (m/s) of a big hit
   scrapeImpact: 4.5,
   damageGrace: 1.5, // seconds after a big hit in which further hits are part of the same crash
-  damageTimePenalty: 5,
-  bigHitDamage: 52, // condition lost to a big hit on an average car, plus 1.5 per m/s above wreckImpact...
-  bigHitCap: 70, // ...up to this, so a fresh average car always survives its first big hit
+  bigHitDamage: 52, // condition lost to a big hit on an average car, plus 1.5 per m/s above bigImpact...
+  bigHitCap: 70, // ...up to this
   scrapeDamage: 1.2, // condition lost per m/s of a scrape above scrapeImpact
   damagedBelow: 60, // condition under which the car counts as damaged (smoke, slower)
-  raceFloor: 10, // a race never takes a car below this (the garage's minimum to start a run)
+  raceFloor: 10, // a race never takes a car below this
   minDrift: 0.6, // seconds a slide must last to count as a drift
   driftRate: 90, // points per second at 25 degrees and standing speed factor
   driftPassMul: 1.5,
   highwayNearGap: 1.15, // a pass down the middle of the next highway lane leaves ~1.5 m: that is just driving
   threadWindow: 0.6, // seconds between passes on either side that count as threading the needle
   pursuitRate: 15, // chase: points per second with the police after you, per heat level
+  freeBoostRefill: 0.06, // free drive: boost back per second
 };
+
+export type ScoreMode = 'free' | 'chase' | 'race';
+export type EndReason = 'ended' | 'busted' | 'escaped';
 
 interface Track {
   entryLon: number;
@@ -114,10 +114,10 @@ export class Scorer {
   damageTaken = 0;
 
   constructor(
-    readonly mode: 'score' | 'race' | 'highway' | 'chase' = 'score',
+    readonly mode: ScoreMode = 'chase',
     opts: Partial<ScorerOpts> = {},
   ) {
-    this.opts = { ...DEFAULT_OPTS, ...(mode === 'highway' || mode === 'chase' ? { nearGap: RULES.highwayNearGap } : {}), ...opts };
+    this.opts = { ...DEFAULT_OPTS, ...(mode === 'chase' ? { nearGap: RULES.highwayNearGap } : {}), ...opts };
     this.health = this.opts.health;
     this.boost = this.opts.startBoost;
   }
@@ -137,9 +137,8 @@ export class Scorer {
   comboCount = 0;
   comboT = 0;
   boost = 0.35;
-  time = RULES.startTime;
   elapsed = 0;
-  over: null | 'wrecked' | 'time' | 'ended' | 'busted' = null;
+  over: null | EndReason = null;
   /** chase: points from time in pursuit */
   pursuitPoints = 0;
   /** race: big hits taken */
@@ -193,13 +192,17 @@ export class Scorer {
 
     // boost
     if (ctx.boosting && this.boost > 0) this.boost = Math.max(0, this.boost - RULES.boostDrain * this.opts.boostDrainMul * dt);
+    // free drive: nothing to score, the boost comes back by itself
+    if (this.mode === 'free') {
+      if (!ctx.boosting) this.boost = Math.min(1, this.boost + RULES.freeBoostRefill * dt);
+      return;
+    }
 
     // continuous risk: oncoming lane
     if (speed > RULES.minSpeed && ctx.oncoming) {
       this.oncomingSec += dt;
       this.addCombo(70 * speedFactor * dt, ctx.boosting, 1.2);
       this.gainBoost(0.05 * dt);
-      this.time = Math.min(RULES.maxTime, this.time + 0.4 * dt);
     }
 
     // drifting: points build while sliding (and are lost with the combo on a hit); the drift itself is
@@ -219,7 +222,6 @@ export class Scorer {
       this.driftSec += dt;
       this.driftMax = Math.max(this.driftMax, a);
       this.gainBoost(0.08 * (a / 25) * dt);
-      this.time = Math.min(RULES.maxTime, this.time + 0.35 * dt);
     } else if (this.driftActive) this.endDrift();
 
     // near misses
@@ -275,21 +277,13 @@ export class Scorer {
     }
     for (const [id, tr] of this.tracks) if (this.t - tr.lastSeen > 1) this.tracks.delete(id);
 
-    // combo banking (on the highway and in a chase the combo window runs at half speed above 160 km/h)
+    // combo banking (in a chase the combo window runs at half speed above 160 km/h)
     if (this.comboPoints > 0) {
-      this.comboT -= (this.mode === 'highway' || this.mode === 'chase') && kmh > 160 ? dt * 0.5 : dt;
+      this.comboT -= this.mode === 'chase' && kmh > 160 ? dt * 0.5 : dt;
       if (this.comboT <= 0) this.bank();
     }
 
     if (this.graceT > 0) this.graceT -= dt;
-
-    // the clock (only time attack has one)
-    if (this.mode !== 'score') return;
-    this.time -= dt;
-    if (this.time <= 0) {
-      this.time = 0;
-      this.end('time');
-    }
   }
 
   private nearMiss(gap: number, headingDot: number, speedFactor: number, boosting: boolean) {
@@ -306,7 +300,6 @@ export class Scorer {
     this.nearMisses++;
     this.closest = Math.min(this.closest, Math.max(0, gap));
     this.gainBoost(0.07 * tier);
-    this.time = Math.min(RULES.maxTime, this.time + 1.5 * tier);
     const label = tier === 3 ? 'INSANE' : tier === 2 ? 'CLOSE CALL' : 'NEAR MISS';
     const parts = [oncoming ? 'ONCOMING' : crossing ? 'CROSS TRAFFIC' : '', this.driftActive ? 'DRIFTING' : ''].filter(Boolean);
     const sub = parts.length ? parts.join(' · ') : undefined;
@@ -346,7 +339,6 @@ export class Scorer {
     if (this.over) return;
     this.bump();
     this.addCombo(points, boosting);
-    this.time = Math.min(RULES.maxTime, this.time + 1);
     this.events.push({ kind: 'bonus', label, points });
   }
 
@@ -367,25 +359,22 @@ export class Scorer {
   }
 
   /**
-   * A collision; returns what it meant. 'crash' (race): the car stops and carries on. 'damage' (free
-   * drive): a big hit the car survived. 'wreck': condition gone, the run is over.
+   * A collision; returns what it meant. 'crash' (race): the car stops and carries on. 'damage': a big
+   * hit (condition lost, the combo gone). Nothing ever ends the run: a car at 0% keeps going. Free
+   * drive takes no damage at all.
    */
-  impact(dv: number): 'none' | 'scrape' | 'crash' | 'damage' | 'wreck' {
-    if (this.over || dv < RULES.scrapeImpact) return 'none';
+  impact(dv: number): 'none' | 'scrape' | 'crash' | 'damage' {
+    if (this.over || this.mode === 'free' || dv < RULES.scrapeImpact) return 'none';
     // the rest of a crash that just happened (bouncing off the car we hit) counts as part of it
     if (this.graceT > 0) return 'none';
-    const big = dv >= RULES.wreckImpact;
-    const raw = big ? Math.min(RULES.bigHitCap, RULES.bigHitDamage + (dv - RULES.wreckImpact) * 1.5) : (dv - RULES.scrapeImpact) * RULES.scrapeDamage;
+    const big = dv >= RULES.bigImpact;
+    const raw = big ? Math.min(RULES.bigHitCap, RULES.bigHitDamage + (dv - RULES.bigImpact) * 1.5) : (dv - RULES.scrapeImpact) * RULES.scrapeDamage;
     const dmg = raw * this.opts.damageTaken;
     const before = this.health;
     this.health = Math.max(this.mode === 'race' ? Math.min(before, RULES.raceFloor) : 0, before - dmg);
     this.damageTaken += before - this.health;
     const lost = Math.round(this.comboPoints * this.mult * this.opts.scoreMul);
     this.driftActive = false; // the drift's points went with the combo
-    if (this.mode !== 'race' && this.health <= 0) {
-      this.end('wrecked');
-      return 'wreck';
-    }
     this.resetCombo();
     const left = `${Math.round(this.health)}% LEFT`;
     if (big && this.mode === 'race') {
@@ -398,14 +387,12 @@ export class Scorer {
     if (big) {
       this.graceT = RULES.damageGrace;
       this.boost = Math.max(0, this.boost - 0.3);
-      if (this.mode === 'score') this.time = Math.max(1, this.time - RULES.damageTimePenalty);
       this.events.push({ kind: 'damage', label: 'CAR DAMAGED', sub: left, points: -lost });
       return 'damage';
     }
     if (lost > 0) this.events.push({ kind: 'lost', label: 'COMBO LOST', points: -lost });
     else this.events.push({ kind: 'scrape', label: 'SCRAPE', points: 0 });
     this.boost = Math.max(0, this.boost - 0.2);
-    if (this.mode === 'score') this.time = Math.max(0, this.time - RULES.scrapeTimePenalty);
     return 'scrape';
   }
 
@@ -425,12 +412,12 @@ export class Scorer {
     if (tr) tr.touched = true;
   }
 
-  end(reason: 'wrecked' | 'time' | 'ended' | 'busted') {
+  end(reason: EndReason) {
     if (this.over) return;
     this.over = reason;
-    // running out of time (or ending a highway drive) still banks the combo, a drift in progress
-    // included; a wreck (or being busted) loses it
-    if (reason !== 'wrecked' && reason !== 'busted') {
+    // getting away (or ending the drive) still banks the combo, a drift in progress included; being
+    // busted loses it
+    if (reason !== 'busted') {
       if (this.driftActive) this.endDrift();
       this.bank();
     } else if (this.comboPoints > 0) {

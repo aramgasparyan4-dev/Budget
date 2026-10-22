@@ -8,7 +8,7 @@ import { MeshBuilder, BASIC_LAYOUT, addBox, addCylinder, addCone, lin } from '..
 import { toBufferGeometry, buildPropModels } from '../../render/propModels';
 import { createPropMaterial, createLightPoolMaterial } from '../../render/materials';
 import type { PropType } from '../../world/types';
-import { Piece, Path, LANE_W, RAIL_L, RAIL_R_OFF, STEP, SIDEWALK, STREET_GAP, JUNCTION_W, Rand } from './road';
+import { Piece, Path, LANE_W, RAIL_L, RAIL_R_OFF, STEP, SIDEWALK, STREET_GAP, JUNCTION_W, DOCKS_GATE, Rand } from './road';
 
 const C = {
   asphalt: lin([0.25, 0.25, 0.27]),
@@ -38,6 +38,8 @@ const C = {
   signal: lin([0.08, 0.08, 0.09]),
 };
 
+const CONTAINERS = [lin([0.62, 0.12, 0.08]), lin([0.1, 0.28, 0.55]), lin([0.14, 0.42, 0.2]), lin([0.85, 0.42, 0.08]), lin([0.48, 0.5, 0.53]), lin([0.82, 0.82, 0.78]), lin([0.4, 0.12, 0.16]), lin([0.08, 0.45, 0.55])];
+const CRANE = lin([0.95, 0.62, 0.08]);
 const AWNINGS = [lin([0.6, 0.1, 0.08]), lin([0.1, 0.32, 0.55]), lin([0.15, 0.4, 0.2]), lin([0.55, 0.45, 0.1]), lin([0.2, 0.2, 0.22])];
 /** the top of the pavements and kerbs */
 const KERB_Y = 0.14;
@@ -152,6 +154,8 @@ interface Kit {
   rng: Rand;
   group: THREE.Group;
   instanced: THREE.InstancedMesh[];
+  /** geometries to free with the piece */
+  geometries: THREE.BufferGeometry[];
 }
 
 export class PieceBuilder {
@@ -495,7 +499,7 @@ export class PieceBuilder {
     if (!piece.tunnel && !piece.street) this.scenery(piece, rng, mb, P, eR, railR, group, instanced, piece.water);
 
     // ---------------------------------------------------------------- a downtown street
-    if (piece.street) this.street(piece, { P, band, head, deck, marks, pools, mb, body, rng, group, instanced });
+    if (piece.street) this.street(piece, { P, band, head, deck, marks, pools, mb, body, rng, group, instanced, geometries });
 
     // ---------------------------------------------------------------- meshes
     const add = (g: THREE.BufferGeometry, mat: THREE.Material, shadow: boolean, order = 0) => {
@@ -621,7 +625,7 @@ export class PieceBuilder {
       const g = path.companionGap(piece.s0 + u);
       return g !== null && g < 150 ? -g - path.compLanes * LANE_W - 10 : RAIL_L - 7;
     };
-    const per = { forest: 0.09, fields: 0.022, coast: 0.016, desert: 0.012, city: 0.006, downtown: 0 }[zone];
+    const per = { forest: 0.09, fields: 0.022, coast: 0.016, desert: 0.012, city: 0.006, downtown: 0, docks: 0 }[zone];
     for (const side of [-1, 1]) {
       if (water && side === 1) continue;
       if (zone === 'coast' && side === -1) continue;
@@ -842,6 +846,12 @@ export class PieceBuilder {
       }
     }
 
+    // ---------------------------------------------------------------- the docks (the end of the chase road)
+    if (piece.zone === 'docks') {
+      this.docks(piece, k, faceL, faceR, head);
+      return;
+    }
+
     // ---------------------------------------------------------------- buildings, or hedges where the median is still open
     const counts: Partial<Record<PropType, { x: number; z: number; s: number; r: number }[]>> = {};
     for (const side of [1, -1] as const) {
@@ -919,6 +929,110 @@ export class PieceBuilder {
       const r = 10;
       const q = (dx: number, dz: number, uu: number, vv: number): V => ({ x: c.x + dx, y: 0.04, z: c.z + dz, u: uu, v: vv });
       pools.quad(q(-r, -r, 0, 0), q(r, -r, 1, 0), q(-r, r, 0, 1), q(r, r, 1, 1), [1, 1, 1], 1);
+    }
+  }
+
+  /**
+   * The docks: stacks of containers either side behind the fences, the dock gates over the road
+   * (through them you have escaped) with a chequered line, gantry cranes and a ship at the quay, and
+   * the road ending at a row of barriers in front of the water.
+   */
+  private docks(piece: Piece, k: Kit, faceL: Lat, faceR: Lat, head: (u: number) => number) {
+    const { P, band, marks, mb, body, rng, group } = k;
+    const len = piece.len;
+    const gate = (piece.path.finish ?? piece.s0 + DOCKS_GATE) - piece.s0;
+    const h = head(0);
+    const T = (u: number, lat: number) => {
+      const p = P(u, lat, 0);
+      return { tx: p.x, ty: 0, tz: p.z, ry: h };
+    };
+    // containers: rows along the road, stacked one to four high
+    for (const side of [1, -1] as const) {
+      const face = side === 1 ? faceR(0) : faceL(0);
+      for (let row = 0; row < 6; row++) {
+        const lat = face + side * (2.2 + row * 2.75 + (row >= 3 ? 5 : 0));
+        for (let u = 6; u < len - 40; u += 12.9) {
+          if (Math.abs(u + 6 - gate) < 14 || rng.next() < 0.18) continue;
+          const n = 1 + Math.floor(rng.next() * (row < 2 ? 3 : 4));
+          for (let level = 0; level < n; level++) {
+            const c = CONTAINERS[Math.floor(rng.next() * CONTAINERS.length)];
+            addBox(mb, 0, 1.3 + level * 2.6, 0, 2.44, 2.55, 12.2, c, T(u + 6.1, lat));
+            // a darker line where the doors are
+            addBox(mb, 0, 1.3 + level * 2.6, 6.11, 2.2, 2.3, 0.04, C.dark, T(u + 6.1, lat));
+          }
+        }
+      }
+      // a chain-link fence along the pavement
+      for (let u = 0; u < len - 14; u += 8) {
+        if (Math.abs(u + 4 - gate) < 8) continue;
+        addBox(mb, 0, 1.1, 0, 0.06, 2.2, 8, C.steel, T(u + 4, face + side * 0.3), 0);
+      }
+    }
+    // the dock gates: posts, a beam and the sign, and a chequered line on the road
+    const gl = faceL(gate) + 0.5;
+    const gr = faceR(gate) - 0.5;
+    for (const l of [gl, gr]) addBox(mb, 0, 3.8, 0, 0.6, 7.6, 0.6, C.signal, T(gate, l));
+    addBox(mb, 0, 7.4, 0, gr - gl + 0.6, 0.8, 0.8, C.signal, T(gate, (gl + gr) / 2));
+    const sp = P(gate, (gl + gr) / 2, 0);
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(14, gr - gl - 2), 2.2), this.signMat('DOCKS · PORT EXIT'));
+    board.position.set(sp.x - Math.sin(h) * 0.45, 6.0, sp.z - Math.cos(h) * 0.45);
+    board.rotation.y = h + Math.PI;
+    group.add(board);
+    k.geometries.push(board.geometry);
+    for (let l = faceL(gate) + 0.2, i = 0; l < faceR(gate) - 0.2; l += 1, i++) {
+      for (let row = 0; row < 2; row++) {
+        if ((i + row) % 2) continue;
+        band(gate + row - 1, gate + row, () => l, () => l + 1, C.white, marks, 0.036, 12, 0.08);
+      }
+    }
+    // gantry cranes at the quay, booms out over the water
+    for (const [u, lat] of [
+      [len - 70, faceL(0) - 26],
+      [len - 70, faceR(0) + 26],
+      [len - 150, faceR(0) + 26],
+    ] as const) {
+      const t = T(u, lat);
+      for (const [x, z] of [
+        [-7, -5],
+        [7, -5],
+        [-7, 5],
+        [7, 5],
+      ])
+        addBox(mb, x, 15, z, 1.1, 30, 1.1, CRANE, t);
+      addBox(mb, 0, 30.5, 0, 16, 2, 12, CRANE, t);
+      addBox(mb, 0, 33, 30, 3, 2.2, 74, CRANE, t);
+      addBox(mb, 0, 33, -12, 3, 2.2, 14, CRANE, t);
+      addBox(mb, 0, 31, -16, 5, 5, 4, C.concrete, t);
+      addBox(mb, 2.2, 36.5, 4, 2.2, 5, 2.4, C.white, t, 0.4);
+    }
+    // the end of the road: barriers across it, a quay wall, the water and a ship alongside
+    const stop = len - 10;
+    for (let l = faceL(stop); l < faceR(stop); l += 2) {
+      addBox(mb, 0, 0.45, 0, 2.0, 0.9, 0.6, Math.round(l / 2) % 2 ? C.concrete : C.yellow, T(stop, l + 1));
+    }
+    this.segment(body, P(stop, faceL(stop) - 1), P(stop, faceR(stop) + 1), 1.2);
+    const end = piece.path.pose(piece.s0 + len, (faceL(len) + faceR(len)) / 2);
+    const ox = piece.xs[0];
+    const oz = piece.zs[0];
+    const fx = Math.sin(end.h);
+    const fz = Math.cos(end.h);
+    // the harbour: from the quay out to the horizon
+    const wg = new THREE.PlaneGeometry(1400, 900);
+    wg.rotateX(-Math.PI / 2);
+    const water = new THREE.Mesh(wg, this.waterMat);
+    water.rotation.y = end.h;
+    water.position.set(end.x - ox + fx * 452, -0.15, end.z - oz + fz * 452);
+    water.receiveShadow = true;
+    group.add(water);
+    k.geometries.push(wg);
+    const quay = { tx: end.x - ox, ty: 0, tz: end.z - oz, ry: end.h };
+    addBox(mb, 0, -0.7, 0, 220, 1.6, 1.2, C.concrete, quay);
+    const ship = { tx: end.x - ox + fx * 40, ty: 0, tz: end.z - oz + fz * 40, ry: end.h + Math.PI / 2 };
+    addBox(mb, 0, 3.5, 0, 150, 9, 24, C.dark, ship);
+    addBox(mb, 0, 8.2, 0, 150.2, 0.6, 24.2, C.red, ship);
+    addBox(mb, -60, 15, 0, 18, 12, 20, C.white, ship, 0.25);
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 3; j++) addBox(mb, -40 + i * 12.6, 9.8 + j * 2.6, (rng.next() - 0.5) * 6, 12.2, 2.55, 2.44, CONTAINERS[Math.floor(rng.next() * CONTAINERS.length)], ship);
     }
   }
 

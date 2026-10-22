@@ -33,7 +33,7 @@ import { useGarage, hostBridge } from './garage/store';
 import { ARCHETYPES, ARCHETYPE, topSpeedKmh, zeroToHundred, type ArchetypeId } from './garage/archetypes';
 import { knownMakes, knownModels, makeName } from './garage/catalog';
 import { archetypeOf, paintOf, type GarageVehicle } from './garage/vehicle';
-import { LIMP_HEALTH, MAX_LEVEL, progressOf, repairCost, startHealth, upgradeCost, UPGRADES, type UpgradeId } from './garage/progress';
+import { LIMP_HEALTH, MAX_LEVEL, progressOf, repairCost, upgradeCost, UPGRADES, type UpgradeId } from './garage/progress';
 import { RULES } from './scoring';
 import { VEHICLES } from '../sim/vehicles';
 import { engineFor } from '../engine/engineSound';
@@ -70,11 +70,6 @@ const UPGRADE_ICON: Record<UpgradeId, typeof Car> = {
   armor: ShieldCheck,
   nitro: Zap,
 };
-
-/** big hits the car is sure to survive from its current condition (counting the hardest kind) */
-function hitsLeft(health: number, damageTaken: number) {
-  return Math.max(0, Math.ceil(health / (RULES.bigHitCap * damageTaken)) - 1);
-}
 
 function useActive() {
   // re-render on any garage change
@@ -128,8 +123,8 @@ export function GarageCard() {
   const a = setup.archetype;
   const h = setup.progress.health;
   const cost = repairCost(a, h);
-  // a wreck still drives, limping out at LIMP_HEALTH
-  const hits = hitsLeft(startHealth(h), setup.damageTaken);
+  // how well it takes a hit next to an average car (armour included)
+  const tough = Math.round(100 / setup.damageTaken);
   const Perk = PERK_ICON[a.id];
   const damaged = h < RULES.damagedBelow;
   return (
@@ -180,7 +175,7 @@ export function GarageCard() {
           <div className="grid grid-cols-3 gap-2">
             <Stat icon={<Gauge size={14} strokeWidth={1.8} />} value={`${topSpeedKmh(a.type, setup.top)}`} label="km/h top" />
             <Stat icon={<Zap size={14} strokeWidth={1.8} />} value={`${zeroToHundred(a.type, setup.power).toFixed(1)} s`} label="0–100 km/h" />
-            <Stat icon={<Shield size={14} strokeWidth={1.8} />} value={hits} label={hits === 1 ? 'hard hit' : 'hard hits'} />
+            <Stat icon={<Shield size={14} strokeWidth={1.8} />} value={`${tough}%`} label="toughness" />
           </div>
           <div className="flex items-center gap-2.5 text-[13px]">
             <Perk size={16} strokeWidth={1.7} className="text-brand shrink-0" />
