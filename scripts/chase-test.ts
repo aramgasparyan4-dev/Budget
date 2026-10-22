@@ -167,5 +167,50 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
   void maxSpeedTarget;
 }
 
+// ------------------------------------------------------------------ boxing you in
+{
+  // the same simple car model; you are stopped on a straight bit of motorway
+  const gen = new RoadGen(2024, 'chase');
+  const root = gen.root({ x: 0, z: 0, h: 0.2 });
+  gen.extend(root, Infinity);
+  const straight = root.pieces.find((p) => !p.street && p.k0 === 0 && p.k1 === 0 && p.len > 200 && p.s0 > 300)!;
+  const run = (copS: number, copV: number, youV: number, seconds: number) => {
+    const you: Driver = { path: root, s: straight.s0 + 120, lat: laneLat(1), v: youV, len: 4.6, width: 1.9 };
+    const start = root.pose(copS === 0 ? you.s : you.s + copS, laneLat(1));
+    const car = { x: start.x, z: start.z, yaw: start.h, v: copV };
+    const me: Driver = { path: root, s: you.s + copS, lat: laneLat(1), v: copV, len: 4.75, width: 1.88 };
+    const ai = new CopDriver();
+    const dt = 1 / 30;
+    let minBrakeGap = Infinity;
+    let maxAllowAhead = 0;
+    for (let i = 0; i < seconds * 30; i++) {
+      you.s += you.v * dt;
+      const ms = 0.58 / (1 + Math.abs(car.v) / 13);
+      const out = ai.update(dt, me, { x: car.x, z: car.z, yaw: car.yaw, speed: car.v, wheelBase: 2.85, maxSteer: ms }, you, [], [me], 45);
+      car.v += (out.throttle * 6.5 - out.brake * 9 - (out.handbrake ? 9 : 0) - 0.002 * car.v * car.v) * dt;
+      car.v = Math.max(0, car.v);
+      car.yaw += ((car.v * Math.tan(out.steer * ms)) / 2.85) * dt;
+      car.x += Math.sin(car.yaw) * car.v * dt;
+      car.z += Math.cos(car.yaw) * car.v * dt;
+      const pr = root.project(car.x, car.z, me.s);
+      me.s = pr.s;
+      me.lat = pr.lat;
+      me.v = car.v;
+      if (me.s > you.s) maxAllowAhead = Math.max(maxAllowAhead, car.v);
+      if (out.brake > 0.5) minBrakeGap = Math.min(minBrakeGap, me.s - you.s);
+    }
+    return { gap: me.s - you.s, v: car.v, lat: me.lat - you.lat, minBrakeGap, maxAllowAhead };
+  };
+  // coming up fast from 80 m behind a stopped car: it pulls up right behind and stays there
+  const behind = run(-80, 28, 0, 8);
+  check('you stopped: a police car from behind pulls up on your bumper and stays', behind.gap > -10 && behind.gap < -3 && behind.v < 1, behind);
+  // one just ahead when you stop: it stops in front of you, it does not drive off
+  const ahead = run(12, 8, 0, 6);
+  check('you stopped: a police car just ahead stops in front of you', ahead.gap > 4 && ahead.gap < 25 && ahead.v < 1, ahead);
+  // you at speed with one ahead in your lane: it brakes in your path (you close on it)
+  const front = run(20, 25, 25, 2);
+  check('a police car ahead of you at speed brakes in your path', front.gap < 20 - 6 && front.v < 25 - 4, front);
+}
+
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

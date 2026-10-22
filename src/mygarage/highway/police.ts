@@ -6,7 +6,8 @@
 // downtown the other direction's lanes included (for a police car with its lights on, that is
 // allowed). Behind you it closes in fast;
 // close up it aims at your back corner to spin you, drops back a little after each hit and comes
-// again, and in front of you it brakes in your path.
+// again, and in front of you it brakes hard in your path. Once you are stopped (crashed, spun,
+// blocked) it boxes you in: it pulls up nose to tail against you, in front or behind, and stays.
 // Stuck against something, it backs off and tries again; stuck for good, it says so.
 import { Path, laneLat, latBetween, aheadOf } from './road';
 import type { Driver, HCar } from './traffic';
@@ -51,6 +52,8 @@ export function curvature(p: Path, s: number) {
 /** sideways grip a police car corners on (m/s²) */
 const A_LAT = 8;
 const DECEL = 7;
+/** below this (m/s) you count as stopped: the police box you in */
+export const BOX_SPEED = 6;
 
 /** the fastest it can go here and still make every corner within braking distance */
 export function cornerLimit(p: Path, s: number, v: number, aLat = A_LAT) {
@@ -146,6 +149,12 @@ export class CopDriver {
     const yourLat = you ? latBetween(you.lat, you.path, p) : null;
     let want = this.tLat;
     const touching = (me.len + (you?.len ?? 4.6)) / 2 + 0.9;
+    // you have stopped (or nearly) with it close by: box you in, no backing off
+    const boxing = !!you && gapToYou !== null && you.v < BOX_SPEED && Math.abs(gapToYou) < 40;
+    if (boxing) {
+      this.backoffT = 0;
+      this.contactT = 0;
+    }
     if (you && gapToYou !== null && yourLat !== null) {
       // a hit: hang back a moment, off to one side, then come again
       if (Math.abs(gapToYou) < touching && Math.abs(yourLat - me.lat) < 2.6) this.contactT += dt;
@@ -213,10 +222,15 @@ export class CopDriver {
       allow = 0;
       this.limit = 'stop';
     } else if (gapToYou !== null) {
-      // closing in from behind, quicker the further back; in front, it slows into your path
-      if (this.backoffT > 0) allow = Math.min(top, Math.max(0, you.v + clamp((gapToYou - 13) * 0.5, -6, 4)));
+      const stopAt = (me.len + you.len) / 2 + 1.5;
+      if (boxing) {
+        // pull up against you: behind, brake to a stop just off your bumper; in front, stop dead
+        allow = gapToYou > 0 ? Math.min(top, Math.sqrt(2 * DECEL * 0.8 * Math.max(0, gapToYou - stopAt))) : 0;
+      } else if (this.backoffT > 0) allow = Math.min(top, Math.max(0, you.v + clamp((gapToYou - 13) * 0.5, -6, 4)));
+      // closing in from behind, quicker the further back
       else if (gapToYou > 0) allow = Math.min(top, Math.max(0, you.v) + clamp(gapToYou * 0.25, 4, 35));
-      else allow = Math.min(top, Math.max(5, you.v - 4));
+      // in front: brake hard in your path when you are close, so you hit it or have to go round
+      else allow = Math.min(top, Math.max(0, you.v - (-gapToYou < 25 ? 7 : 3)));
     }
     const corner = cornerLimit(p, me.s, car.speed, this.aLat);
     if (corner < allow) {
@@ -242,6 +256,17 @@ export class CopDriver {
     let brake = 0;
     if (car.speed > allow + 1.5) brake = clamp((car.speed - allow) / 5, 0.25, 1);
     else if (car.speed < allow - 0.5) throttle = clamp((allow - car.speed) / 3, 0.4, 1);
+    // told to stop: stop, and hold it there (it would roll on at walking pace otherwise, and the
+    // brake pedal near a standstill reverses)
+    let handbrake = false;
+    if (allow < 0.5) {
+      throttle = 0;
+      if (car.speed > 1) brake = Math.max(brake, 0.6);
+      else {
+        brake = 0;
+        handbrake = true;
+      }
+    }
 
     // --- stuck against something: back off, steering the other way, then try again
     if (this.reverseT > 0) {
@@ -258,6 +283,6 @@ export class CopDriver {
     }
     // facing the wrong way (spun out): turn hard toward the road
     if (fwd < 0) steer = Math.sign(-right) || 1;
-    return { throttle, brake, steer, handbrake: false };
+    return { throttle, brake, steer, handbrake };
   }
 }

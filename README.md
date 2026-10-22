@@ -151,9 +151,12 @@ drawn while you are out here.
 
 **The police:** two police cars sit right behind you on the line with their lights on, and go
 when you do. They are real cars in the physics: they close in from behind, ram your back corner
-to spin you, drop back for a moment after a hit and come again, block you from in front, and use
-the hard shoulder, the pavement and (in town) the other direction's lanes when theirs are
-blocked. They corner nearly as hard as you and brake for traffic, but not always in time.
+to spin you, drop back for a moment after a hit and come again, get in front of you and brake
+hard in your path, and use the hard shoulder, the pavement and (in town) the other direction's
+lanes when theirs are blocked. Once you are stopped (crashed, spun, stuck behind traffic) they
+box you in: the ones behind pull up on your bumper and the ones in front stop dead, and they stay
+there. They corner nearly as hard as you and brake for traffic, but not always in time. A police
+car takes a few real crashes to put out of action; bumping you does next to nothing to it.
 Traffic moves over for them.
 
 - **Heat (1-5)** rises every 45 s and with every two cars you take out: more police cars (2, 3,
@@ -163,8 +166,10 @@ Traffic moves over for them.
   boost), and from heat 3 roadblocks: police cars angled across every lane but one, 500 m ahead
   (the HUD warns you; none in the last stretch before the gates). Backup arrives from behind, and
   from heat 2 every other car joins from up ahead to cut you off.
-- **Busted:** nearly stopped (under 18 km/h) with a police car within 10 m and the busted meter
-  fills; about three seconds and it is over (quicker with more of them).
+- **Busted:** nearly stopped (under 22 km/h) with a police car within 14 m (a roadblock's
+  counts) and the busted meter fills: about 3 s with one, under 2 s with two. It empties slowly,
+  so rolling forward a metre does not reset it: crash with the police on you and you have a
+  couple of seconds to reverse out and get going.
 - **Scoring:** points for every second of the chase (more at higher heat), on top of near misses
   (under 1.15 m on these wide lanes; oncoming ones in town are worth double), drifts and
   SLIPSTREAM (2-14 m behind a car at speed refills the boost). Above 160 km/h the combo's window
@@ -275,7 +280,7 @@ commit 13737f4).
 
 ```bash
 npm run typecheck
-npm run test:unit    # scoring (32), drift (40), turning help (6), race rules (13), garage (28), road generator (12), chase (19), view (5)
+npm run test:unit    # scoring (32), drift (40), turning help (6), race rules (13), garage (28), road generator (12), chase (22), view (5)
 npm run test:race    # the rival AI racing itself through real physics and traffic (a few minutes)
 npm run dev &        # then, in another shell:
 npm run test:e2e     # drives the game in headless Chromium (36 checks)
@@ -295,8 +300,10 @@ under the scene, a drive with nothing off the edge and the wider view), and the 
 docks and stops there (no forks, nothing past the docks, the gates 4-6 km down the road), keeps
 its heading bound and never comes back across itself, has tunnels only out of town and cross
 streets on straights; that an oncoming car in town stops for you in its lane, that town traffic
-keeps to city speeds and moves over for a siren; and drives a police car (a simple car model)
-behind you round the corners to check it stays on the road and catches up.
+keeps to city speeds and moves over for a siren; drives a police car (a simple car model)
+behind you round the corners to check it stays on the road and catches up; and checks the
+police box you in once you stop (one from behind pulls up on your bumper and stays, one ahead
+stops in front of you) and brake in your path when ahead of you at speed.
 `scripts/highway-test.ts` tests the road generator's other profile, the forking motorway of the
 old Highway mode: no mode uses it now, but it is still in the generator. It lays 60 km of road
 through forks and checks it joins up without gaps or kinks, that lanes carry straight into the
@@ -313,10 +320,10 @@ branches, that every feature and zone turns up, that points project back onto th
   above the music) but nobody has listened to them.
 - **The police chase was tuned with an autopilot,** not by people playing it. A stand-in driver
   (the police's own driving logic aimed far up the road, cornering hard, using the boost, never
-  going for takedowns) made it through the dock gates in 1 of 3 runs (3 min 16 s, heat 5); the
-  other two were busted 350 m short of the gates and a third of the way in, stuck behind traffic.
-  A person who picks gaps and takes police cars out should do better. It may need adjusting after
-  real play.
+  going for takedowns, and prone to stopping dead behind traffic) got 67-88% of the way to the
+  docks in three runs and was busted each time; crashing with the police close behind ends in a
+  bust about 3.5 s later unless you get moving. A person who weaves through traffic and takes
+  police cars out should get through more often. It may need adjusting after real play.
 - **Not tried inside Canva.** It was tested in an A4-sized sandboxed iframe with storage blocked,
   which is how such embeds usually run; Canva's own frame, size limits and permissions were not
   checked.

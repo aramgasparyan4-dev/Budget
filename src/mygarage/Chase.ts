@@ -11,7 +11,7 @@ import type { Physics } from '../engine/Physics';
 import { DrivableVehicle } from '../game/DrivableVehicle';
 import { VEHICLES } from '../sim/vehicles';
 import type { Highway, Driver } from './Highway';
-import { CopDriver } from './highway/police';
+import { BOX_SPEED, CopDriver } from './highway/police';
 import { aheadOf, laneLat } from './highway/road';
 
 export type ChaseState = 'pursuit' | 'escaped' | 'busted';
@@ -53,6 +53,8 @@ export const UNITS = [0, 2, 3, 4, 4, 5];
 export const HEAT_STEP = 45;
 /** no roadblocks or cars cut in from ahead this close to the dock gates: the end is yours to reach */
 const CLEAR_END = 350;
+/** a police car within this many metres of you (centre to centre) counts towards busting you */
+const BUST_RANGE = 14;
 const PAINT = new THREE.Color(0x111827);
 const PARKED = { throttle: 0, brake: 0, steer: 0, handbrake: true };
 
@@ -276,7 +278,8 @@ export class Chase {
     this.hits.push({ t: Math.round(this.time * 10) / 10, dv: Math.round(dv * 10) / 10, what, lat: Math.round(cop.d.lat * 10) / 10, v: Math.round(cop.car.forwardSpeed), why: cop.ai.limit });
     if (this.hits.length > 30) this.hits.shift();
     if (cop.disabled) return;
-    cop.hp -= (dv - 5) * 7.5;
+    // a police car takes a few real crashes to put out of action (bumping you does next to nothing)
+    cop.hp -= Math.max(0, dv - 7) * 5;
     if (cop.hp <= 0) {
       cop.disabled = true;
       cop.lights = false;
@@ -384,8 +387,9 @@ export class Chase {
     }
 
     const active = this.cops.filter((c) => !c.disabled && c.role === 'pursuit');
+    // police cars right by you (a roadblock's too): they are what busts you
     let onYou = 0;
-    for (const c of active) if (c.car.pos.distanceTo(car.pos) < 10) onYou++;
+    for (const c of this.cops) if (!c.disabled && c.car.pos.distanceTo(car.pos) < BUST_RANGE) onYou++;
     const heat = Math.min(5, 1 + Math.floor(this.time / HEAT_STEP) + Math.floor(this.takedowns / 2));
     if (heat > this.heat) {
       this.heat = heat;
@@ -418,10 +422,11 @@ export class Chase {
         this.blocks.splice(this.blocks.indexOf(b), 1);
       }
     }
-    // busted: stopped with a police car on you
-    const slow = car.speed < 5;
-    if (slow && onYou > 0) this.bust = Math.min(1, this.bust + dt * (0.3 + 0.12 * (onYou - 1)));
-    else this.bust = Math.max(0, this.bust - dt * 0.6);
+    // busted: stopped with a police car on you; about 3 s with one, quicker with more. It only
+    // empties slowly, so rolling forward a metre does not reset it
+    const slow = car.speed < BOX_SPEED;
+    if (slow && onYou > 0) this.bust = Math.min(1, this.bust + dt * (0.33 + 0.2 * (onYou - 1)));
+    else this.bust = Math.max(0, this.bust - dt * 0.4);
     if (this.bust >= 1 && !this.busted) {
       this.busted = true;
       this.state = 'busted';
