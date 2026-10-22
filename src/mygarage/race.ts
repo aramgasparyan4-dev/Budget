@@ -529,12 +529,16 @@ export function freeSpot(route: Route, s: number, obstacles: { x: number; z: num
   };
 }
 
-/** traffic for a race: busy enough to dodge, light enough that the queues at lights stay short */
+/**
+ * Traffic for a race: light. About 30 cars round you at the game's rush-hour clock (it was about
+ * 95), so there is something to weave past without a car at every corner. They appear at least
+ * 90 m away, never right in front of you.
+ */
 export const RACE_TRAFFIC = {
-  maxVehicles: 95,
-  spawnInterval: 0.04,
+  maxVehicles: 25,
+  spawnInterval: 0.08,
   spawnAttempts: 16,
-  spawnRadius: { min: 60, max: 260, despawn: 300 },
+  spawnRadius: { min: 90, max: 260, despawn: 300 },
 };
 
 /**

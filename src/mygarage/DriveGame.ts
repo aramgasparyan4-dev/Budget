@@ -219,6 +219,13 @@ export class DriveGame {
     Object.assign(this.traffic!, { ...p, spawnRadius: { ...p.spawnRadius } });
   }
 
+  /** fewer cars right away (the spawner only stops adding them): drop random ones until `n` are left */
+  private thinTraffic(n: number) {
+    const tr = this.traffic!;
+    const cars = tr.vehicles.filter((v) => v.tag === undefined);
+    while (cars.length > n) tr.remove(cars.splice(Math.floor(Math.random() * cars.length), 1)[0]);
+  }
+
   applySettings() {
     const s = useStore.getState().settings;
     this.world?.applySettings(s, this.renderer, this.camera);
@@ -301,6 +308,7 @@ export class DriveGame {
       this.endRace();
       this.leaveHighway();
       this.trafficPreset(RACE_TRAFFIC);
+      this.thinTraffic(RACE_TRAFFIC.maxVehicles);
       // the rival drives the same kind of car, in a colour that stands out from yours
       this.race = new RaceSession(this.world, this.traffic, this.scene, setup.type, rivalPaintFor(this.basePaint), seed);
       this.race.rival.gripMul = this.condGrip(setup);

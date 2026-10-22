@@ -193,7 +193,9 @@ A random 1.6-2.3 km route through the city grid, from a two-car grid to a finish
 drives the same kind of car as yours, painted to stand out, with a RIVAL tag. Pass the
 checkpoint gates in order. A big hit stops you dead for a moment but never ends the race (and
 never takes the car below 10%); rolling over or getting lost puts you back on the route, and T
-does it on demand (T in the other modes puts you back on the road). The rival drives with its own AI (pure-pursuit steering, braking for corners
+does it on demand (T in the other modes puts you back on the road). Traffic is light: about 30
+cars round you (around 10 within 150 m, one or two on the next 200 m of the route), appearing at
+least 90 m away. The rival drives with its own AI (pure-pursuit steering, braking for corners
 and traffic, overtaking, backing out of dead ends) and eases off when ahead so races stay close.
 If it gets home first you have 30 seconds to finish. The HUD has position, clock, gap,
 checkpoints, an arrow to the next gate and a map.
