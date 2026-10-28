@@ -1,0 +1,11 @@
+{
+  "name": "cooldown-tiktok-prototype",
+  "private": true,
+  "description": "Renders the 60s vertical Cooldown video prototype from HTML/GSAP",
+  "scripts": {
+    "render": "node src/render.js"
+  },
+  "dependencies": {
+    "gsap": "3.12.5"
+  }
+}
