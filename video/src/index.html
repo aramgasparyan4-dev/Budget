@@ -24,7 +24,10 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 .display { font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; letter-spacing: -0.035em; }
 .mono { font-family: 'JetBrains Mono', monospace; }
 .emoji { font-family: 'Noto Color Emoji', sans-serif; font-weight: 400; letter-spacing: 0; }
-.center-x { left: 50%; transform: translateX(-50%); }
+
+/* camera rigs: .cam is zoomed/panned by the timeline, .float gets an idle 3D drift every frame */
+.cam { position: absolute; inset: 0; perspective: 2400px; transform-origin: 0 0; }
+.float { position: absolute; inset: 0; transform-style: preserve-3d; }
 
 /* ---------- backgrounds ---------- */
 .bg { position: absolute; inset: 0; }
@@ -37,20 +40,22 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 #bgCool .b1 { left: -520px; top: -480px; background: radial-gradient(closest-side, rgba(63,193,240,.42), rgba(63,193,240,0)); }
 #bgCool .b2 { left: 260px; top: 980px; background: radial-gradient(closest-side, rgba(92,120,255,.40), rgba(92,120,255,0)); }
 #bgCool .b3 { left: 360px; top: 300px; width: 900px; height: 900px; background: radial-gradient(closest-side, rgba(139,233,255,.16), rgba(139,233,255,0)); }
-#grid { position: absolute; inset: 0; opacity: .0;
+#grid { position: absolute; inset: 0; opacity: 0;
   background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
   background-size: 90px 90px; -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 70%); }
+#bokeh { position: absolute; inset: 0; }
+.bk { position: absolute; left: 0; top: 0; border-radius: 50%; }
 #vignette { position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%); }
 #grain { position: absolute; inset: -200px; opacity: .07; mix-blend-mode: overlay; pointer-events: none;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='300' height='300' filter='url(%23n)'/></svg>"); }
 #snow { position: absolute; inset: 0; opacity: 0; }
-.flake { position: absolute; border-radius: 50%; background: #fff; }
+.flake { position: absolute; left: 0; top: 0; border-radius: 50%; background: #fff; }
 
 /* ---------- captions ---------- */
 #caption { position: absolute; left: 60px; right: 60px; top: 1440px; height: 150px; display: flex;
   align-items: center; justify-content: center; text-align: center; z-index: 50; }
-#caption .line { font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; font-size: 66px; letter-spacing: -0.02em;
+#caption .line { font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; font-size: 68px; letter-spacing: -0.02em;
   line-height: 1.05; color: #fff; -webkit-text-stroke: 14px rgba(0,0,0,.92); paint-order: stroke fill;
   text-shadow: 0 8px 24px rgba(0,0,0,.45); }
 #caption .w { display: inline-block; margin: 0 .12em; }
@@ -58,14 +63,16 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 
 /* ---------- phone ---------- */
 .phone { position: absolute; width: 540px; height: 1120px; left: 270px; top: 290px; border-radius: 86px; padding: 14px;
-  background: linear-gradient(145deg, #2b3140, #0b0d12 40%, #1c2029);
-  box-shadow: 0 70px 140px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.08), inset 0 0 0 2px rgba(255,255,255,.06); }
+  background: linear-gradient(145deg, #3a4152, #0b0d12 38%, #1c2029 70%, #2d3341);
+  box-shadow: 0 80px 160px rgba(0,0,0,.65), 0 0 0 2px rgba(255,255,255,.1), inset 0 0 0 2px rgba(255,255,255,.08), inset 0 2px 6px rgba(255,255,255,.12); }
 .screen { position: relative; width: 100%; height: 100%; border-radius: 72px; overflow: hidden; background: #fff; }
 .island { position: absolute; top: 18px; left: 50%; width: 150px; height: 42px; margin-left: -75px; border-radius: 30px; background: #000; z-index: 30; }
 .sbar { position: absolute; top: 0; left: 0; right: 0; height: 74px; display: flex; align-items: center; justify-content: space-between;
   padding: 10px 44px 0 58px; font-weight: 700; font-size: 25px; z-index: 29; }
 .sbar svg { height: 22px; }
 .layer { position: absolute; inset: 0; }
+.glare { position: absolute; left: -60%; top: -20%; width: 220%; height: 140%; z-index: 36; pointer-events: none; mix-blend-mode: screen;
+  background: linear-gradient(105deg, rgba(255,255,255,0) 44%, rgba(255,255,255,.13) 49%, rgba(255,255,255,.05) 52%, rgba(255,255,255,0) 57%); }
 
 /* shop screen (light) */
 .shop { background: #FFF7F2; color: #1A1320; }
@@ -131,9 +138,9 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 .sky .orb { position: absolute; left: 150px; top: -30px; font-size: 56px; }
 
 .lock { background: linear-gradient(170deg, #1B3B7A, #0B1530 55%, #0A1024); color: #fff; }
-.lock .ltime { position: absolute; top: 120px; left: 0; right: 0; text-align: center; font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 700; font-size: 150px; letter-spacing: -.04em; }
+.lock .ltime { position: absolute; top: 140px; left: 0; right: 0; text-align: center; font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 700; font-size: 150px; letter-spacing: -.04em; }
 .lock .ldate { position: absolute; top: 108px; left: 0; right: 0; text-align: center; font-size: 28px; font-weight: 600; opacity: .85; }
-.card { position: absolute; left: 22px; right: 22px; top: 400px; border-radius: 34px; background: rgba(240,245,255,.92); color: #0B1020; padding: 22px; box-shadow: 0 30px 60px rgba(0,0,0,.35); }
+.card { position: absolute; left: 22px; right: 22px; top: 400px; border-radius: 34px; background: rgba(240,245,255,.94); color: #0B1020; padding: 22px; box-shadow: 0 30px 60px rgba(0,0,0,.35); }
 .card .hd { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; color: #5B6480; letter-spacing: .04em; }
 .card .hd svg { width: 40px; height: 40px; }
 .card .hd span { margin-left: auto; letter-spacing: 0; }
@@ -141,7 +148,6 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 .card .bd { font-size: 25px; margin-top: 6px; color: #2C3550; font-weight: 600; }
 .card .acts { display: flex; gap: 12px; margin-top: 20px; }
 .card .act { flex: 1; height: 84px; border-radius: 22px; background: rgba(11,16,32,.08); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 27px; }
-.card .act.sel { background: #0D1530; color: var(--ice); }
 
 .unspent { background: linear-gradient(180deg, #0F1838, #070C1E); color: #fff; }
 .unspent .yay { position: absolute; top: 140px; left: 0; right: 0; text-align: center; }
@@ -184,7 +190,7 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 
 /* pills / callouts */
 .pill { position: absolute; z-index: 45; display: flex; align-items: center; gap: 14px; padding: 20px 30px; border-radius: 999px;
-  background: rgba(10,16,38,.86); border: 2px solid rgba(139,233,255,.45); box-shadow: 0 20px 50px rgba(0,0,0,.45);
+  background: rgba(10,16,38,.88); border: 2px solid rgba(139,233,255,.45); box-shadow: 0 20px 50px rgba(0,0,0,.45);
   font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 800; font-size: 40px; letter-spacing: -.02em; white-space: nowrap; opacity: 0; }
 .pill.tp { left: 0; right: 0; margin: 0 auto; width: max-content; top: 168px; }
 .pill.hot { border-color: rgba(255,59,92,.6); }
@@ -225,6 +231,9 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 #logoBig { position: absolute; left: 50%; top: 360px; width: 340px; height: 340px; margin-left: -170px; }
 #logoBig svg { width: 100%; height: 100%; filter: drop-shadow(0 30px 70px rgba(63,193,240,.55)); }
 #ring { position: absolute; left: 50%; top: 530px; width: 340px; height: 340px; margin: -170px 0 0 -170px; border-radius: 50%; border: 8px solid var(--ice); opacity: 0; }
+#rays { position: absolute; left: 50%; top: 530px; width: 1600px; height: 1600px; margin: -800px 0 0 -800px; opacity: 0;
+  background: repeating-conic-gradient(from 0deg, rgba(139,233,255,.10) 0deg 6deg, rgba(139,233,255,0) 6deg 18deg);
+  -webkit-mask-image: radial-gradient(circle, #000 10%, transparent 60%); }
 #wordmark { position: absolute; top: 740px; left: 0; right: 0; text-align: center; font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; font-size: 150px; letter-spacing: -.055em; }
 #wordmark span { display: inline-block; }
 .chip { position: absolute; left: 50%; display: flex; align-items: center; gap: 18px; padding: 22px 36px; border-radius: 999px;
@@ -250,7 +259,37 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 #share .tag svg { width: 54px; height: 54px; }
 .heart { position: absolute; left: 0; top: 0; font-size: 64px; opacity: 0; }
 
-/* scene 9 cta */
+/* scene 9: payoff (Tokyo) */
+#tokyo { position: absolute; inset: 0; }
+#tokyo svg { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+#later { position: absolute; top: 150px; left: 0; right: 0; text-align: center; font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 800;
+  font-size: 54px; letter-spacing: .02em; color: #fff; text-shadow: 0 6px 30px rgba(0,0,0,.4); }
+#later span { display: inline-block; }
+#pass { position: absolute; left: 110px; width: 860px; top: 330px; border-radius: 40px; background: #F7FBFF; color: #0B1020; overflow: hidden;
+  box-shadow: 0 60px 120px rgba(10,10,40,.55); opacity: 0; }
+#pass .ph { display: flex; align-items: center; justify-content: space-between; padding: 26px 36px; background: linear-gradient(90deg, #8BE9FF, #BFF4FF);
+  font-weight: 900; font-size: 28px; letter-spacing: .12em; color: #071029; }
+#pass .ph svg { width: 54px; height: 54px; }
+#pass .route { display: flex; align-items: center; justify-content: space-between; padding: 30px 40px 6px; }
+#pass .route small, #pass .fields small { display: block; font-size: 20px; letter-spacing: .14em; color: #6B7493; font-weight: 800; }
+#pass .route b { display: block; font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; font-size: 96px; letter-spacing: -.03em; line-height: 1; }
+#pass .route i { font-style: normal; font-size: 26px; font-weight: 700; color: #3A4466; }
+#pass .route .pl { font-size: 70px; color: #3FA0F0; }
+#pass .fields { display: flex; justify-content: space-between; padding: 22px 40px 28px; font-weight: 900; font-size: 34px; }
+#pass .perf { height: 0; border-top: 4px dashed #C9D3EA; margin: 0 26px; position: relative; }
+#pass .stub { padding: 26px 40px 34px; }
+#pass .paid { font-size: 30px; font-weight: 700; color: #2C3550; }
+#pass .paid b { color: #0B1020; }
+#pass .gl { display: flex; justify-content: space-between; align-items: baseline; margin-top: 18px; font-weight: 800; font-size: 26px; color: #3A4466; }
+#pass .gl b { font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; font-size: 44px; color: #0EA371; }
+#pass .gbar { position: relative; height: 22px; border-radius: 11px; background: #E3E9F5; margin-top: 12px; overflow: hidden; }
+#pass .gbar div { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 11px; background: linear-gradient(90deg, #2ED39A, #5CF2B0); }
+#stamp { position: absolute; right: 70px; top: 300px; padding: 10px 26px; border: 8px solid #0EA371; border-radius: 18px; color: #0EA371;
+  font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; font-size: 58px; letter-spacing: .06em; opacity: 0; mix-blend-mode: multiply; }
+
+/* scene 10 cta */
+#ctaGlow { position: absolute; left: 50%; top: 420px; width: 1200px; height: 1200px; margin: -600px 0 0 -600px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(139,233,255,.28), rgba(139,233,255,0)); }
 #ctaLogo { position: absolute; left: 50%; top: 300px; width: 240px; height: 240px; margin-left: -120px; }
 #ctaWord { position: absolute; top: 570px; left: 0; right: 0; text-align: center; font-size: 110px; }
 #ctaLine { position: absolute; top: 750px; left: 60px; right: 60px; text-align: center; font-size: 104px; line-height: 1.0; }
@@ -265,9 +304,10 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 </style>
 </head>
 <body>
-<!-- reusable SVG symbols -->
+<!-- reusable SVG symbols + filters -->
 <svg width="0" height="0" style="position:absolute">
   <defs>
+    <filter id="whipF" x="-30%" y="0" width="160%" height="100%"><feGaussianBlur id="whipB" stdDeviation="0 0"/></filter>
     <linearGradient id="hoodG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9B8FF"/><stop offset="1" stop-color="#9F88F4"/></linearGradient>
     <linearGradient id="logoG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F0FCFF"/><stop offset=".5" stop-color="#8BE9FF"/><stop offset="1" stop-color="#3FA0F0"/></linearGradient>
     <symbol id="hoodie" viewBox="0 0 400 400">
@@ -303,36 +343,44 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
       <rect x="82" y="4" width="32" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="2" opacity=".5"/>
       <rect x="85" y="7" width="22" height="11" rx="2.5"/><rect x="116" y="9" width="3" height="7" rx="1.5" opacity=".5"/>
     </symbol>
+    <symbol id="plane" viewBox="0 0 120 60">
+      <path d="M4 34 L 30 30 L 54 6 L 66 6 L 54 30 L 92 28 L 104 16 L 112 16 L 108 30 Q 120 32 108 36 L 112 50 L 104 50 L 92 38 L 54 36 L 66 58 L 54 58 L 30 38 L 4 36 Z" fill="#fff"/>
+    </symbol>
   </defs>
 </svg>
 
 <div id="stage">
   <div id="bgHot" class="bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
   <div id="bgCool" class="bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+  <div id="bokeh"></div>
   <div id="grid"></div>
   <div id="snow"></div>
 
   <!-- ============ S1 HOOK ============ -->
   <div class="scene" id="s1">
-    <div class="phone" id="ph1">
-      <div class="screen">
-        <div class="island"></div>
-        <div class="sbar" style="color:#1A1320"><span>1:07</span><svg viewBox="0 0 120 24" fill="currentColor"><use href="#sbicons"/></svg></div>
-        <div class="layer shop">
-          <div class="nav"><span>‹</span><span>ShopFeed</span><span class="live">● LIVE</span></div>
-          <div class="img"><svg viewBox="0 0 400 400"><use href="#hoodie"/></svg></div>
-          <div class="deal"><span>⚡ Flash deal ends in</span><span class="mono" id="dealClock1">04:59</span></div>
-          <div class="ptitle">Oversized Cloud Hoodie</div>
-          <div class="pmeta">★★★★★ 4.8 · 🔥 2,318 sold today</div>
-          <div class="price"><b>€68.00</b><s>€95.00</s><i>-28%</i></div>
-          <div class="buy">Buy now</div>
-          <div class="later">or 4 × €17.00 with PayLater</div>
+    <div class="cam" id="cam1"><div class="float" id="fl1">
+      <div class="phone" id="ph1">
+        <div class="screen">
+          <div class="island"></div>
+          <div class="sbar" style="color:#1A1320"><span>1:07</span><svg viewBox="0 0 120 24" fill="currentColor"><use href="#sbicons"/></svg></div>
+          <div class="layer shop">
+            <div class="nav"><span>‹</span><span>ShopFeed</span><span class="live">● LIVE</span></div>
+            <div class="img"><svg viewBox="0 0 400 400"><use href="#hoodie"/></svg></div>
+            <div class="deal"><span>⚡ Flash deal ends in</span><span class="mono" id="dealClock1">04:59</span></div>
+            <div class="ptitle">Oversized Cloud Hoodie</div>
+            <div class="pmeta">★★★★★ 4.8 · 🔥 2,318 sold today</div>
+            <div class="price"><b>€68.00</b><s>€95.00</s><i>-28%</i></div>
+            <div class="buy" id="buy1">Buy now</div>
+            <div class="later">or 4 × €17.00 with PayLater</div>
+          </div>
+          <div class="layer" id="ph1frost" style="opacity:0;background:radial-gradient(circle at 50% 82%, rgba(230,250,255,.95), rgba(139,233,255,.55) 45%, rgba(63,160,240,.25) 80%)"></div>
+          <div class="glare"></div>
         </div>
-        <div class="layer" id="ph1frost" style="opacity:0;background:radial-gradient(circle at 50% 82%, rgba(230,250,255,.95), rgba(139,233,255,.55) 45%, rgba(63,160,240,.25) 80%)"></div>
-      </div>
+      </div></div>
+      <div class="touch" id="t1"></div>
     </div>
-    <div class="touch" id="t1"></div>
-    <div class="abs display" id="hookA" style="top:120px;left:0;right:0;text-align:center;font-size:200px;line-height:1;color:#fff;text-shadow:0 0 60px rgba(255,59,92,.7);opacity:0">STOP.</div>
+    <div class="abs" id="hookShade" style="left:0;right:0;top:0;height:560px;background:linear-gradient(180deg, rgba(10,3,8,.92) 0%, rgba(10,3,8,.75) 45%, rgba(10,3,8,0) 100%)"></div>
+    <div class="abs display" id="hookA" style="top:120px;left:0;right:0;text-align:center;font-size:200px;line-height:1;color:#fff">STOP.</div>
     <div class="abs display" id="hookB" style="top:110px;left:40px;right:40px;text-align:center;font-size:118px;line-height:.95;color:#fff;text-shadow:0 10px 50px rgba(0,0,0,.6);opacity:0">DON'T TAP<br><span style="color:var(--hot)">BUY NOW.</span></div>
     <div class="abs" id="pauseIcon" style="left:50%;top:860px;width:260px;height:260px;margin-left:-130px;opacity:0"><svg viewBox="0 0 200 200" width="260" height="260"><use href="#logo"/></svg></div>
   </div>
@@ -359,13 +407,14 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
     <div id="people"></div>
     <div class="statlbl" id="st1l" style="top:880px">of Gen Z impulse-shop<br>because of social media</div>
     <div class="src" id="st1s" style="top:1000px">Bankrate survey, 2023</div>
-    <div class="statbig" id="st2" style="top:1080px;font-size:200px;color:var(--yellow)">62%</div>
+    <div class="statbig" id="st2" style="top:1080px;font-size:200px;color:var(--yellow)"><span id="st2n">62</span>%</div>
     <div class="statlbl" id="st2l" style="top:1290px;font-size:42px">regret an impulse buy 😬</div>
     <div class="src" id="st2s" style="top:1350px">PartnerCentric survey via Retail Brew, 2026</div>
   </div>
 
   <!-- ============ S4 REVEAL ============ -->
   <div class="scene" id="s4">
+    <div id="rays"></div>
     <div id="ring"></div>
     <div id="logoBig"><svg viewBox="0 0 200 200"><use href="#logo"/></svg></div>
     <div id="wordmark"><span>c</span><span>o</span><span>o</span><span>l</span><span>d</span><span>o</span><span>w</span><span>n</span></div>
@@ -376,93 +425,99 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
 
   <!-- ============ S5 + S6 PRICE / COOL ============ -->
   <div class="scene" id="s5">
-    <div class="phone" id="ph2">
-      <div class="screen">
-        <div class="island"></div>
-        <div class="sbar" id="sb2" style="color:#1A1320"><span id="sb2time">1:07</span><svg viewBox="0 0 120 24" fill="currentColor"><use href="#sbicons"/></svg></div>
-        <div class="layer shop">
-          <div class="nav"><span>‹</span><span>ShopFeed</span><span class="live">● LIVE</span></div>
-          <div class="img"><svg viewBox="0 0 400 400"><use href="#hoodie"/></svg></div>
-          <div class="deal"><span>⚡ Flash deal ends in</span><span class="mono">04:31</span></div>
-          <div class="ptitle">Oversized Cloud Hoodie</div>
-          <div class="pmeta">★★★★★ 4.8 · 🔥 2,318 sold today</div>
-          <div class="price"><b>€68.00</b><s>€95.00</s><i>-28%</i></div>
-          <div class="buy">Buy now</div>
-          <div class="later">or 4 × €17.00 with PayLater</div>
-        </div>
-        <div class="layer dim" id="dim2"></div>
-        <div class="sheet" id="sheet">
-          <div class="grab"></div>
-          <div class="brandrow"><svg viewBox="0 0 200 200"><use href="#logo"/></svg>cooldown</div>
-          <div class="h2">Hold up a sec <span class="emoji">👀</span></div>
-          <div class="item"><div class="thumb"><svg viewBox="0 0 400 400"><use href="#hoodie"/></svg></div>
-            <div class="t">Cloud Hoodie<small>ShopFeed · Flash deal</small></div><div class="p">€68</div></div>
-          <div class="label" id="realLbl">The real price</div>
-          <div class="row" id="rowHours"><div class="ic emoji">⏱️</div>
-            <div><div class="big"><span id="hoursNum">5h 40m</span></div><div class="sub">of your work, at €12/h</div></div></div>
-          <div class="row" id="rowGoal"><div class="ic emoji">✈️</div>
-            <div style="flex:1"><div class="big" style="font-size:46px">+<span id="daysNum">3</span> days <span style="font-size:26px;color:var(--muted);font-weight:700;letter-spacing:0">to Tokyo</span></div>
-              <div class="bar"><div class="fill" id="gfill" style="width:64%"></div><div class="neg" id="gneg" style="left:61%;width:0%"></div></div></div></div>
-          <div class="btns"><div class="btn ghost">Buy anyway</div><div class="btn icebtn" id="coolBtn">❄ Cool down 24h</div></div>
-        </div>
-        <div class="layer app" id="cooling" style="opacity:0">
-          <div class="cool-title"><div class="brandrow" style="justify-content:center"><svg viewBox="0 0 200 200"><use href="#logo"/></svg>cooldown</div>
-            <div class="h2" style="margin-top:8px">Cooling down <span class="emoji">❄️</span></div></div>
-          <div class="cube"><svg class="hood" viewBox="0 0 400 400"><use href="#hoodie"/></svg><div class="ice" id="iceCube"></div></div>
-          <div class="timer mono" id="timer">24:00:00</div>
-          <div class="tsub">We'll ask you again tomorrow.<br>Your €68 stays put.</div>
-          <div class="sky"><div class="arc"></div><div class="orb emoji" id="orb">🌙</div></div>
-        </div>
-        <div class="layer lock" id="lock" style="opacity:0">
-          <div class="ldate">4 October</div>
-          <div class="ltime" style="top:140px">1:07</div>
-          <div class="card" id="notifCard">
-            <div class="hd"><svg viewBox="0 0 200 200"><use href="#logo"/></svg>COOLDOWN<span>now</span></div>
-            <div class="tt">24h are up ❄️</div>
-            <div class="bd">Still want the Cloud Hoodie (€68)?</div>
-            <div class="acts"><div class="act" id="actBuy">Yes, buy it</div><div class="act" id="actNah">Nah, I'm good</div></div>
+    <div class="cam" id="cam5"><div class="float" id="fl5">
+      <div class="phone" id="ph2">
+        <div class="screen">
+          <div class="island"></div>
+          <div class="sbar" id="sb2" style="color:#1A1320"><span id="sb2time">1:07</span><svg viewBox="0 0 120 24" fill="currentColor"><use href="#sbicons"/></svg></div>
+          <div class="layer shop">
+            <div class="nav"><span>‹</span><span>ShopFeed</span><span class="live">● LIVE</span></div>
+            <div class="img"><svg viewBox="0 0 400 400"><use href="#hoodie"/></svg></div>
+            <div class="deal"><span>⚡ Flash deal ends in</span><span class="mono">04:31</span></div>
+            <div class="ptitle">Oversized Cloud Hoodie</div>
+            <div class="pmeta">★★★★★ 4.8 · 🔥 2,318 sold today</div>
+            <div class="price"><b>€68.00</b><s>€95.00</s><i>-28%</i></div>
+            <div class="buy">Buy now</div>
+            <div class="later">or 4 × €17.00 with PayLater</div>
           </div>
+          <div class="layer dim" id="dim2"></div>
+          <div class="sheet" id="sheet">
+            <div class="grab"></div>
+            <div class="brandrow"><svg viewBox="0 0 200 200"><use href="#logo"/></svg>cooldown</div>
+            <div class="h2">Hold up a sec <span class="emoji">👀</span></div>
+            <div class="item"><div class="thumb"><svg viewBox="0 0 400 400"><use href="#hoodie"/></svg></div>
+              <div class="t">Cloud Hoodie<small>ShopFeed · Flash deal</small></div><div class="p">€68</div></div>
+            <div class="label" id="realLbl">The real price</div>
+            <div class="row" id="rowHours"><div class="ic emoji">⏱️</div>
+              <div><div class="big"><span id="hoursNum">5h 40m</span></div><div class="sub">of your work, at €12/h</div></div></div>
+            <div class="row" id="rowGoal"><div class="ic emoji">✈️</div>
+              <div style="flex:1"><div class="big" style="font-size:46px">+<span id="daysNum">3</span> days <span style="font-size:26px;color:var(--muted);font-weight:700;letter-spacing:0">to Tokyo</span></div>
+                <div class="bar"><div class="fill" id="gfill" style="width:64%"></div><div class="neg" id="gneg" style="left:61%;width:0%"></div></div></div></div>
+            <div class="btns"><div class="btn ghost">Buy anyway</div><div class="btn icebtn" id="coolBtn">❄ Cool down 24h</div></div>
+          </div>
+          <div class="layer app" id="cooling" style="opacity:0">
+            <div class="cool-title"><div class="brandrow" style="justify-content:center"><svg viewBox="0 0 200 200"><use href="#logo"/></svg>cooldown</div>
+              <div class="h2" style="margin-top:8px">Cooling down <span class="emoji">❄️</span></div></div>
+            <div class="cube" id="cube"><svg class="hood" viewBox="0 0 400 400"><use href="#hoodie"/></svg><div class="ice" id="iceCube"></div></div>
+            <div class="timer mono" id="timer">24:00:00</div>
+            <div class="tsub">We'll ask you again tomorrow.<br>Your €68 stays put.</div>
+            <div class="sky"><div class="arc"></div><div class="orb emoji" id="orb">🌙</div></div>
+          </div>
+          <div class="layer lock" id="lock" style="opacity:0">
+            <div class="ldate">4 October</div>
+            <div class="ltime">1:07</div>
+            <div class="card" id="notifCard">
+              <div class="hd"><svg viewBox="0 0 200 200"><use href="#logo"/></svg>COOLDOWN<span>now</span></div>
+              <div class="tt">24h are up ❄️</div>
+              <div class="bd">Still want the Cloud Hoodie (€68)?</div>
+              <div class="acts"><div class="act" id="actBuy">Yes, buy it</div><div class="act" id="actNah">Nah, I'm good</div></div>
+            </div>
+          </div>
+          <div class="layer unspent" id="unspent" style="opacity:0">
+            <div class="yay"><div class="e emoji">🎉</div><div class="h2" style="margin-top:0">Nice. You unspent</div><div class="amt">€68</div></div>
+            <div class="goal"><div class="gt"><span><span class="emoji">✈️</span> Tokyo trip</span><b id="goalPct">64%</b></div>
+              <div class="gs"><span id="goalAmt">€1,280</span> of €2,000 saved</div>
+              <div class="bar"><div class="fill" id="goalFill" style="width:64%"></div></div></div>
+            <div class="saved-tag" id="savedTag">✓ Moved to savings automatically</div>
+          </div>
+          <div class="glare"></div>
         </div>
-        <div class="layer unspent" id="unspent" style="opacity:0">
-          <div class="yay"><div class="e emoji">🎉</div><div class="h2" style="margin-top:0">Nice. You unspent</div><div class="amt">€68</div></div>
-          <div class="goal"><div class="gt"><span><span class="emoji">✈️</span> Tokyo trip</span><b id="goalPct">64%</b></div>
-            <div class="gs"><span id="goalAmt">€1,280</span> of €2,000 saved</div>
-            <div class="bar"><div class="fill" id="goalFill" style="width:64%"></div></div></div>
-          <div class="saved-tag" id="savedTag">✓ Moved to savings automatically</div>
-        </div>
-      </div>
+      </div></div>
+      <div class="touch" id="t2"></div><div class="ripple" id="r2"></div>
+      <div id="coins"></div>
+      <div id="confetti"></div>
     </div>
-    <div class="touch" id="t2"></div><div class="ripple" id="r2"></div>
     <div class="pill tp" id="pStep"><span class="emoji">❄️</span>Cooldown steps in</div>
     <div class="pill tp" id="pHours"><span class="emoji">⏱️</span>Price → hours of work</div>
     <div class="pill tp" id="pGoal"><span class="emoji">📍</span>Price → days to your goal</div>
     <div class="pill tp" id="p24"><span class="emoji">⏳</span>24-hour cooldown</div>
     <div class="pill tp mint" id="pGuilt"><span class="ok">✓</span>Still want it? Guilt-free</div>
     <div class="pill tp mint" id="pSave"><span class="emoji">💰</span>Auto-saved to your goal</div>
-    <div id="coins"></div>
-    <div id="confetti"></div>
   </div>
 
   <!-- ============ S7 BENEFIT ============ -->
   <div class="scene" id="s7">
-    <div class="phone" id="ph3">
-      <div class="screen">
-        <div class="island"></div>
-        <div class="sbar" style="color:#fff"><span>9:41</span><svg viewBox="0 0 120 24" fill="currentColor"><use href="#sbicons"/></svg></div>
-        <div class="layer dash">
-          <div class="hi">Hi Alex <span class="emoji">👋</span><small>Here's your October</small></div>
-          <div class="dcard"><div class="k">Unspent this month</div><div class="v">€<span id="dashNum">0</span></div><div class="s">moved to your goals</div></div>
-          <div class="stats"><div class="stat"><b>12</b><span>cooled</span></div><div class="stat"><b>9</b><span>skipped</span></div><div class="stat"><b><span class="emoji" style="font-size:34px">🔥</span>12</b><span>day streak</span></div></div>
-          <div class="goal" style="position:relative;left:0;right:0;top:0;margin-top:16px;padding:20px">
-            <div class="gt" style="font-size:26px"><span><span class="emoji">✈️</span> Tokyo trip</span><b id="dGoalPct" style="font-size:30px">67%</b></div>
-            <div class="bar" style="height:18px"><div class="fill" id="dGoalFill" style="width:67%"></div></div></div>
-          <div class="list">
-            <div class="li"><div class="ii emoji">🧥</div><div class="nm">Cloud Hoodie €68</div><div class="st skip">Skipped</div></div>
-            <div class="li"><div class="ii emoji">💡</div><div class="nm">LED face mask €49</div><div class="st skip">Skipped</div></div>
-            <div class="li"><div class="ii emoji">👟</div><div class="nm">Trail runners €95</div><div class="st got">Still wanted it</div></div>
+    <div class="cam" id="cam7"><div class="float" id="fl7">
+      <div class="phone" id="ph3">
+        <div class="screen">
+          <div class="island"></div>
+          <div class="sbar" style="color:#fff"><span>9:41</span><svg viewBox="0 0 120 24" fill="currentColor"><use href="#sbicons"/></svg></div>
+          <div class="layer dash">
+            <div class="hi">Hi Maya <span class="emoji">👋</span><small>Here's your October</small></div>
+            <div class="dcard" id="dcard"><div class="k">Unspent this month</div><div class="v">€<span id="dashNum">0</span></div><div class="s">moved to your goals</div></div>
+            <div class="stats"><div class="stat"><b>12</b><span>cooled</span></div><div class="stat"><b>9</b><span>skipped</span></div><div class="stat"><b><span class="emoji" style="font-size:34px">🔥</span>12</b><span>day streak</span></div></div>
+            <div class="goal" style="position:relative;left:0;right:0;top:0;margin-top:16px;padding:20px">
+              <div class="gt" style="font-size:26px"><span><span class="emoji">✈️</span> Tokyo trip</span><b id="dGoalPct" style="font-size:30px">67%</b></div>
+              <div class="bar" style="height:18px"><div class="fill" id="dGoalFill" style="width:67%"></div></div></div>
+            <div class="list">
+              <div class="li"><div class="ii emoji">🧥</div><div class="nm">Cloud Hoodie €68</div><div class="st skip">Skipped</div></div>
+              <div class="li"><div class="ii emoji">💡</div><div class="nm">LED face mask €49</div><div class="st skip">Skipped</div></div>
+              <div class="li"><div class="ii emoji">👟</div><div class="nm">Trail runners €95</div><div class="st got">Still wanted it</div></div>
+            </div>
           </div>
+          <div class="glare"></div>
         </div>
-      </div>
+      </div></div>
     </div>
     <div class="pill hot" id="b1" style="left:80px;top:168px"><span class="x">✕</span>Spreadsheets</div>
     <div class="pill hot" id="b2" style="right:80px;top:272px"><span class="x">✕</span>Guilt trips</div>
@@ -492,8 +547,58 @@ body { font-family: 'Inter', sans-serif; color: var(--white); -webkit-font-smoot
     <div id="hearts"></div>
   </div>
 
-  <!-- ============ S9 CTA ============ -->
+  <!-- ============ S9 PAYOFF ============ -->
+  <div class="scene" id="s9p">
+    <div id="tokyo">
+      <svg viewBox="0 0 1080 1920">
+        <defs>
+          <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#070C24"/><stop offset=".32" stop-color="#22245E"/><stop offset=".55" stop-color="#7A4C93"/>
+            <stop offset=".72" stop-color="#F29BA6"/><stop offset=".82" stop-color="#FFD3B0"/>
+          </linearGradient>
+          <radialGradient id="sunG"><stop offset="0" stop-color="#FFF1D6"/><stop offset=".35" stop-color="#FFC9A3" stop-opacity=".8"/><stop offset="1" stop-color="#FF9FB0" stop-opacity="0"/></radialGradient>
+          <linearGradient id="fujiG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A4C8C"/><stop offset="1" stop-color="#22224F"/></linearGradient>
+          <linearGradient id="snowG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#BDEBFF"/></linearGradient>
+        </defs>
+        <rect width="1080" height="1920" fill="url(#skyG)"/>
+        <g id="stars"></g>
+        <circle id="sun" cx="540" cy="1360" r="420" fill="url(#sunG)"/>
+        <g id="fuji">
+          <polygon points="0,1640 430,1080 490,1058 590,1058 650,1080 1080,1640" fill="url(#fujiG)"/>
+          <polygon points="430,1080 490,1058 590,1058 650,1080 700,1146 662,1130 632,1172 597,1134 560,1186 522,1132 482,1172 452,1128 380,1146" fill="url(#snowG)"/>
+        </g>
+        <path id="contrail" d="" stroke="rgba(255,255,255,.75)" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <use id="planeU" href="#plane" x="-60" y="-30" width="120" height="60"/>
+        <g id="cityFar"></g>
+        <g id="tower">
+          <polygon points="300,1150 306,1150 352,1720 254,1720" fill="#FF5A4A"/>
+          <rect x="283" y="1290" width="40" height="26" rx="4" fill="#FFF3EE"/>
+          <rect x="266" y="1440" width="74" height="36" rx="6" fill="#FFF3EE"/>
+          <rect x="262" y="1560" width="82" height="16" fill="#FFF3EE" opacity=".9"/>
+          <polygon points="270,1720 303,1580 336,1720" fill="#1A1438" opacity=".55"/>
+          <circle cx="303" cy="1146" r="7" fill="#FF3B3B" id="towerLight"/>
+        </g>
+        <g id="cityNear"></g>
+      </svg>
+    </div>
+    <div id="later"><span>T</span><span>h</span><span>r</span><span>e</span><span>e</span>&nbsp;<span>m</span><span>o</span><span>n</span><span>t</span><span>h</span><span>s</span>&nbsp;<span>l</span><span>a</span><span>t</span><span>e</span><span>r</span><span>…</span></div>
+    <div id="pass">
+      <div class="ph"><span>✈ BOARDING PASS</span><svg viewBox="0 0 200 200"><use href="#logo"/></svg></div>
+      <div class="route"><div><small>FROM</small><b>HOME</b></div><div class="pl">✈</div><div style="text-align:right"><small>TO</small><b>HND</b><i>Tokyo</i></div></div>
+      <div class="fields"><div><small>PASSENGER</small>MAYA K.</div><div><small>SEAT</small>32A</div><div><small>GATE</small>12</div><div><small>DATE</small>14 JAN</div></div>
+      <div class="perf"></div>
+      <div class="stub">
+        <div class="paid">Paid with <b>38 skipped impulse buys</b> <span class="emoji">❄️</span></div>
+        <div class="gl"><span>Tokyo fund · €2,000</span><b><span id="payPct">82</span>%</b></div>
+        <div class="gbar"><div id="payFill" style="width:82%"></div></div>
+      </div>
+      <div id="stamp">FUNDED ✓</div>
+    </div>
+  </div>
+
+  <!-- ============ S10 CTA ============ -->
   <div class="scene" id="s9">
+    <div id="ctaGlow"></div>
     <div id="ctaLogo"><svg id="ctaLogoSvg" viewBox="0 0 200 200" width="240" height="240" style="filter:drop-shadow(0 30px 60px rgba(63,193,240,.5))"><use href="#logo"/></svg></div>
     <div id="ctaWord" class="display">cooldown</div>
     <div id="ctaLine" class="display">Cool down before you <em>check out.</em></div>
@@ -526,23 +631,37 @@ function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483
 
 // measure layout before any tween touches transforms
 function centerOf(sel) { const r = $(sel).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }
-const POS = { buy: centerOf('#ph2 .buy'), cool: centerOf('#coolBtn'), nah: centerOf('#actNah'), amt: centerOf('#unspent .amt'), goal: centerOf('#goalFill') };
+const POS = {
+  buy1: centerOf('#buy1'), buy: centerOf('#ph2 .buy'), cool: centerOf('#coolBtn'), nah: centerOf('#actNah'),
+  hours: centerOf('#rowHours'), goalRow: centerOf('#rowGoal'), cube: centerOf('#cube'), timer: centerOf('#timer'),
+  card: centerOf('#notifCard'), amt: centerOf('#unspent .amt'), goal: centerOf('#goalFill'), dcard: centerOf('#dcard'),
+};
 
 gsap.ticker.lagSmoothing(0);
 const tl = gsap.timeline({ paused: true, defaults: { ease: 'power3.out' } });
+gsap.set('.cam', { transformOrigin: '0 0' });
 
-// scene in/out with a short punchy transition
-function scene(el, [a, b], { inDur = .28, outDur = .22 } = {}) {
+// camera framing: put stage point `p` at screen point `at`, zoomed by `s`
+const frame = (p, s, at = [540, 820]) => ({ x: at[0] - s * p[0], y: at[1] - s * p[1], scale: s });
+const cam = (el, t, p, s, at, d = .55, e = 'power3.inOut') => tl.to(el, { ...frame(p, s, at), duration: d, ease: e }, t);
+const camReset = (el, t, d = .55) => tl.to(el, { x: 0, y: 0, scale: 1, duration: d, ease: 'power3.inOut' }, t);
+
+// scene in/out: 'blur' (default), 'whip' (horizontal motion-blur pan, driven per frame) or 'cut'
+const WHIPS = [];
+function scene(el, [a, b], { enter = 'blur', exit = 'blur', inDur = .28, outDur = .22 } = {}) {
   if (a === 0) gsap.set(el, { autoAlpha: 1 });  // first scene must already be visible on frame 0
   else {
     tl.set(el, { autoAlpha: 1 }, a);
-    tl.fromTo(el, { scale: 1.06, filter: 'blur(14px)' }, { scale: 1, filter: 'blur(0px)', duration: inDur, ease: 'power2.out' }, a);
+    if (enter === 'blur') tl.fromTo(el, { scale: 1.06, filter: 'blur(14px)' }, { scale: 1, filter: 'blur(0px)', duration: inDur, ease: 'power2.out' }, a);
+    if (enter === 'whip') tl.fromTo(el, { x: 900 }, { x: 0, duration: .32, ease: 'power3.out' }, a);
   }
-  tl.to(el, { scale: .96, filter: 'blur(14px)', autoAlpha: 0, duration: outDur, ease: 'power2.in' }, b - outDur);
+  if (exit === 'blur') tl.to(el, { scale: .96, filter: 'blur(14px)', autoAlpha: 0, duration: outDur, ease: 'power2.in' }, b - outDur);
+  if (exit === 'whip') { tl.to(el, { x: -900, duration: .22, ease: 'power3.in' }, b - .22); tl.set(el, { autoAlpha: 0 }, b); WHIPS.push(b); }
+  if (exit === 'cut') tl.set(el, { autoAlpha: 0 }, b);
 }
 const pop = (el, t, from = {}) => tl.fromTo(el, { autoAlpha: 0, scale: .6, y: 30, ...from }, { autoAlpha: 1, scale: 1, y: 0, duration: .5, ease: 'back.out(2)' }, t);
 const hide = (el, t, d = .25) => tl.to(el, { autoAlpha: 0, scale: .9, duration: d, ease: 'power2.in' }, t);
-function tap(touch, ripple, x, y, t, from) {
+function tap(touch, ripple, [x, y], t, from) {
   tl.fromTo(touch, { autoAlpha: 0, x: from[0], y: from[1], scale: 1.2 }, { autoAlpha: 1, x, y, scale: 1, duration: .45, ease: 'power2.inOut' }, t - .5);
   tl.to(touch, { scale: .78, duration: .08, ease: 'power1.in' }, t - .04);
   tl.to(touch, { scale: 1, autoAlpha: 0, duration: .3 }, t + .06);
@@ -550,14 +669,16 @@ function tap(touch, ripple, x, y, t, from) {
 }
 
 /* ---------------- S1 HOOK ---------------- */
-scene('#s1', S('hook'), { inDur: .01 });
-tl.fromTo('#ph1', { scale: 1.18, y: 120 }, { scale: 1.1, y: 90, duration: 2.6, ease: 'none' }, 0);
+scene('#s1', S('hook'), { exit: 'whip' });
+const FREEZE = 1.85;
+gsap.set('#cam1', frame([540, 850], 1.08, [540, 930]));
+tl.to('#cam1', { ...frame(POS.buy1, 1.34, [540, 1240]), duration: FREEZE, ease: 'power2.in' }, 0);
 tl.fromTo('#hookA', { autoAlpha: 1, scale: 1.18 }, { autoAlpha: 1, scale: 1, duration: .3, ease: 'power4.out' }, 0);
 tl.fromTo('#hookA', { scale: 1.25 }, { scale: 1, duration: .2, ease: 'power4.out', immediateRender: false }, P('hook', 0));
 tl.to('#hookA', { autoAlpha: 0, scale: .8, duration: .1 }, P('hook', 1) - .08);
 tl.fromTo('#hookB', { autoAlpha: 0, scale: 1.6 }, { autoAlpha: 1, scale: 1, duration: .25, ease: 'power4.out' }, P('hook', 1) - .02);
-tl.fromTo('#t1', { autoAlpha: 0, left: 860, top: 1720, scale: 1.2 }, { autoAlpha: 1, left: 600, top: 1370, scale: 1, duration: 1.1, ease: 'power2.inOut' }, .55);
-const FREEZE = 1.85;
+tl.fromTo('#t1', { autoAlpha: 0, x: POS.buy1[0] + 340, y: POS.buy1[1] + 420, scale: 1.2 },
+  { autoAlpha: 1, x: POS.buy1[0] + 50, y: POS.buy1[1] + 10, scale: 1, duration: 1.15, ease: 'power2.inOut' }, .55);
 tl.to('#ph1frost', { opacity: 1, duration: .25, ease: 'power2.out' }, FREEZE);
 tl.to('#t1', { filter: 'hue-rotate(160deg) saturate(3)', duration: .2 }, FREEZE);
 tl.fromTo('#pauseIcon', { autoAlpha: 0, scale: 2.5, rotation: -20 }, { autoAlpha: 1, scale: 1, rotation: 0, duration: .35, ease: 'back.out(2.2)' }, FREEZE + .05);
@@ -565,18 +686,19 @@ tl.to('#hookB', { color: '#8BE9FF', duration: .2 }, FREEZE);
 tl.fromTo('#flash', { opacity: .7 }, { opacity: 0, duration: .35, immediateRender: false }, FREEZE);
 
 /* ---------------- S2 PROBLEM ---------------- */
-scene('#s2', S('problem'));
+scene('#s2', S('problem'), { enter: 'whip', exit: 'whip' });
 const nTimes = [P('problem', 0) + .15, P('problem', 1), P('problem', 2), P('problem', 3) + .2, P('problem', 4)];
 nTimes.forEach((t, k) => {
-  pop(`#n${k + 1}`, t, { y: -80, scale: .85 });
+  pop(`#n${k + 1}`, t, { y: -80, scale: .85, rotation: k % 2 ? 3 : -3 });
+  tl.to(`#n${k + 1}`, { rotation: 0, duration: .4 }, t + .1);
   for (let j = 0; j < k; j++) tl.to(`#n${j + 1}`, { top: 520 + (k - j) * 152, duration: .4, ease: 'power3.out' }, t);
 });
 tl.fromTo('#n5', { x: 0 }, { x: 14, duration: .05, repeat: 7, yoyo: true, ease: 'none' }, nTimes[4] + .3);
-tl.to('#balance', { backgroundColor: 'rgba(255,59,92,.55)', borderColor: 'rgba(255,59,92,1)', duration: .2 }, nTimes[4]);
-tl.fromTo('#s2', { x: 0 }, { x: 10, duration: .04, repeat: 5, yoyo: true, ease: 'none' }, nTimes[4]);
+tl.to('#balance', { backgroundColor: 'rgba(255,59,92,.6)', borderColor: 'rgba(255,59,92,1)', scale: 1.45, duration: .3, ease: 'back.out(3)' }, nTimes[4]);
+tl.fromTo('#s2 .clock', { scale: 1 }, { scale: 1.06, duration: S('problem')[1] - S('problem')[0], ease: 'none' }, S('problem')[0]);
 
 /* ---------------- S3 STATS ---------------- */
-scene('#s3', S('stats'), { outDur: .01 });
+scene('#s3', S('stats'), { enter: 'whip', exit: 'cut' });
 const people = $('#people');
 for (let i = 0; i < 10; i++) people.insertAdjacentHTML('beforeend', `<svg class="person" id="pp${i}" fill="rgba(255,255,255,.22)"><use href="#person"/></svg>`);
 pop('#st1', P('stats', 0) - .1, { scale: 1.6, y: 0 });
@@ -596,18 +718,20 @@ tl.to('#bgCool', { opacity: 1, duration: .01 }, WIPE);
 tl.to('#frost', { autoAlpha: 0, duration: .5, ease: 'power2.out' }, WIPE + .02);
 
 /* ---------------- S4 REVEAL ---------------- */
-scene('#s4', S('reveal'), { inDur: .01 });
+scene('#s4', S('reveal'), { enter: 'cut' });
 tl.fromTo('#logoBig', { scale: 3, rotation: -25, autoAlpha: 0 }, { scale: 1, rotation: 0, autoAlpha: 1, duration: .55, ease: 'back.out(1.6)' }, WIPE + .02);
 tl.fromTo('#ring', { scale: .9, autoAlpha: .9 }, { scale: 2.6, autoAlpha: 0, duration: .9, ease: 'power2.out' }, WIPE + .4);
+tl.fromTo('#rays', { autoAlpha: 0, rotation: 0 }, { autoAlpha: 1, rotation: 25, duration: 1.2, ease: 'power2.out' }, WIPE + .1);
+tl.to('#rays', { rotation: 60, duration: S('reveal')[1] - WIPE - 1.3, ease: 'none' }, WIPE + 1.3);
 tl.fromTo('#wordmark span', { y: 120, autoAlpha: 0, rotation: 8 }, { y: 0, autoAlpha: 1, rotation: 0, duration: .5, stagger: .045, ease: 'back.out(2)' }, P('reveal', 0) + .05);
 ['#c1', '#c2', '#c3'].forEach((c, i) => tl.fromTo(c, { autoAlpha: 0, x: '-50%', y: 40, scale: .8 }, { autoAlpha: 1, x: '-50%', y: 0, scale: 1, duration: .45, ease: 'back.out(2)' }, P('reveal', 1) + .15 + i * .55));
 
-/* ---------------- S5 PRICE + S6 COOL (one continuous phone) ---------------- */
+/* ---------------- S5 PRICE + S6 COOL (one continuous phone, with camera punch-ins) ---------------- */
 const PH = [S('price')[0], S('cool')[1]];
 scene('#s5', PH);
 tl.fromTo('#ph2', { y: 900, rotation: 6 }, { y: 0, rotation: 0, duration: .6, ease: 'power3.out' }, PH[0]);
 const TAP_BUY = PH[0] + .65;
-tap('#t2', '#r2', ...POS.buy, TAP_BUY, [820, 1700]);
+tap('#t2', '#r2', POS.buy, TAP_BUY, [820, 1700]);
 tl.to('#dim2', { opacity: 1, duration: .3 }, TAP_BUY + .08);
 tl.fromTo('#sheet', { yPercent: 100 }, { yPercent: 0, duration: .55, ease: 'expo.out' }, TAP_BUY + .1);
 tl.fromTo('#realLbl', { autoAlpha: 0, x: -30 }, { autoAlpha: 1, x: 0, duration: .4 }, P('price_a', 1));
@@ -615,7 +739,6 @@ tl.fromTo('#rowHours', { autoAlpha: 0, scale: .85 }, { autoAlpha: 1, scale: 1, d
 tl.fromTo('#rowGoal', { autoAlpha: 0, scale: .85 }, { autoAlpha: 1, scale: 1, duration: .45, ease: 'back.out(2)' }, P('price_b', 1) - .1);
 tl.fromTo('#gneg', { width: '0%' }, { width: '3%', duration: .5 }, P('price_b', 1) + .3);
 tl.to('#gfill', { width: '61%', duration: .5 }, P('price_b', 1) + .3);
-tl.set('#rowHours', { autoAlpha: 0 }, PH[0]); tl.set('#rowGoal', { autoAlpha: 0 }, PH[0]); tl.set('#realLbl', { autoAlpha: 0 }, PH[0]);
 pop('#pStep', TAP_BUY + .35);
 hide('#pStep', P('price_b', 0) - .2);
 pop('#pHours', P('price_b', 0) - .05);
@@ -623,36 +746,50 @@ hide('#pHours', P('price_b', 1) - .2);
 pop('#pGoal', P('price_b', 1) - .05);
 tl.to('#coolBtn', { boxShadow: '0 0 0 22px rgba(139,233,255,0)', duration: .8, repeat: 1, ease: 'power1.out' }, PE('price_b', 1) - .2);
 hide('#pGoal', P('cool_a', 0) - .3);
+// camera: hours -> goal -> cool button
+cam('#cam5', P('price_b', 0) - .2, POS.hours, 1.55, [540, 900]);
+cam('#cam5', P('price_b', 1) - .2, POS.goalRow, 1.55, [540, 900]);
+cam('#cam5', PE('price_b', 1) - .1, POS.cool, 1.35, [540, 1000], .6);
 
 const TAP_COOL = P('cool_a', 0) + .35;
-tap('#t2', '#r2', ...POS.cool, TAP_COOL, [880, 1700]);
+tap('#t2', '#r2', POS.cool, TAP_COOL, [880, 1700]);
 tl.fromTo('#cooling', { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: .35 }, TAP_COOL + .15);
 tl.to('#sb2', { color: '#fff', duration: .01 }, TAP_COOL + .15);
 tl.fromTo('#iceCube', { opacity: 0, scale: 1.25 }, { opacity: 1, scale: 1, duration: .4, ease: 'back.out(2)' }, TAP_COOL + .45);
 tl.fromTo('#flash', { opacity: .18 }, { opacity: 0, duration: .25, immediateRender: false }, TAP_COOL + .45);
-pop('#p24', P('cool_a', 1));
+camReset('#cam5', TAP_COOL + .12, .45);
 const LAPSE = [P('cool_a', 1) + .2, P('cool_b', 0) - .35];
+cam('#cam5', LAPSE[0] - .1, [(POS.cube[0] + POS.timer[0]) / 2, (POS.cube[1] + POS.timer[1]) / 2], 1.22, [540, 860], .8);
+pop('#p24', P('cool_a', 1));
 hide('#p24', LAPSE[1] - .1);
 const LOCK = LAPSE[1] + .05;
+camReset('#cam5', LOCK - .15, .4);
 tl.fromTo('#lock', { opacity: 0 }, { opacity: 1, duration: .25 }, LOCK);
 tl.fromTo('#notifCard', { yPercent: -160, autoAlpha: 0 }, { yPercent: 0, autoAlpha: 1, duration: .5, ease: 'back.out(1.4)' }, LOCK + .15);
+cam('#cam5', LOCK + .45, POS.card, 1.4, [540, 820], .6);
 tl.to('#actBuy', { backgroundColor: '#5CF2B0', color: '#071029', duration: .2 }, P('cool_b', 1));
 pop('#pGuilt', P('cool_b', 1) - .05);
 hide('#pGuilt', P('cool_c', 0) - .1);
 tl.to('#actBuy', { backgroundColor: 'rgba(11,16,32,.08)', color: '#0B1020', duration: .2 }, P('cool_c', 0));
 const TAP_NAH = P('cool_c', 0) + .6;
-tap('#t2', '#r2', ...POS.nah, TAP_NAH, [900, 1500]);
+tap('#t2', '#r2', POS.nah, TAP_NAH, [900, 1500]);
 tl.to('#actNah', { backgroundColor: '#0D1530', color: '#8BE9FF', duration: .15 }, TAP_NAH);
 tl.fromTo('#unspent', { opacity: 0, yPercent: 8 }, { opacity: 1, yPercent: 0, duration: .4 }, TAP_NAH + .3);
 tl.fromTo('#unspent .amt', { scale: .3, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: .5, ease: 'back.out(2.5)' }, TAP_NAH + .4);
+cam('#cam5', TAP_NAH + .3, POS.amt, 1.3, [540, 760], .5);
 const SAVE = P('cool_c', 1);
+cam('#cam5', SAVE + .1, [(POS.amt[0] + POS.goal[0]) / 2, (POS.amt[1] + POS.goal[1]) / 2], 1.12, [540, 820], .7);
 tl.to('#goalFill', { width: '67.4%', duration: .7, ease: 'power2.inOut' }, SAVE + .6);
 tl.fromTo('#savedTag', { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: .4 }, SAVE + 1.1);
 pop('#pSave', SAVE + .2);
 
 /* ---------------- S7 BENEFIT ---------------- */
+const B0 = S('benefit')[0];
 scene('#s7', S('benefit'));
-tl.fromTo('#ph3', { scale: .74, y: 130 }, { scale: .86, y: 10, duration: .6 }, S('benefit')[0]);
+tl.fromTo('#ph3', { scale: .74, y: 130 }, { scale: .86, y: 10, duration: .6 }, B0);
+// pull back from the unspent total to reveal the dashboard (ph3 sits at .86 scale around its centre)
+const dcard = [540 + .86 * (POS.dcard[0] - 540), 850 + .86 * (POS.dcard[1] - 850) + 10];
+tl.fromTo('#cam7', frame(dcard, 1.6, [540, 820]), { x: 0, y: 0, scale: 1, duration: 1.3, ease: 'power3.inOut' }, B0 + .5);
 pop('#b1', P('benefit', 0) - .05, { rotation: -6 });
 pop('#b2', P('benefit', 1) - .05, { rotation: 6 });
 pop('#b3', P('benefit', 2) - .05, { rotation: -4 });
@@ -675,21 +812,53 @@ tl.fromTo('#orbit .hub', { scale: 0, rotation: -90 }, { scale: 1, rotation: 0, d
 tl.to('#orbit', { autoAlpha: 0, scale: .85, duration: .35, ease: 'power2.in' }, P('social', 1) - .4);
 tl.fromTo('#share', { autoAlpha: 0, y: 500, rotation: 12 }, { autoAlpha: 1, y: 0, rotation: -5, duration: .7, ease: 'back.out(1.3)' }, P('social', 1) - .15);
 
-/* ---------------- S9 CTA ---------------- */
-scene('#s9', S('cta'), { outDur: .01 });
-tl.fromTo('#ctaLogo', { scale: 0, rotation: -40 }, { scale: 1, rotation: 0, duration: .6, ease: 'back.out(1.8)' }, S('cta')[0] + .05);
+/* ---------------- S9 PAYOFF (Tokyo) ---------------- */
+const PO = S('payoff');
+scene('#s9p', PO);
+{ // skyline: two layers of buildings with lit windows
+  const r = rng(11);
+  const city = (g, base, hMin, hMax, fill, lit) => {
+    let x = -20, out = '';
+    while (x < 1100) {
+      const w = 50 + r() * 90, h = hMin + r() * (hMax - hMin), top = base - h;
+      out += `<rect x="${x}" y="${top}" width="${w}" height="${1920 - top}" fill="${fill}"/>`;
+      for (let wy = top + 18; wy < 1900; wy += 26) for (let wx = x + 10; wx < x + w - 14; wx += 20)
+        if (r() < lit) out += `<rect x="${wx}" y="${wy}" width="8" height="12" fill="${r() < .7 ? '#FFD98A' : '#8BE9FF'}" opacity="${.45 + r() * .5}"/>`;
+      x += w + 2;
+    }
+    $(g).innerHTML = out;
+  };
+  city('#cityFar', 1660, 80, 260, '#1B1A45', .18);
+  city('#cityNear', 1760, 60, 300, '#0C0B26', .26);
+  let st = ''; for (let i = 0; i < 60; i++) st += `<circle cx="${r() * 1080}" cy="${r() * 700}" r="${1 + r() * 2.2}" fill="#fff" opacity="${.3 + r() * .6}"/>`;
+  $('#stars').innerHTML = st;
+}
+tl.fromTo('#fuji', { y: 140 }, { y: 0, duration: PO[1] - PO[0], ease: 'power2.out' }, PO[0]);
+tl.fromTo('#sun', { attr: { cy: 1520 } }, { attr: { cy: 1340 }, duration: PO[1] - PO[0], ease: 'power2.out' }, PO[0]);
+tl.fromTo(['#cityFar', '#tower'], { y: 70 }, { y: 0, duration: PO[1] - PO[0], ease: 'power2.out' }, PO[0]);
+tl.fromTo('#later span', { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: .3, stagger: .03 }, P('payoff', 0));
+tl.fromTo('#pass', { autoAlpha: 0, y: 900, rotation: 8 }, { autoAlpha: 1, y: 0, rotation: -2, duration: .8, ease: 'back.out(1.2)' }, P('payoff', 1) - .1);
+tl.to('#payFill', { width: '100%', duration: .7, ease: 'power2.inOut' }, P('payoff', 2));
+tl.fromTo('#stamp', { autoAlpha: 0, scale: 2.4, rotation: -30 }, { autoAlpha: 1, scale: 1, rotation: -12, duration: .35, ease: 'back.out(2)' }, P('payoff', 2) + .75);
+
+/* ---------------- S10 CTA ---------------- */
+const C0 = S('cta')[0];
+scene('#s9', S('cta'), { exit: 'cut' });
+tl.fromTo('#ctaLogo', { scale: 0, rotation: -40 }, { scale: 1, rotation: 0, duration: .6, ease: 'back.out(1.8)' }, C0 + .05);
+tl.fromTo('#ctaGlow', { scale: .4, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 1.2 }, C0);
 tl.fromTo('#ctaWord', { autoAlpha: 0, y: 40 }, { autoAlpha: 1, y: 0, duration: .45 }, P('cta', 0));
 tl.fromTo('#ctaLine', { autoAlpha: 0, y: 60, scale: .9 }, { autoAlpha: 1, y: 0, scale: 1, duration: .5, ease: 'back.out(1.6)' }, P('cta', 1) - .05);
 pop('#ctaBtn', P('cta', 2) - .05);
-tl.to('#ctaBtn', { boxShadow: '0 0 0 30px rgba(139,233,255,0), 0 30px 70px rgba(63,193,240,.35)', duration: 1, repeat: 4, ease: 'power1.out' }, P('cta', 2) + .5);
+tl.to('#ctaBtn', { boxShadow: '0 0 0 30px rgba(139,233,255,0), 0 30px 70px rgba(63,193,240,.35)', duration: 1, repeat: 3, ease: 'power1.out' }, P('cta', 2) + .5);
 pop('#ctaBio', P('cta', 3) - .05);
-pop('#ctaMeta', PE('cta', 3) + .4, { scale: 1 });
-pop('#ctaPS', T.duration - 3.6);
+pop('#ctaMeta', PE('cta', 3) + .3, { scale: 1 });
+pop('#ctaPS', T.duration - 3.0);
 
 /* ---------------- sound cues (read by render.js --cues, used by audio.py) ---------------- */
 window.CUES = [
-  ['impact', 0], ['tick', .5], ['freeze', FREEZE], ['tapeStop', FREEZE],
-  ...['problem', 'stats', 'price', 'benefit', 'social', 'cta'].map(k => ['whoosh', S(k)[0] - .12]),
+  ['impact', 0], ['freeze', FREEZE], ['tapeStop', FREEZE],
+  ...WHIPS.map(t => ['whip', t - .2]),
+  ...['price', 'benefit', 'social', 'payoff', 'cta'].map(k => ['whoosh', S(k)[0] - .12]),
   ...nTimes.slice(0, 4).map(t => ['ding', t]), ['alert', nTimes[4]],
   ['slam', P('stats', 0) - .1], ...[0, 1, 2, 3, 4, 5].map(i => ['blip', P('stats', 0) + .9 + i * .14]), ['slam', P('stats', 1) - .05],
   ['riser', WIPE - 2.2], ['frostWipe', WIPE - .45], ['drop', WIPE],
@@ -702,7 +871,8 @@ window.CUES = [
   ['confetti', SAVE + 1.1], ['pop', SAVE + .2],
   ['buzz', P('benefit', 0) - .05], ['buzz', P('benefit', 1) - .05], ['ding2', P('benefit', 2) - .05], ['ding2', P('benefit', 3) + .1],
   ...tiles.map((_, i) => ['blip', P('social', 0) + .2 + i * .22]), ['sheet', P('social', 1) - .15],
-  ['slam', S('cta')[0] + .05], ['pop', P('cta', 1) - .05], ['pop', P('cta', 2) - .05], ['pop', P('cta', 3) - .05], ['pop', T.duration - 3.6],
+  ['plane', PO[0] + .2], ['sheet', P('payoff', 1) - .1], ['success', P('payoff', 2) + .5], ['slam', P('payoff', 2) + .75],
+  ['slam', C0 + .05], ['pop', P('cta', 1) - .05], ['pop', P('cta', 2) - .05], ['pop', P('cta', 3) - .05], ['pop', T.duration - 3.0],
 ].map(([type, t]) => ({ type, t: +t.toFixed(3) })).sort((a, b) => a.t - b.t);
 window.LAPSE = LAPSE;
 
@@ -711,6 +881,11 @@ const flakes = [];
 { const r = rng(42); const snow = $('#snow');
   for (let i = 0; i < 46; i++) { const d = document.createElement('div'); d.className = 'flake'; snow.appendChild(d);
     flakes.push({ d, x: r() * 1080, y: r() * 1920, s: 3 + r() * 7, v: 30 + r() * 70, ph: r() * 6.28, o: .25 + r() * .5 }); } }
+const bokeh = [];
+{ const r = rng(5), bk = $('#bokeh'), cols = ['255,120,90', '255,59,92', '255,180,110', '255,90,140'];
+  for (let i = 0; i < 16; i++) { const d = document.createElement('div'); d.className = 'bk'; const s = 60 + r() * 200;
+    Object.assign(d.style, { width: s + 'px', height: s + 'px', background: `radial-gradient(circle, rgba(${cols[i % 4]},.32), rgba(${cols[i % 4]},.12) 55%, rgba(${cols[i % 4]},0) 70%)` });
+    bk.appendChild(d); bokeh.push({ d, x: r() * 1080, y: r() * 1920, v: 15 + r() * 35, ph: r() * 6.28 }); } }
 const coinEls = [], confEls = [], heartEls = [];
 { const c = $('#coins'); for (let i = 0; i < 8; i++) { const d = document.createElement('div'); d.className = 'abs emoji'; d.textContent = '🪙'; d.style.fontSize = '56px'; d.style.opacity = 0; d.style.zIndex = 46; c.appendChild(d); coinEls.push(d); } }
 { const c = $('#confetti'), r = rng(7), cols = ['#8BE9FF', '#5CF2B0', '#FFFFFF', '#BFF4FF', '#FFD166'];
@@ -726,6 +901,9 @@ function pad(n) { return String(Math.floor(n)).padStart(2, '0'); }
 const capEl = $('#caption .line');
 const noCaps = [S('hook'), S('benefit'), S('cta')];
 let capKey = '';
+const floats = [['#fl1', 0], ['#fl5', 1.3], ['#fl7', 2.1]].map(([s, ph]) => [$(s), ph]);
+const glares = $$('.glare');
+const whipB = $('#whipB');
 
 function pure(t) {
   // background drift + temperature
@@ -734,14 +912,36 @@ function pure(t) {
   });
   $('#grain').style.transform = `translate(${(Math.floor(t * 24) * 37) % 200 - 100}px, ${(Math.floor(t * 24) * 61) % 200 - 100}px)`;
   const cool = t >= WIPE;
-  $('#grid').style.opacity = cool ? .35 : .0;
-  $('#snow').style.opacity = cool ? clamp((t - WIPE) / .8) : 0;
+  $('#grid').style.opacity = cool ? .35 : 0;
+  $('#snow').style.opacity = cool ? clamp((t - WIPE) / .8) * (t > PO[0] && t < PO[1] ? 0 : 1) : 0;
   if (cool) flakes.forEach(f => {
     const y = (f.y + t * f.v) % 1980 - 30, x = f.x + Math.sin(t * .8 + f.ph) * 30;
     Object.assign(f.d.style, { width: f.s + 'px', height: f.s + 'px', opacity: f.o, transform: `translate(${x}px, ${y}px)` });
   });
+  $('#bokeh').style.opacity = clamp((WIPE - .3 - t) / .4);
+  if (!cool) bokeh.forEach(b => {
+    const y = ((b.y - t * b.v) % 2100 + 2100) % 2100 - 150, x = b.x + Math.sin(t * .5 + b.ph) * 40;
+    b.d.style.transform = `translate(${x}px, ${y}px)`;
+  });
 
-  // S1 flash-deal countdown (urgency)
+  // idle 3D drift on phones + moving screen glare
+  floats.forEach(([el, ph]) => {
+    el.style.transformOrigin = '540px 850px';
+    el.style.transform = `translateY(${Math.sin(t * .9 + ph) * 8}px) rotateY(${Math.sin(t * .6 + ph) * 5}deg) rotateX(${Math.cos(t * .5 + ph) * 3}deg)`;
+  });
+  glares.forEach((g, i) => { const k = ((t * .16 + i * .37) % 1.4) - .3; g.style.transform = `translateX(${k * 900}px)`; });
+
+  // whip-pan motion blur
+  let std = 0;
+  for (const W of WHIPS) { const k = (t - (W - .22)) / .54; if (k > 0 && k < 1) std = Math.max(std, 70 * Math.sin(Math.PI * k)); }
+  whipB.setAttribute('stdDeviation', `${std.toFixed(1)} 0`);
+  ['#s1', '#s2', '#s3'].forEach(s => { $(s).style.filter = std > .5 ? 'url(#whipF)' : ''; });
+
+  // S1 glitchy hook type + flash-deal countdown
+  const g = t < .5 || (t > P('hook', 1) - .1 && t < P('hook', 1) + .25) ? 1 : 0;
+  const j = (Math.floor(t * 30) * 7919) % 13 - 6;
+  const rgb = g ? `${-6 - j}px 0 rgba(255,0,80,.85), ${6 + j}px 0 rgba(0,240,255,.85), ` : '';
+  $('#hookA').style.textShadow = `${rgb}0 0 60px rgba(255,59,92,.7)`;
   $('#dealClock1').textContent = '04:' + pad(59 - Math.floor(t * 3) % 60);
 
   // S2 date + balance
@@ -752,6 +952,9 @@ function pure(t) {
   $('#balNum').textContent = fmtMoney(b);
   const day = t < n[3] ? 3 : Math.round(lerp(3, 20, ease(clamp((t - n[3]) / (n[4] - n[3])))));
   $('#s2date').textContent = `${day} October`;
+
+  // S3 count-up
+  $('#st2n').textContent = Math.round(62 * easeOut(clamp((t - P('stats', 1) + .05) / .6)));
 
   // S5 counters
   const hk = easeOut(clamp((t - P('price_b', 0)) / .7));
@@ -773,18 +976,17 @@ function pure(t) {
     $('#sb2time').textContent = `${hh % 12 === 0 ? 12 : hh % 12}:${pad(mm)}`; }
 
   // S6 coins + goal counters + confetti
-  const cs = SAVE;
   coinEls.forEach((c, i) => {
-    const k = clamp((t - cs - i * .06) / .7);
+    const k = clamp((t - SAVE - i * .06) / .7);
     const x0 = POS.amt[0] - 28, y0 = POS.amt[1] - 28, x1 = POS.goal[0] - 120 + i * 30, y1 = POS.goal[1] - 28;
     const x = lerp(x0, x1, k), y = lerp(y0, y1, k) - Math.sin(k * Math.PI) * 220;
     c.style.opacity = k > 0 && k < 1 ? 1 : 0;
     c.style.transform = `translate(${x}px, ${y}px) rotate(${k * 540}deg)`;
   });
-  const gk = ease(clamp((t - cs - .6) / .7));
+  const gk = ease(clamp((t - SAVE - .6) / .7));
   $('#goalPct').textContent = Math.round(lerp(64, 67.4, gk)) + '%';
   $('#goalAmt').textContent = '€' + Math.round(lerp(1280, 1348, gk)).toLocaleString('en-US');
-  const ct = t - (cs + 1.1);
+  const ct = t - (SAVE + 1.1);
   confEls.forEach(c => {
     const k = ct - c.dl;
     if (k < 0 || k > 1.6 || t > S('cool')[1]) { c.d.style.opacity = 0; return; }
@@ -794,7 +996,7 @@ function pure(t) {
   });
 
   // S7 dashboard counters
-  const dk = easeOut(clamp((t - S('benefit')[0] - .3) / 1.2));
+  const dk = easeOut(clamp((t - B0 - .3) / 1.2));
   $('#dashNum').textContent = Math.round(412 * dk);
   $('#dGoalPct').textContent = Math.round(lerp(67, 82, ease(clamp((t - P('benefit', 3) - .2) / .8)))) + '%';
 
@@ -806,19 +1008,28 @@ function pure(t) {
     h.d.style.transform = `translate(${h.x + Math.sin(k * 6 + h.ph) * h.sway - 60}px, ${1500 - k * 900}px) scale(${.6 + k * .6})`;
   });
 
+  // S9 plane + contrail, goal percentage, tower light
+  const pk = ease(clamp((t - PO[0] - .2) / (PO[1] - PO[0] - .2)));
+  const px = lerp(-80, 1180, pk), py = lerp(980, 420, pk) - Math.sin(pk * Math.PI) * 60;
+  $('#planeU').setAttribute('transform', `translate(${px} ${py}) rotate(-24 0 0)`);
+  $('#contrail').setAttribute('d', pk > 0 ? `M -80 980 Q ${lerp(-80, px, .5)} ${lerp(980, py, .5) - 60} ${px - 40} ${py + 18}` : '');
+  $('#payPct').textContent = Math.round(lerp(82, 100, ease(clamp((t - P('payoff', 2)) / .7))));
+  $('#towerLight').setAttribute('opacity', Math.floor(t * 2) % 2 ? 1 : .2);
+
+  // logo bob
   $('#ctaLogoSvg').style.transform = `translateY(${Math.sin(t * 2.2) * 12}px) rotate(${Math.sin(t * 1.3) * 3}deg)`;
   $('#logoBig svg').style.transform = `translateY(${Math.sin(t * 2.2) * 10}px)`;
 
   // captions (karaoke style), hidden where big type already carries the line
   const hot = t < WIPE;
   document.documentElement.style.setProperty('--capOn', hot ? '#FFD166' : '#8BE9FF');
-  const g = noCaps.some(([a, b]) => t >= a && t < b) ? null : T.captions.find(c => t >= c.t0 - .05 && t < c.hold);
-  const key = g ? g.t0 : '';
-  if (key !== capKey) { capKey = key; capEl.innerHTML = g ? g.words.map(w => `<span class="w">${w[0]}</span>`).join(' ') : ''; }
-  if (g) {
+  const cg = noCaps.some(([a, b]) => t >= a && t < b) ? null : T.captions.find(c => t >= c.t0 - .05 && t < c.hold);
+  const key = cg ? cg.t0 : '';
+  if (key !== capKey) { capKey = key; capEl.innerHTML = cg ? cg.words.map(w => `<span class="w">${w[0]}</span>`).join(' ') : ''; }
+  if (cg) {
     const ws = capEl.querySelectorAll('.w');
-    g.words.forEach((w, i) => ws[i].classList.toggle('on', t >= w[1] - .03));
-    const k = clamp((t - g.t0 + .05) / .12);
+    cg.words.forEach((w, i) => ws[i].classList.toggle('on', t >= w[1] - .03));
+    const k = clamp((t - cg.t0 + .05) / .12);
     capEl.style.transform = `scale(${.86 + .14 * easeOut(k)})`;
     capEl.style.opacity = 1;
   } else capEl.style.opacity = 0;

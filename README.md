@@ -9,9 +9,12 @@
 | File | What it is |
 |---|---|
 | [`video/out/cooldown_tiktok_60s.mp4`](video/out/cooldown_tiktok_60s.mp4) | **The 1-minute vertical video prototype** (1080×1920, 60.0 s, AI voiceover, original music) |
+| [`video/out/cooldown_presentation_16x9.mp4`](video/out/cooldown_presentation_16x9.mp4) | **Stage version** for a projector or big screen (1920×1080): the vertical video as a card over a blurred backdrop |
+| [`video/out/voiceover_read_along.mp4`](video/out/voiceover_read_along.mp4) | **Read-along teleprompter** (16:9): video + music on the left, the script lighting up word by word on the right, 3 s count-in. Record your voice over this |
+| [`video/out/voiceover_read_along_practice.mp4`](video/out/voiceover_read_along_practice.mp4) | Same, with the AI guide voice, for rehearsing |
 | [`video/out/cooldown_tiktok_60s_no_voice.mp4`](video/out/cooldown_tiktok_60s_no_voice.mp4) | Same video with music and sound effects but **no voice**, for recording your own voiceover |
 | [`video/out/music_sfx_no_voice.wav`](video/out/music_sfx_no_voice.wav) | That music + sound-effects track on its own (60 s WAV) |
-| [`video/voiceover-script.md`](video/voiceover-script.md) | **Voiceover script** with start times, deadlines, delivery notes and recording steps |
+| [`video/voiceover-script.md`](video/voiceover-script.md) | **Voiceover script** with start times, deadlines, delivery notes and how to record and send your voice |
 | [`video/out/cover.jpg`](video/out/cover.jpg) | TikTok cover frame |
 | [`video/out/captions.srt`](video/out/captions.srt) | Subtitle file (captions are also burned into the video) |
 | [`concept/pitch.md`](concept/pitch.md) | Concept one-pager: problem, sourced market data, solution, target customer, competition, business model, go-to-market, roadmap, risks |

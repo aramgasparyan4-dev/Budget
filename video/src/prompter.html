@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cooldown Voiceover Prompter</title>
+<!--
+  Read-along teleprompter (1920x1080). The vertical video is composited into the left card by build.sh.
+  Pure function of time: window.seek(t) with t from -3 (lead-in countdown) to 60.
+-->
+<style>
+:root { --ice: #8BE9FF; --mint: #5CF2B0; --amber: #FFC857; --hot: #FF5C7A; --muted: #7D88A8; --dim: #3F4868; --white: #F5F8FF; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #070B18; color: var(--white); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+.display { font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; letter-spacing: -.03em; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.emoji { font-family: 'Noto Color Emoji', sans-serif; }
+#bg { position: absolute; inset: 0; background: radial-gradient(1200px 900px at 75% 20%, rgba(63,193,240,.14), transparent 70%), radial-gradient(900px 700px at 10% 90%, rgba(92,120,255,.12), transparent 70%); }
+#card { position: absolute; left: 70px; top: 40px; width: 562px; height: 1000px; border-radius: 28px; background: #000; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 2px rgba(139,233,255,.15); }
+#panel { position: absolute; left: 700px; top: 50px; width: 1160px; height: 980px; }
+#top { display: flex; justify-content: space-between; align-items: baseline; }
+#brand { font-weight: 800; font-size: 26px; letter-spacing: .14em; color: var(--muted); }
+#brand b { color: var(--ice); }
+#tc { font-size: 40px; font-weight: 700; }
+#tc span { color: var(--muted); font-size: 28px; }
+#track { position: relative; height: 18px; margin-top: 22px; border-radius: 9px; background: rgba(255,255,255,.06); overflow: hidden; }
+.seg { position: absolute; top: 0; bottom: 0; background: rgba(139,233,255,.28); border-radius: 4px; }
+.seg.on { background: var(--mint); }
+#head { position: absolute; top: -6px; width: 4px; height: 30px; background: #fff; border-radius: 2px; box-shadow: 0 0 12px #fff; }
+#status { display: flex; align-items: center; gap: 22px; margin-top: 40px; height: 84px; }
+#chip { display: flex; align-items: center; gap: 16px; padding: 16px 30px; border-radius: 999px; font-weight: 900; font-size: 34px; letter-spacing: .06em; }
+#chip i { width: 22px; height: 22px; border-radius: 50%; display: inline-block; }
+#count { font-size: 72px; font-weight: 900; width: 120px; text-align: center; }
+#lineNo { margin-left: auto; font-size: 28px; color: var(--muted); font-weight: 700; }
+#now { position: absolute; top: 260px; left: 0; right: 0; height: 430px; display: flex; align-items: center; }
+#nowText { font-size: 74px; line-height: 1.18; font-weight: 800; letter-spacing: -.02em; }
+#nowText .w { color: var(--dim); transition: none; }
+#nowText .w.done { color: var(--white); }
+#nowText .w.cur { color: var(--ice); }
+#lineBar { position: absolute; top: 710px; left: 0; right: 0; height: 10px; border-radius: 5px; background: rgba(255,255,255,.07); overflow: hidden; }
+#lineFill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--ice), var(--mint)); border-radius: 5px; }
+#lineMeta { position: absolute; top: 732px; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 26px; color: var(--muted); font-weight: 700; }
+#note { position: absolute; top: 776px; left: 0; right: 0; font-size: 28px; line-height: 1.25; color: #B8C3E3; font-style: italic; font-weight: 500; }
+#next { position: absolute; top: 870px; left: 0; right: 0; padding-top: 22px; border-top: 2px solid rgba(255,255,255,.08); }
+#next small { display: block; font-size: 22px; letter-spacing: .14em; color: var(--muted); font-weight: 800; }
+#nextText { margin-top: 8px; font-size: 36px; color: #8C97B8; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#lead { position: absolute; top: 230px; left: 0; right: 0; text-align: center; display: none; }
+#lead .n { font-size: 260px; line-height: 1; color: var(--amber); }
+#lead p { font-size: 40px; font-weight: 700; margin-top: 20px; color: #C9D2EE; }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<div id="card"></div>
+<div id="panel">
+  <div id="top"><div id="brand"><b>COOLDOWN</b> · VOICEOVER READ-ALONG</div><div id="tc" class="mono">0:00.0 <span>/ 1:00</span></div></div>
+  <div id="track"><div id="head"></div></div>
+  <div id="status"><div id="chip"><i></i><span>GET READY</span></div><div id="count" class="mono"></div><div id="lineNo"></div></div>
+  <div id="now"><div id="nowText" class="display"></div></div>
+  <div id="lead"><div class="n display">3</div><p>Start recording now <span class="emoji">🎙️</span> and keep it rolling to the end.</p></div>
+  <div id="lineBar"><div id="lineFill"></div></div>
+  <div id="lineMeta"><span id="lineStart"></span><span id="lineEnd"></span></div>
+  <div id="note"></div>
+  <div id="next"><small id="nextLbl">NEXT</small><div id="nextText"></div></div>
+</div>
+<script>
+const T = window.TIMING, L = window.LINES;
+const $ = (s) => document.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const fmt = (s) => `${Math.floor(Math.max(0, s) / 60)}:${(Math.max(0, s) % 60).toFixed(1).padStart(4, '0')}`;
+const READY = 2.0;   // the prompter switches to a line this long before it starts
+
+// lines with their guide word timings (from the karaoke captions) and a "finish by" deadline
+const words = T.captions.flatMap(g => g.words);
+const lines = T.clips.map((c, i) => {
+  const meta = L.find(l => l.id === c.id);
+  const next = T.clips[i + 1];
+  return { ...c, text: meta.text, note: meta.note, n: i + 1,
+    words: words.filter(w => w[1] >= c.start - .01 && w[1] <= c.end + .01),
+    deadline: next ? next.start - .2 : T.duration - 1.5 };
+});
+
+const track = $('#track');
+lines.forEach((l, i) => track.insertAdjacentHTML('beforeend',
+  `<div class="seg" id="seg${i}" style="left:${l.start / T.duration * 100}%;width:${(l.end - l.start) / T.duration * 100}%"></div>`));
+
+let shown = '';
+function seek(t) {
+  $('#tc').firstChild.textContent = (t < 0 ? '-' : '') + fmt(Math.abs(t)) + ' ';
+  $('#head').style.left = `calc(${clamp(t / T.duration) * 100}% - 2px)`;
+  lines.forEach((l, i) => $(`#seg${i}`).classList.toggle('on', t >= l.start && t < l.end));
+
+  // which line to show: from READY s before its start until the next line takes over
+  let idx = lines.findIndex((l, i) => t < (lines[i + 1] ? lines[i + 1].start - READY : 1e9));
+  const l = lines[idx];
+  const lead = t < 0;
+  $('#lead').style.display = lead ? 'block' : 'none';
+  ['#now', '#lineBar', '#lineMeta', '#note'].forEach(s => { $(s).style.visibility = lead ? 'hidden' : 'visible'; });
+  if (lead) $('#lead .n').textContent = Math.ceil(-t);
+
+  const key = idx + (lead ? 'L' : '');
+  if (key !== shown) {
+    shown = key;
+    $('#nowText').innerHTML = l.words.map(w => `<span class="w">${w[0]}</span>`).join(' ');
+    $('#note').textContent = 'How to say it: ' + l.note;
+    $('#lineNo').textContent = `Line ${l.n} / ${lines.length}`;
+    $('#lineStart').textContent = `Start ${fmt(l.start)}`;
+    $('#lineEnd').textContent = `Finish by ${fmt(l.deadline)}`;
+    const nx = lines[idx + 1];
+    $('#nextLbl').textContent = nx ? `NEXT · ${fmt(nx.start)}` : 'NEXT';
+    $('#nextText').textContent = nx ? nx.text : 'That\'s the last line. Let the music finish, then stop recording.';
+  }
+  const first = lead ? lines[0] : null;
+  if (lead) { $('#nextLbl').textContent = `FIRST LINE · ${fmt(lines[0].start)}`; $('#nextText').textContent = first.text; }
+
+  const ws = document.querySelectorAll('#nowText .w');
+  l.words.forEach((w, i) => { ws[i].classList.toggle('done', t >= w[2]); ws[i].classList.toggle('cur', t >= w[1] - .02 && t < w[2]); });
+  $('#lineFill').style.width = `${clamp((t - l.start) / (l.end - l.start)) * 100}%`;
+
+  // status chip + countdown
+  const chip = $('#chip'), dot = $('#chip i'), lbl = $('#chip span');
+  let c, txt, count = '';
+  if (lead) { c = 'var(--amber)'; txt = 'GET READY'; }
+  else if (t < l.start) { c = 'var(--amber)'; txt = 'GET READY'; count = Math.ceil(l.start - t); }
+  else if (t < l.end + .15) { c = 'var(--mint)'; txt = 'SPEAK NOW'; }
+  else if (t < l.deadline) { c = 'var(--ice)'; txt = 'FINISH THE LINE'; }
+  else { c = 'var(--muted)'; txt = idx === lines.length - 1 ? 'DONE, KEEP ROLLING' : 'PAUSE'; }
+  chip.style.background = c.replace('var(', 'color-mix(in srgb, var(').replace(')', ') 18%, transparent)');
+  chip.style.color = c; dot.style.background = c;
+  dot.style.opacity = txt === 'SPEAK NOW' ? (Math.floor(t * 4) % 2 ? .35 : 1) : 1;
+  lbl.textContent = txt;
+  $('#count').textContent = count;
+  $('#count').style.color = c;
+}
+window.seek = seek;
+window.ready = document.fonts.ready.then(() => { seek(-3); return true; });
+</script>
+</body>
+</html>

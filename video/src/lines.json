@@ -1,50 +1,15 @@
 [
-  {
-    "id": "hook",
-    "text": "Stop. Don't tap buy now."
-  },
-  {
-    "id": "problem",
-    "text": "Late-night scrolling. One-tap checkout. Pay in four. And by the twentieth... your money's gone."
-  },
-  {
-    "id": "stats",
-    "text": "Six in ten of us impulse-buy because of social media. And most of us regret it."
-  },
-  {
-    "id": "reveal",
-    "text": "Meet Cooldown. The app that puts a pause between you and the checkout."
-  },
-  {
-    "id": "price_a",
-    "text": "Before you pay, it shows you the real price."
-  },
-  {
-    "id": "price_b",
-    "text": "Hours of your work, and days added to your goals."
-  },
-  {
-    "id": "cool_a",
-    "text": "Tap cool down, and it holds the item for twenty-four hours."
-  },
-  {
-    "id": "cool_b",
-    "text": "Still want it tomorrow? Buy it, guilt-free."
-  },
-  {
-    "id": "cool_c",
-    "text": "Changed your mind? That money goes straight into your savings."
-  },
-  {
-    "id": "benefit",
-    "text": "No spreadsheets. No guilt trips. Just fewer regrets, and goals that actually get closer."
-  },
-  {
-    "id": "social",
-    "text": "It works with your cards and your favourite shops. And you can flex what you didn't buy."
-  },
-  {
-    "id": "cta",
-    "text": "Cooldown. Cool down before you check out. Join the free waitlist. Link in bio."
-  }
+  {"id": "hook", "text": "Stop. Don't tap buy now.", "note": "Urgent and punchy, almost a warning. The screen freezes right after."},
+  {"id": "problem", "text": "Late-night scrolling. One-tap checkout. Pay in four. And by the twentieth... your money's gone.", "note": "Deadpan, one beat per notification. Pause after 'twentieth', drop your voice on 'gone'."},
+  {"id": "stats", "text": "Six in ten of us impulse-buy because of social media. And most of us regret it.", "note": "Knowing, a little guilty, like 'we've all done it'."},
+  {"id": "reveal", "text": "Meet Cooldown. The app that puts a pause between you and the checkout.", "note": "Energy up, smile. 'Cooldown' lands just after the music drop."},
+  {"id": "price_a", "text": "Before you pay, it shows you the real price.", "note": "Clear and confident. Stress 'real'."},
+  {"id": "price_b", "text": "Hours of your work, and days added to your goals.", "note": "Each half lands as its row zooms in."},
+  {"id": "cool_a", "text": "Tap cool down, and it holds the item for twenty-four hours.", "note": "'Tap' hits the on-screen tap. Calm as the item freezes."},
+  {"id": "cool_b", "text": "Still want it tomorrow? Buy it, guilt-free.", "note": "Light, easy-going: a real question."},
+  {"id": "cool_c", "text": "Changed your mind? That money goes straight into your savings.", "note": "Rising excitement. Coins fly on 'That money'."},
+  {"id": "benefit", "text": "No spreadsheets. No guilt trips. Just fewer regrets, and goals that actually get closer.", "note": "First two dismissive, last two warm."},
+  {"id": "social", "text": "It works with your cards and your favourite shops. And you can flex what you didn't buy.", "note": "Playful. Smile on 'flex'."},
+  {"id": "payoff", "text": "Three months later, all that unspent money? It's a flight to Tokyo.", "note": "Warm and proud. Land 'Tokyo' with a smile."},
+  {"id": "cta", "text": "Cooldown. Cool down before you check out. Join the free waitlist. Link in bio.", "note": "Slower and confident: the sign-off."}
 ]

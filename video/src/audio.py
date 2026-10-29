@@ -19,8 +19,6 @@ N = int(DUR * SR)
 BEAT = 0.5          # 120 BPM
 BAR = 4 * BEAT
 GRID = 0.1          # beat-grid offset so scene cuts land on beats
-DROP = 14.1         # first bar of the main groove (frost wipe ends at 14.0)
-OUTRO = 58.1        # groove stops, final chord rings out
 rng = np.random.default_rng(7)
 
 
@@ -160,25 +158,30 @@ def sub_boom(d=1.4, f0=90, f1=38):
 
 
 # ---------------------------------------------------------------- music
-def build_music():
+def build_music(scenes, freeze):
+    """music laid out on the scene boundaries from timing.json."""
     drums, inst, pads = Bus(), Bus(), Bus()
-    beats = lambda a, b: [GRID + k * BEAT for k in range(int(np.ceil((a - GRID) / BEAT)), int((b - GRID) / BEAT) + 1) if a - 1e-6 <= GRID + k * BEAT < b - 1e-6]
+    b_start = scenes["problem"][0]          # tense groove starts with the problem scene
+    stop_b = scenes["stats"][1] - 0.45      # frost wipe
+    drop = scenes["stats"][1] + 0.1         # main groove
+    main_end = scenes["payoff"][0]          # breakdown under the Tokyo payoff
+    cta = scenes["cta"][0]                  # re-drop for the call to action
+    outro = cta + 3 * BAR                   # final chord rings out
 
-    # --- hook (0 - 1.85): dark A-minor drone, clock ticks, rising tension
+    # --- hook: dark A-minor drone, clock ticks, rising tension
     am = [45, 52, 57, 60]
-    hook = pad(am, 2.6, 700)
+    hook = pad(am, b_start, 700)
     hook *= np.linspace(0.6, 1.4, len(hook))
     pads.add(hook, 0, 0.9)
     inst.add(sub_boom(1.6), 0, 0.9)
-    for k, b in enumerate(np.arange(0.5, 1.85, 0.25)):
+    for k, b in enumerate(np.arange(0.5, freeze, 0.25)):
         drums.add(hat() * (0.5 + 0.1 * k), b, 0.5, pan=0.3 if k % 2 else -0.3)
 
-    # --- problem + stats (2.6 - 13.55): tense half-time groove, Am F Dm E Am F
+    # --- problem + stats: tense half-time groove, Am F Dm E Am F
     prog = [[45, 52, 57, 60], [41, 48, 53, 57], [38, 45, 50, 53], [40, 47, 52, 56], [45, 52, 57, 60], [41, 48, 53, 57]]
     roots = [33, 29, 26, 28, 33, 29]
-    stop_b = 13.55
     for i, (ch, r) in enumerate(zip(prog, roots)):
-        a = 2.6 + i * BAR
+        a = b_start + i * BAR
         if a >= stop_b:
             break
         d = min(BAR, stop_b - a)
@@ -195,63 +198,83 @@ def build_music():
             if k % 3 != 2:
                 inst.add(pluck(ch[(k * 2) % 4] + 12, 0.25, 2200), h, 0.13, pan=-0.35)
 
-    # --- main groove (14.1 - 58.1): C G Am F, four on the floor, side-chained pads
+    # --- main groove + CTA re-drop: C G Am F, four on the floor, side-chained pads
     chords = [[60, 64, 67, 71], [59, 62, 67, 71], [57, 60, 64, 69], [57, 60, 65, 69]]
     broots = [36, 43, 45, 41]
     arp = [0, 1, 2, 3, 2, 1, 2, 3, 0, 1, 2, 3, 2, 3, 1, 2]
     pump = np.ones(N)
-    drums.add(crash(), DROP, 0.55)
-    inst.add(sub_boom(1.8, 110, 36), DROP, 1.0)
-    bar = 0
-    while DROP + bar * BAR < OUTRO - 1e-6:
-        a = DROP + bar * BAR
-        ch, r = chords[bar % 4], broots[bar % 4]
-        pads.add(pad(ch, BAR + 0.1, 2200), a, 0.5)
-        for k in range(4):
-            b = a + k * BEAT
-            drums.add(kick(), b, 0.9)
-            i = int(b * SR)
-            seg = np.minimum(1, 0.25 + 0.75 * (tt(BEAT) / 0.16) ** 0.8)
-            pump[i : i + len(seg)] = np.minimum(pump[i : i + len(seg)], seg[: N - i])
-            drums.add(hat(True), b + BEAT / 2, 0.22, pan=0.2)
-            inst.add(bass(r, BEAT / 2 - 0.02), b + BEAT / 2, 0.62)
-            if k in (1, 3):
-                drums.add(clap(), b, 0.62)
-        for k in range(16):
-            drums.add(hat(), a + k * BEAT / 4, 0.16 if k % 2 else 0.1, pan=-0.2)
-            vel = 0.17 if k % 4 == 0 else 0.11
-            inst.add(pluck(ch[arp[k]] + 12, 0.3), a + k * BEAT / 4, vel, pan=0.35 if k % 2 else -0.35)
-            if a >= 37.5:  # benefit onwards: extra octave sparkle
-                inst.add(pluck(ch[arp[(k + 2) % 16]] + 24, 0.22, 5000), a + k * BEAT / 4, vel * 0.45, pan=-0.5 if k % 2 else 0.5)
-        if a >= 49.5:   # CTA: bell hook on top
-            for k, m in enumerate([76, 79, 84, 83] if bar % 2 == 0 else [81, 79, 76, 74]):
-                inst.add(bell(midi(m), 0.9), a + k * BEAT, 0.12, pan=0.1)
-        bar += 1
+
+    def groove(a0, a1, sparkle_from, bells):
+        drums.add(crash(), a0, 0.55)
+        inst.add(sub_boom(1.8, 110, 36), a0, 1.0)
+        bar = 0
+        while a0 + bar * BAR < a1 - 1e-6:
+            a = a0 + bar * BAR
+            ch, r = chords[bar % 4], broots[bar % 4]
+            beats_here = [k for k in range(4) if a + k * BEAT < a1 - 1e-6]
+            pads.add(pad(ch, min(BAR, a1 - a) + 0.1, 2200), a, 0.5)
+            for k in beats_here:
+                b = a + k * BEAT
+                drums.add(kick(), b, 0.9)
+                i = int(b * SR)
+                seg = np.minimum(1, 0.25 + 0.75 * (tt(BEAT) / 0.16) ** 0.8)
+                pump[i : i + len(seg)] = np.minimum(pump[i : i + len(seg)], seg[: N - i])
+                drums.add(hat(True), b + BEAT / 2, 0.22, pan=0.2)
+                inst.add(bass(r, BEAT / 2 - 0.02), b + BEAT / 2, 0.62)
+                if k in (1, 3):
+                    drums.add(clap(), b, 0.62)
+            for k in range(4 * len(beats_here)):
+                drums.add(hat(), a + k * BEAT / 4, 0.16 if k % 2 else 0.1, pan=-0.2)
+                vel = 0.17 if k % 4 == 0 else 0.11
+                inst.add(pluck(ch[arp[k]] + 12, 0.3), a + k * BEAT / 4, vel, pan=0.35 if k % 2 else -0.35)
+                if a >= sparkle_from:
+                    inst.add(pluck(ch[arp[(k + 2) % 16]] + 24, 0.22, 5000), a + k * BEAT / 4, vel * 0.45, pan=-0.5 if k % 2 else 0.5)
+            if bells:
+                for k, m in enumerate([76, 79, 84, 83] if bar % 2 == 0 else [81, 79, 76, 74]):
+                    inst.add(bell(midi(m), 0.9), a + k * BEAT, 0.12, pan=0.1)
+            bar += 1
+
+    groove(drop, main_end, scenes["benefit"][0] - 0.2, bells=False)
+    groove(cta, outro, cta, bells=True)
+
+    # --- payoff breakdown: no drums, open chords + bell arpeggio, snare roll into the re-drop
+    inst.add(sub_boom(1.6, 80, 34), main_end, 0.7)
+    half = (cta - main_end) / 2
+    for i, (ch, root) in enumerate([([53, 57, 60, 64, 69], 41), ([55, 59, 62, 67, 71], 43)]):
+        a = main_end + i * half
+        pads.add(pad(ch, half + 0.2, 2600), a, 0.7)
+        inst.add(bass(root, half), a, 0.4)
+        for k, h in enumerate(np.arange(a, a + half - 0.05, BEAT / 2)):
+            inst.add(bell(midi(ch[k % len(ch)] + 12), 0.8), h, 0.07, pan=0.4 if k % 2 else -0.4)
+    roll0 = cta - BAR
+    for k in range(16):
+        h = roll0 + k * BAR / 16
+        drums.add(clap() * (0.25 + 0.75 * k / 15), h, 0.35)
+    drums.add(riser(BAR), roll0, 0.5)
 
     # --- outro: final chord rings out, with an impact
-    inst.add(sub_boom(2.0, 100, 36), OUTRO, 0.9)
-    pads.add(pad([60, 64, 67, 74], 1.9, 2600), OUTRO, 0.55)
+    inst.add(sub_boom(2.0, 100, 36), outro, 0.9)
+    pads.add(pad([60, 64, 67, 74], DUR - outro, 2600), outro, 0.55)
     for k, m in enumerate([72, 76, 79, 84]):
-        inst.add(bell(midi(m), 1.8), OUTRO + k * 0.04, 0.16)
-    drums.add(crash(), OUTRO, 0.4)
+        inst.add(bell(midi(m), 1.8), outro + k * 0.04, 0.16)
+    drums.add(crash(), outro, 0.4)
 
     pads.x *= pump
-    inst_pumped = inst.x.copy()
-    inst_pumped[:, int(DROP * SR):] *= 0.65 + 0.35 * pump[int(DROP * SR):]
-    inst.x = inst_pumped
+    i0 = int(drop * SR)
+    inst.x[:, i0:] *= 0.65 + 0.35 * pump[i0:]
     ir = reverb_ir()
     music = drums.wet(ir, 0.08) + inst.wet(ir, 0.22) + pads.wet(ir, 0.3)
 
     # tape-stop on the hook freeze, then silence until the problem scene
-    f0, f1 = int(1.85 * SR), int(2.2 * SR)
+    f0, f1 = int(freeze * SR), int((freeze + 0.35) * SR)
     L = f1 - f0
     rate = np.linspace(1, 0, L) ** 1.5
     pos = f0 + np.cumsum(rate)
     for c in range(2):
         music[c, f0:f1] = np.interp(pos, np.arange(N), music[c]) * np.linspace(1, 0, L)
-    music[:, f1 : int(2.6 * SR)] = 0
+    music[:, f1 : int(b_start * SR)] = 0
     # short gap before the drop for the frost wipe
-    g0, g1 = int(13.55 * SR), int(DROP * SR)
+    g0, g1 = int(stop_b * SR), int(drop * SR)
     music[:, g0:g1] *= np.linspace(1, 0.15, g1 - g0)
     return music
 
@@ -264,6 +287,21 @@ def whoosh(d=0.45):
         e = np.exp(-((t / d - peak) ** 2) / 0.03)
         out += filt(noise(d), [lo, hi], "band") * e
     return out * 0.9
+
+
+def whip():
+    d = 0.32
+    t = tt(d)
+    n = filt(noise(d), [1200, 9000], "band") * np.exp(-((t / d - 0.45) ** 2) / 0.02)
+    return n + sweep(900, 180, d) * np.exp(-((t / d - 0.5) ** 2) / 0.03) * 0.15
+
+
+def plane(d=3.6):
+    t = tt(d)
+    swell = np.sin(np.pi * t / d) ** 2
+    rumble = filt(noise(d), 220) * 2.2
+    jet = filt(noise(d), [1500, 5000], "band") * 0.5
+    return (rumble + jet) * swell * 0.6
 
 
 def ding(f):
@@ -398,6 +436,12 @@ def build_sfx(cues, lapse):
         t, k = c["t"], c["type"]
         if k == "whoosh":
             bus.add(whoosh(), t, 0.5, pan=rng.uniform(-0.4, 0.4))
+        elif k == "whip":
+            bus.add(whip(), t, 0.6, pan=-0.3)
+        elif k == "plane":
+            pl = plane()
+            bus.add(pl * np.linspace(1.2, 0.4, len(pl)), t, 0.35, pan=-0.6)
+            bus.add(pl * np.linspace(0.4, 1.2, len(pl)), t, 0.35, pan=0.6)
         elif k == "sheet":
             bus.add(filt(whoosh(0.35), 3000), t, 0.45)
         elif k == "ding":
@@ -465,7 +509,9 @@ def main():
     cues = json.loads((BUILD / "cues.json").read_text())
     vo, sr = sf.read(BUILD / "vo_track.wav", dtype="float64")
     assert sr == SR and len(vo) == N
-    music = build_music()
+    timing = json.loads((BUILD / "timing.json").read_text())
+    freeze = next(c["t"] for c in cues["cues"] if c["type"] == "tapeStop")
+    music = build_music(timing["scenes"], freeze)
     sfx = build_sfx(cues["cues"], cues["lapse"])
     music = np.stack([filt(ch, 32, "high", 2) for ch in music])  # trim sub rumble phones can't play anyway
     music /= np.max(np.abs(music)) + 1e-9
