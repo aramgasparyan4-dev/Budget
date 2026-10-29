@@ -473,12 +473,18 @@ def main():
     sf.write(BUILD / "music.wav", music.T.astype(np.float32), SR)
     sf.write(BUILD / "sfx.wav", sfx.T.astype(np.float32), SR)
 
-    mix = music * 0.42 * duck_gain(vo) + sfx * 0.38 + np.stack([vo, vo]) * 0.95
-    mix = np.tanh(mix * 1.1) / 1.1   # gentle safety saturation
-    fade = int(0.02 * SR)
-    mix[:, :fade] *= np.linspace(0, 1, fade)
-    mix[:, -fade:] *= np.linspace(1, 0, fade)
+    def finish(x):
+        x = np.tanh(x * 1.1) / 1.1   # gentle safety saturation
+        fade = int(0.02 * SR)
+        x[:, :fade] *= np.linspace(0, 1, fade)
+        x[:, -fade:] *= np.linspace(1, 0, fade)
+        return x
+
+    # the bed keeps the dips where the lines go, so a re-recorded voice sits in the same pockets
+    bed = music * 0.42 * duck_gain(vo) + sfx * 0.38
+    mix = finish(bed + np.stack([vo, vo]) * 0.95)
     sf.write(BUILD / "mix.wav", mix.T.astype(np.float32), SR)
+    sf.write(BUILD / "bed.wav", finish(bed).T.astype(np.float32), SR)
     print("mix peak", round(float(np.max(np.abs(mix))), 3))
 
 

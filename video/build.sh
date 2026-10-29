@@ -26,4 +26,10 @@ ffmpeg -hide_banner -loglevel error -y -framerate 30 -i build/frames/f%05d.jpg -
   -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -profile:v high -level 4.2 -r 30 \
   -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest out/cooldown_tiktok_60s.mp4
 ffmpeg -hide_banner -loglevel error -y -i build/frames/f00045.jpg -q:v 3 out/cover.jpg
+
+# no-voice version (music + sound effects) for recording your own voiceover; same picture, same gain as the full mix
+ffmpeg -hide_banner -loglevel error -y -i build/bed.wav -af "volume=2.6dB,alimiter=limit=0.84:level=false" \
+  -c:a pcm_s16le out/music_sfx_no_voice.wav
+ffmpeg -hide_banner -loglevel error -y -i out/cooldown_tiktok_60s.mp4 -i out/music_sfx_no_voice.wav \
+  -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -movflags +faststart -shortest out/cooldown_tiktok_60s_no_voice.mp4
 echo "done: out/cooldown_tiktok_60s.mp4"
