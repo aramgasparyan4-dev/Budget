@@ -7,45 +7,49 @@
   Read-along teleprompter (1920x1080). The vertical video is composited into the left card by build.sh.
   Pure function of time: window.seek(t) with t from -3 (lead-in countdown) to 60.
 -->
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/fraunces/full.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/bricolage-grotesque/standard.css">
+<link rel="stylesheet" href="../node_modules/@fontsource/nanum-pen-script/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource/courier-prime/700.css">
 <style>
-:root { --ice: #8BE9FF; --mint: #5CF2B0; --amber: #FFC857; --hot: #FF5C7A; --muted: #7D88A8; --dim: #3F4868; --white: #F5F8FF; }
+/* same printed-paper palette as the video; status colours: tomato = get ready, cobalt = speak */
+:root { --amber: #E9502F; --mint: #2F58C7; --ice: #1C1A17; --muted: #8A7F76; --dim: #CBC1B4; --white: #1C1A17; --butter: #F2C94C; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 1920px; height: 1080px; overflow: hidden; background: #070B18; color: var(--white); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
-.display { font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 900; letter-spacing: -.03em; }
-.mono { font-family: 'JetBrains Mono', monospace; }
-.emoji { font-family: 'Noto Color Emoji', sans-serif; }
-#bg { position: absolute; inset: 0; background: radial-gradient(1200px 900px at 75% 20%, rgba(63,193,240,.14), transparent 70%), radial-gradient(900px 700px at 10% 90%, rgba(92,120,255,.12), transparent 70%); }
-#card { position: absolute; left: 70px; top: 40px; width: 562px; height: 1000px; border-radius: 28px; background: #000; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 2px rgba(139,233,255,.15); }
-#panel { position: absolute; left: 700px; top: 50px; width: 1160px; height: 980px; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #F2EBDD; color: #1C1A17; font-family: 'Bricolage Grotesque Variable', sans-serif; -webkit-font-smoothing: antialiased; }
+.display { font-family: 'Fraunces Variable', serif; font-weight: 800; font-variation-settings: "SOFT" 100, "WONK" 1; letter-spacing: -.02em; }
+.mono { font-family: 'Courier Prime', monospace; font-weight: 700; }
+#bg { position: absolute; inset: 0; }
+#card { position: absolute; left: 64px; top: 34px; width: 574px; height: 1012px; border-radius: 34px; background: #1C1A17; box-shadow: 14px 14px 0 #1C1A17; }
+#panel { position: absolute; left: 720px; top: 50px; width: 1140px; height: 980px; }
 #top { display: flex; justify-content: space-between; align-items: baseline; }
-#brand { font-weight: 800; font-size: 26px; letter-spacing: .14em; color: var(--muted); }
-#brand b { color: var(--ice); }
-#tc { font-size: 40px; font-weight: 700; }
+#brand { font-weight: 800; font-size: 26px; letter-spacing: .16em; color: var(--muted); }
+#brand b { color: #2F58C7; }
+#tc { font-size: 44px; }
 #tc span { color: var(--muted); font-size: 28px; }
-#track { position: relative; height: 18px; margin-top: 22px; border-radius: 9px; background: rgba(255,255,255,.06); overflow: hidden; }
-.seg { position: absolute; top: 0; bottom: 0; background: rgba(139,233,255,.28); border-radius: 4px; }
-.seg.on { background: var(--mint); }
-#head { position: absolute; top: -6px; width: 4px; height: 30px; background: #fff; border-radius: 2px; box-shadow: 0 0 12px #fff; }
+#track { position: relative; height: 20px; margin-top: 22px; border-radius: 10px; background: #E4DBCB; border: 3px solid #1C1A17; overflow: hidden; }
+.seg { position: absolute; top: 0; bottom: 0; background: #C9D8F2; }
+.seg.on { background: #2F58C7; }
+#head { position: absolute; top: -4px; width: 5px; height: 28px; background: #E9502F; }
 #status { display: flex; align-items: center; gap: 22px; margin-top: 40px; height: 84px; }
-#chip { display: flex; align-items: center; gap: 16px; padding: 16px 30px; border-radius: 999px; font-weight: 900; font-size: 34px; letter-spacing: .06em; }
+#chip { display: flex; align-items: center; gap: 16px; padding: 14px 30px; border-radius: 999px; font-weight: 800; font-size: 34px; letter-spacing: .08em; border: 4px solid currentColor; }
 #chip i { width: 22px; height: 22px; border-radius: 50%; display: inline-block; }
-#count { font-size: 72px; font-weight: 900; width: 120px; text-align: center; }
+#count { font-size: 76px; width: 120px; text-align: center; }
 #lineNo { margin-left: auto; font-size: 28px; color: var(--muted); font-weight: 700; }
 #now { position: absolute; top: 260px; left: 0; right: 0; height: 430px; display: flex; align-items: center; }
-#nowText { font-size: 74px; line-height: 1.18; font-weight: 800; letter-spacing: -.02em; }
-#nowText .w { color: var(--dim); transition: none; }
+#nowText { font-size: 78px; line-height: 1.16; }
+#nowText .w { color: var(--dim); border-radius: 8px; }
 #nowText .w.done { color: var(--white); }
-#nowText .w.cur { color: var(--ice); }
-#lineBar { position: absolute; top: 710px; left: 0; right: 0; height: 10px; border-radius: 5px; background: rgba(255,255,255,.07); overflow: hidden; }
-#lineFill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--ice), var(--mint)); border-radius: 5px; }
-#lineMeta { position: absolute; top: 732px; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 26px; color: var(--muted); font-weight: 700; }
-#note { position: absolute; top: 776px; left: 0; right: 0; font-size: 28px; line-height: 1.25; color: #B8C3E3; font-style: italic; font-weight: 500; }
-#next { position: absolute; top: 870px; left: 0; right: 0; padding-top: 22px; border-top: 2px solid rgba(255,255,255,.08); }
-#next small { display: block; font-size: 22px; letter-spacing: .14em; color: var(--muted); font-weight: 800; }
-#nextText { margin-top: 8px; font-size: 36px; color: #8C97B8; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nowText .w.cur { color: #2F58C7; background: linear-gradient(transparent 20%, var(--butter) 20%, var(--butter) 90%, transparent 90%); }
+#lineBar { position: absolute; top: 710px; left: 0; right: 0; height: 12px; border-radius: 6px; background: #E4DBCB; overflow: hidden; }
+#lineFill { position: absolute; left: 0; top: 0; bottom: 0; background: #2F58C7; }
+#lineMeta { position: absolute; top: 734px; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 26px; color: var(--muted); font-weight: 700; }
+#note { position: absolute; top: 772px; left: 0; right: 0; font-family: 'Nanum Pen Script'; font-size: 46px; line-height: 1.05; color: #E9502F; }
+#next { position: absolute; top: 876px; left: 0; right: 0; padding-top: 20px; border-top: 3px dashed #CBC1B4; }
+#next small { display: block; font-size: 22px; letter-spacing: .16em; color: var(--muted); font-weight: 800; }
+#nextText { margin-top: 8px; font-size: 36px; color: #6E645D; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #lead { position: absolute; top: 230px; left: 0; right: 0; text-align: center; display: none; }
-#lead .n { font-size: 260px; line-height: 1; color: var(--amber); }
-#lead p { font-size: 40px; font-weight: 700; margin-top: 20px; color: #C9D2EE; }
+#lead .n { font-size: 280px; line-height: 1; color: #E9502F; }
+#lead p { font-size: 40px; font-weight: 700; margin-top: 20px; color: #1C1A17; }
 </style>
 </head>
 <body>
@@ -56,7 +60,7 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: #070B1
   <div id="track"><div id="head"></div></div>
   <div id="status"><div id="chip"><i></i><span>GET READY</span></div><div id="count" class="mono"></div><div id="lineNo"></div></div>
   <div id="now"><div id="nowText" class="display"></div></div>
-  <div id="lead"><div class="n display">3</div><p>Start recording now <span class="emoji">🎙️</span> and keep it rolling to the end.</p></div>
+  <div id="lead"><div class="n display">3</div><p>Start recording now, and keep it rolling to the end.</p></div>
   <div id="lineBar"><div id="lineFill"></div></div>
   <div id="lineMeta"><span id="lineStart"></span><span id="lineEnd"></span></div>
   <div id="note"></div>
@@ -101,7 +105,7 @@ function seek(t) {
   if (key !== shown) {
     shown = key;
     $('#nowText').innerHTML = l.words.map(w => `<span class="w">${w[0]}</span>`).join(' ');
-    $('#note').textContent = 'How to say it: ' + l.note;
+    $('#note').textContent = l.note;
     $('#lineNo').textContent = `Line ${l.n} / ${lines.length}`;
     $('#lineStart').textContent = `Start ${fmt(l.start)}`;
     $('#lineEnd').textContent = `Finish by ${fmt(l.deadline)}`;
@@ -132,7 +136,8 @@ function seek(t) {
   $('#count').style.color = c;
 }
 window.seek = seek;
-window.ready = document.fonts.ready.then(() => { seek(-3); return true; });
+window.ready = Promise.all(['800 78px "Fraunces Variable"', '800 30px "Bricolage Grotesque Variable"', '400 46px "Nanum Pen Script"', '700 44px "Courier Prime"'].map(f => document.fonts.load(f)))
+  .then(() => document.fonts.ready).then(() => { seek(-3); return true; });
 </script>
 </body>
 </html>

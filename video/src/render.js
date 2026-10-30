@@ -28,7 +28,7 @@ async function openPage(browser) {
 }
 
 async function stills(browser, times) {
-  const out = path.join(ROOT, 'build/stills');
+  const out = process.env.OUT ? OUT : path.join(ROOT, 'build/stills');
   fs.mkdirSync(out, { recursive: true });
   const page = await openPage(browser);
   for (const t of times) {

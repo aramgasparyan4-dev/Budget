@@ -304,6 +304,45 @@ def plane(d=3.6):
     return (rumble + jet) * swell * 0.6
 
 
+def paper_swipe(d=0.55):
+    t = tt(d)
+    e = np.exp(-((t / d - 0.5) ** 2) / 0.05)
+    n = filt(noise(d), [500, 4500], "band") * e
+    crinkle = filt(noise(d), 3000, "high") * (rng.random(len(t)) < 0.004) * 3
+    return n * 0.9 + filt(crinkle, 7000) * e
+
+
+def scribble(d=0.38):
+    t = tt(d)
+    strokes = 0.55 + 0.45 * np.sin(2 * np.pi * (22 + 6 * np.sin(2 * np.pi * 3 * t)) * t)
+    return filt(noise(d), [1800, 7000], "band") * strokes * env(d, 0.02, 0.08, hold=d - 0.1) * 0.5
+
+
+def printer(d=0.42):
+    t = tt(d)
+    buzz = filt(noise(d), [900, 5000], "band") * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 95 * t)))
+    hum = np.sin(2 * np.pi * 120 * t) * 0.15
+    tear = np.zeros(len(t))
+    i = int((d - 0.08) * SR)
+    m = len(t) - i
+    tear[i:] = filt(rng.standard_normal(m), 1500, "high") * np.exp(-np.arange(m) / SR / 0.02)
+    return (buzz * 0.45 + hum) * env(d, 0.01, 0.05, hold=d - 0.1) + tear * 0.6
+
+
+def stamp():
+    return layer(sub_boom(0.35, 110, 50) * 0.9, filt(noise(0.12), 2800) * env(0.12, 0.0005, 0.03) * 0.8)
+
+
+def boing(d=0.55):
+    t = tt(d)
+    f = 240 + 70 * np.sin(2 * np.pi * 11 * t) * np.exp(-t / 0.2)
+    return np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.18) * 0.5
+
+
+def slap():
+    return layer(filt(noise(0.06), [700, 4500], "band") * env(0.06, 0.0005, 0.012), sine(140, 0.06) * env(0.06, 0.001, 0.015) * 0.5)
+
+
 def ding(f):
     return bell(f, 0.9, ((1, 1, 1), (2, 0.4, 0.5), (3, 0.15, 0.25)))
 
@@ -436,6 +475,18 @@ def build_sfx(cues, lapse):
         t, k = c["t"], c["type"]
         if k == "whoosh":
             bus.add(whoosh(), t, 0.5, pan=rng.uniform(-0.4, 0.4))
+        elif k == "swipe":
+            bus.add(paper_swipe(), t, 0.55, pan=-0.2)
+        elif k == "scribble":
+            bus.add(scribble(), t, 0.5, pan=rng.uniform(-0.3, 0.3))
+        elif k == "printer":
+            bus.add(printer(), t, 0.5, pan=rng.uniform(-0.2, 0.2))
+        elif k == "stamp":
+            bus.add(stamp(), t, 0.7)
+        elif k == "boing":
+            bus.add(boing(), t, 0.45)
+        elif k == "slap":
+            bus.add(slap(), t, 0.55, pan=rng.uniform(-0.4, 0.4))
         elif k == "whip":
             bus.add(whip(), t, 0.6, pan=-0.3)
         elif k == "plane":

@@ -23,7 +23,7 @@ ffmpeg -hide_banner -loglevel error -y -i build/mix.wav \
   build/mix_norm.wav
 
 ffmpeg -hide_banner -loglevel error -y -framerate 30 -i build/frames/f%05d.jpg -i build/mix_norm.wav \
-  -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -profile:v high -level 4.2 -r 30 \
+  -c:v libx264 -preset slow -crf 19 -maxrate 12M -bufsize 24M -pix_fmt yuv420p -profile:v high -level 4.2 -r 30 \
   -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest out/cooldown_tiktok_60s.mp4
 ffmpeg -hide_banner -loglevel error -y -i build/frames/f00045.jpg -q:v 3 out/cover.jpg
 
@@ -34,14 +34,12 @@ ffmpeg -hide_banner -loglevel error -y -i out/cooldown_tiktok_60s.mp4 -i out/mus
   -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -movflags +faststart -shortest out/cooldown_tiktok_60s_no_voice.mp4
 echo "done: out/cooldown_tiktok_60s.mp4"
 
-# 16:9 master for projecting on stage: the vertical video as a rounded card over a blurred copy of itself
+# 16:9 master for projecting on stage: the vertical video framed on a printed-paper backdrop (src/stage.html)
 "$PY" src/present.py
-ffmpeg -hide_banner -loglevel error -y -i out/cooldown_tiktok_60s.mp4 -loop 1 -i build/present_mask.png -loop 1 -i build/present_shadow.png \
-  -filter_complex "[0:v]split[a][b];\
-[a]scale=1920:-2,crop=1920:1080,gblur=sigma=45,eq=brightness=-0.16:saturation=1.25[bg];\
-[b]scale=562:1000,format=rgba[fg0];[1:v]format=gray[m];[fg0][m]alphamerge[fg];\
-[bg][2:v]overlay=(W-w)/2:(H-h)/2[bgs];[bgs][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v]" \
-  -map "[v]" -map 0:a -t 60 -c:v libx264 -preset slow -crf 17 -r 30 -c:a copy -movflags +faststart out/cooldown_presentation_16x9.mp4
+OUT=build/stage PAGE=stage.html SIZE=1920x1080 node src/render.js --stills 0
+ffmpeg -hide_banner -loglevel error -y -loop 1 -i build/stage/t00.00.png -i out/cooldown_tiktok_60s.mp4 -loop 1 -i build/present_mask.png \
+  -filter_complex "[1:v]scale=562:1000,format=rgba[fg0];[2:v]format=gray[m];[fg0][m]alphamerge[fg];[0:v][fg]overlay=679:40,format=yuv420p[v]" \
+  -map "[v]" -map 1:a -t 60 -c:v libx264 -preset slow -crf 19 -maxrate 12M -bufsize 24M -r 30 -c:a copy -movflags +faststart out/cooldown_presentation_16x9.mp4
 echo "done: out/cooldown_presentation_16x9.mp4"
 
 # read-along teleprompter (16:9) for recording your own voice: 3 s count-in, then the video + music/SFX with the script beside it
