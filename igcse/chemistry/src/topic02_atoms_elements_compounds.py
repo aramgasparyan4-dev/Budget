@@ -501,6 +501,5 @@ N<sub>2</sub>, CO<sub>2</sub>, C<sub>2</sub>H<sub>4</sub>, CH<sub>3</sub>OH</li>
 """
 
 if __name__ == "__main__":
-    out = ROOT / "chemistry" / "Topic 2 - Atoms, Elements and Compounds.pdf"
     preview = sys.argv[1] if len(sys.argv) > 1 else None
-    render(TITLE, BODY, out, preview_dir=preview)
+    render(TITLE, BODY, "/tmp/chem_parts/topic02.pdf", preview_dir=preview)

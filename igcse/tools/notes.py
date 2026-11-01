@@ -75,7 +75,7 @@ svg text { font-family: 'Body', sans-serif; }
 """
 
 
-def render(title, body_html, out_pdf, preview_dir=None):
+def render(title, body_html, out_pdf, preview_dir=None, page_numbers=True):
     out_pdf = pathlib.Path(out_pdf)
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
     css = CSS.replace("FONTS/", FONTS.resolve().as_uri() + "/")
@@ -84,7 +84,8 @@ def render(title, body_html, out_pdf, preview_dir=None):
     tmp_html = pathlib.Path("/tmp") / (out_pdf.stem.replace(" ", "_") + ".html")
     tmp_html.write_text(html, encoding="utf-8")
     subprocess.run(["node", str(pathlib.Path(__file__).parent / "print_pdf.js"),
-                    str(tmp_html), str(out_pdf), title], check=True)
+                    str(tmp_html), str(out_pdf), title] + ([] if page_numbers else ["nonum"]),
+                   check=True)
     if preview_dir:
         preview_dir = pathlib.Path(preview_dir)
         preview_dir.mkdir(parents=True, exist_ok=True)
