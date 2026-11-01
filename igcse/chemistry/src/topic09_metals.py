@@ -120,7 +120,7 @@ def fig_blast_furnace():
     s += text(210, 175, "2  C + CO₂ → 2CO", 11, color="#555")
     s += text(210, 125, "3  Fe₂O₃ + 3CO →", 11, color="#555")
     s += text(210, 139, "2Fe + 3CO₂", 11, color="#555")
-    return svg(420, 310, s, width_mm=68)
+    return svg(420, 310, s, width_mm=60)
 
 
 def fig_aluminium_cell():
@@ -317,7 +317,7 @@ oxidised)</p>
 
 <h3>Extraction of Iron from Hematite</h3>
 <div class="row">
-<figure style="flex:0 0 70mm; margin-top:0">{fig_blast_furnace()}<figcaption>The blast furnace</figcaption></figure>
+<figure style="flex:0 0 62mm; margin-top:0">{fig_blast_furnace()}<figcaption>The blast furnace</figcaption></figure>
 <div>
 <table class="k">
 <tr><th>Raw material</th><th>Job</th></tr>
@@ -379,19 +379,16 @@ barrier.</li>
 <div class="keep">
 <h3>Self-check before the topic questions</h3>
 <ul class="check" style="columns:2; column-gap:18px; font-size:10pt">
-<li>Compare the physical properties of metals and non-metals</li>
-<li>Describe how metals react with oxygen, water / steam and dilute acids</li>
-<li>Link the four uses of aluminium and copper to properties</li>
-<li>Define an alloy; give brass and stainless steel</li>
-<li>Explain why alloys are harder, and spot one in a diagram</li>
-<li>Recite the reactivity series in order (with C and H)</li>
+<li>Compare metals and non-metals; describe reactions with O<sub>2</sub>, water / steam, acid</li>
+<li>Link the uses of aluminium and copper to their properties</li>
+<li>Define an alloy (brass, stainless steel); explain why alloys are harder</li>
+<li>Recite the reactivity series (with C and H)</li>
 <li>Describe K, Na, Ca + water; Mg + steam; metals + dilute HCl</li>
 <li>Deduce a reactivity order from experimental results</li>
 <li>Explain reactivity as forming positive ions; write displacement equations</li>
 <li>Explain why aluminium seems unreactive</li>
 <li>State the conditions for rusting and three barrier methods</li>
-<li>Explain galvanising and sacrificial protection with an equation</li>
-<li>Link ease of extraction to the reactivity series</li>
+<li>Explain galvanising and sacrificial protection</li>
 <li>Write all five blast furnace equations and the job of each raw material</li>
 <li>Explain the aluminium cell: cryolite, anodes, both half-equations</li>
 </ul>

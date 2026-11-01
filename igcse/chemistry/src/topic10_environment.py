@@ -44,7 +44,7 @@ def fig_greenhouse():
     s += text(236, 134, "3", 14, color="#c62828", extra='font-weight="700"')
     s += '<path d="M330,168 L372,16" stroke="#c62828" stroke-width="1.4" marker-end="url(#m_red)"/>'
     s += text(360, 18, "4  less escapes to space", 12, anchor="end", color="#c62828")
-    return svg(400, 194, s, width_mm=86)
+    return svg(400, 194, s, width_mm=82)
 
 
 def flow(steps):
@@ -152,12 +152,9 @@ for improved plant growth.</li>
 <tr><td>ammonium phosphate</td><td>{f("(NH4)3PO4")}</td><td>N and P</td></tr>
 <tr><td>potassium nitrate</td><td>{f("KNO3")}</td><td>K and N</td></tr>
 </table>
-<p class="small">Read the formula to see which of N, P and K it contains &mdash; a common exam
-question.</p>
+<p class="small">Read the formula to see which of N, P, K it supplies.</p>
 </div>
 </div>
-<p class="small">Link: fertiliser that washes into rivers adds nitrates and phosphates &rarr;
-deoxygenation (above).</p>
 
 <h2><span class="num">2</span>Air Quality &amp; Climate</h2>
 
@@ -193,8 +190,8 @@ compounds</b></td><td><b>Acid rain</b></td></tr>
 The very high temperature inside the engine makes <b>nitrogen and oxygen from the air</b> react:<br>
 {eq("N2 + O2 → 2NO")} &nbsp;then&nbsp; {eq("2NO + O2 → 2NO2")}</div>
 <div class="box def"><span class="lbl">Acid rain</span>
-Sulfur dioxide and nitrogen dioxide dissolve in rainwater to form acids. Acid rain damages buildings
-and statues made of limestone or marble, and harms trees and aquatic life in lakes.</div>
+SO<sub>2</sub> and NO<sub>2</sub> dissolve in rainwater to form acids, which damage limestone
+buildings and harm trees and aquatic life.</div>
 </div>
 
 <div class="box warn"><span class="lbl">Watch out &mdash; don&rsquo;t mix them up</span>
@@ -206,17 +203,15 @@ complete combustion gives CO<sub>2</sub>; <b>incomplete</b> gives CO and particu
 <div class="row">
 <div>
 <ol>
-<li>Thermal energy from the Sun passes through the atmosphere and is <b>absorbed</b> by the Earth&rsquo;s
-surface, which warms up.</li>
-<li>The Earth&rsquo;s surface <b>emits thermal energy</b> (infrared radiation).</li>
-<li>Greenhouse gases (CO<sub>2</sub>, CH<sub>4</sub>) <b>absorb</b> this thermal energy and
-<b>re-emit</b> it in all directions &mdash; some back towards the Earth. Some is also reflected
-back.</li>
-<li>This <span class="hl">reduces thermal energy loss to space</span>, so the Earth gets warmer:
-<b>global warming</b>, which leads to <b>climate change</b>.</li>
+<li>Thermal energy from the Sun is <b>absorbed</b> by the Earth&rsquo;s surface, which warms up.</li>
+<li>The surface <b>emits thermal energy</b> (infrared radiation).</li>
+<li>CO<sub>2</sub> and CH<sub>4</sub> <b>absorb</b> it and <b>re-emit</b> it in all directions, some back
+to Earth (some is also reflected back).</li>
+<li>This <span class="hl">reduces thermal energy loss to space</span> &rarr; <b>global warming</b>
+&rarr; <b>climate change</b>.</li>
 </ol>
 </div>
-<figure style="flex:0 0 88mm">{fig_greenhouse()}</figure>
+<figure style="flex:0 0 84mm">{fig_greenhouse()}</figure>
 </div>
 <div class="box warn"><span class="lbl">Watch out</span>
 Say greenhouse gases <b>absorb and re-emit thermal energy</b> and <b>reduce heat loss to space</b>.
@@ -259,7 +254,7 @@ trees helps against climate change.</p>
 
 <div class="keep">
 <h3>Self-check before the topic questions</h3>
-<ul class="check two">
+<ul class="check">
 <li>Describe the tests for water (copper(II) sulfate, cobalt(II) chloride) and how to test its purity</li>
 <li>Explain why distilled water is used in practical chemistry</li>
 <li>List substances found in natural water and say which are beneficial and which are harmful</li>

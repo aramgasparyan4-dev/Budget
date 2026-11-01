@@ -167,7 +167,26 @@ steeper the graph), the faster the rate.</li>
 </ol>
 </div>
 
-<h2><span class="num">3</span>Apparatus and reading scales</h2>
+<h2><span class="num">3</span>Results tables</h2>
+<div class="row">
+<div>
+<ul>
+<li>Each column heading has the <b>quantity and unit</b>, e.g. <i>temperature / &deg;C</i> or <i>time (s)</i>.</li>
+<li><b>No units</b> in the body of the table &mdash; just numbers.</li>
+<li>Same number of decimal places down each column, matching the apparatus.</li>
+<li>Include calculated columns (change in temperature, titre, mean).</li>
+</ul>
+</div>
+<div style="flex:0 0 80mm">
+<table class="c">
+<tr><th>initial temperature / &deg;C</th><th>final temperature / &deg;C</th><th>temperature change / &deg;C</th></tr>
+<tr><td>21.0</td><td>28.5</td><td>7.5</td></tr>
+<tr><td>21.5</td><td>32.0</td><td>10.5</td></tr>
+</table>
+</div>
+</div>
+
+<h2><span class="num">4</span>Apparatus and reading scales</h2>
 <div class="row">
 <div>
 <table class="k">
@@ -186,25 +205,6 @@ Burette: reading <b>upwards</b> by mistake (24.6 read as 23.4) is the classic er
 &minus; initial &middot; record every reading in a column to the <b>same</b> number of decimal places.</div>
 </div>
 <figure style="flex:0 0 56mm">{fig_burette()}<figcaption>Reading a burette</figcaption></figure>
-</div>
-
-<h2><span class="num">4</span>Results tables</h2>
-<div class="row">
-<div>
-<ul>
-<li>Each column heading has the <b>quantity and unit</b>, e.g. <i>temperature / &deg;C</i> or <i>time (s)</i>.</li>
-<li><b>No units</b> in the body of the table &mdash; just numbers.</li>
-<li>Same number of decimal places down each column, matching the apparatus.</li>
-<li>Include calculated columns (change in temperature, titre, mean).</li>
-</ul>
-</div>
-<div style="flex:0 0 80mm">
-<table class="c">
-<tr><th>initial temperature / &deg;C</th><th>final temperature / &deg;C</th><th>temperature change / &deg;C</th></tr>
-<tr><td>21.0</td><td>28.5</td><td>7.5</td></tr>
-<tr><td>21.5</td><td>32.0</td><td>10.5</td></tr>
-</table>
-</div>
 </div>
 
 <h2><span class="num">5</span>Graphs</h2>
