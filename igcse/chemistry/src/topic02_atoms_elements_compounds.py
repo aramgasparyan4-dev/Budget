@@ -173,10 +173,11 @@ STYLE = """<style>
 
 BODY = STYLE + f"""
 <h1>Topic 2 &nbsp;Atoms, Elements and Compounds</h1>
-<div class="meta">Cambridge IGCSE Chemistry 0620 &middot; Extended &middot; Sections match the
-PMT / SaveMyExams topic numbers (2.1&ndash;2.7)</div>
+<div class="meta">Cambridge IGCSE Chemistry 0620 &middot; Extended &middot; Sections 1&ndash;4 match
+the SaveMyExams sub-topics, so you can do their questions after each one</div>
 
-<h2><span class="num">2.1</span>Elements, compounds and mixtures</h2>
+<h2><span class="num">1</span>Atomic Structure &amp; the Periodic Table</h2>
+<h3>Elements, compounds and mixtures</h3>
 <table class="k">
 <tr><th></th><th>Element</th><th>Compound</th><th>Mixture</th></tr>
 <tr><td>What it is</td><td>only <b>one type of atom</b></td>
@@ -198,7 +199,7 @@ isn&rsquo;t magnetic and you can&rsquo;t get the iron back with a magnet.</p>
 O<sub>2</sub> and Cl<sub>2</sub> are <b>elements</b> even though they are molecules &mdash; only one type
 of atom. &ldquo;Molecule&rdquo; and &ldquo;compound&rdquo; don&rsquo;t mean the same thing.</div>
 
-<h2><span class="num">2.2</span>Atomic structure and the Periodic Table</h2>
+<h3>Atomic structure</h3>
 <div class="row">
 <div>
 <p>An atom has a tiny central <b>nucleus</b> containing <b>protons</b> and <b>neutrons</b>, surrounded by
@@ -252,7 +253,7 @@ Work out electrons from the <b>proton number</b>, never the mass number. For ion
 charge means electrons <b>removed</b>, a <b>negative</b> charge means electrons <b>added</b>
 (O<sup>2&minus;</sup> has 8 + 2 = 10 electrons).</div>
 
-<h2><span class="num">2.3</span>Isotopes</h2>
+<h3>Isotopes</h3>
 <div class="box def"><span class="lbl">Definition</span>
 <b>Isotopes</b> &ndash; <span class="hl">different atoms of the same element that have the same number
 of protons but different numbers of neutrons.</span></div>
@@ -283,7 +284,7 @@ carbon-12 atom. It&rsquo;s an average weighted by how common each isotope is (it
 <p class="small" style="margin:0">Sense check: the answer must lie between the isotope masses, and nearer the more
 common one.</p></div>
 
-<h2><span class="num">2.4</span>Ions and ionic bonds</h2>
+<h2><span class="num">2</span>Ions &amp; Ionic Bonds</h2>
 <p>Atoms bond to get a <span class="hl">full outer shell</span>. Three ways: <b>ionic</b> (metal +
 non-metal, electrons transferred), <b>covalent</b> (non-metals, electrons shared), <b>metallic</b>
 (metal atoms, outer electrons delocalised).</p>
@@ -350,7 +351,7 @@ can&rsquo;t move.</td></tr>
 In ionic compounds it&rsquo;s the <b>ions</b> that move, not electrons &middot; NaCl is not a
 &ldquo;molecule&rdquo; and has no &ldquo;intermolecular forces&rdquo; &middot; ionic bonds are strong.</div>
 
-<h2><span class="num">2.5</span>Simple molecules and covalent bonds</h2>
+<h2><span class="num">3</span>Simple Molecules &amp; Covalent Bonds</h2>
 <div class="box def"><span class="lbl">Definition</span>
 <b>Covalent bond</b> &ndash; <span class="hl">a pair of electrons shared between two atoms</span>, giving
 each atom a noble gas electronic configuration (full outer shell). Forms between non-metals.</div>
@@ -409,7 +410,8 @@ free electrons</b> to carry charge.</td></tr>
 overcome and steam is still H<sub>2</sub>O. Covalent bonds are strong; the forces <i>between</i>
 molecules are weak.</div>
 
-<h2><span class="num">2.6</span>Giant covalent structures</h2>
+<h2><span class="num">4</span>Giant Structures</h2>
+<h3>Diamond and graphite</h3>
 <p>A huge network of atoms <span class="hl">all joined by strong covalent bonds</span> &mdash; no
 separate molecules. So: <b>very high melting points</b> (many strong covalent bonds to break),
 insoluble, and they don&rsquo;t conduct &mdash; except graphite.</p>
@@ -433,12 +435,13 @@ it is very hard.<br>
 <b>Graphite &rarr; lubricant:</b> weak forces between the layers, so the layers slide over each other.<br>
 <b>Graphite &rarr; electrodes:</b> delocalised electrons can move through the structure, so it conducts;
 very high melting point too.</div>
-<p><b>Silicon(IV) oxide, SiO<sub>2</sub></b> (sand): giant covalent &mdash; each <b>Si bonded to 4 O</b>,
+<h3>Silicon(IV) oxide</h3>
+<p><b>SiO<sub>2</sub></b> (sand): giant covalent &mdash; each <b>Si bonded to 4 O</b>,
 each <b>O bonded to 2 Si</b> (hence the 1 : 2 formula). <span class="hl">Similar to diamond</span>: hard, very
 high melting point, doesn&rsquo;t conduct &mdash; because both are giant networks of strong covalent bonds
 with no free electrons.</p>
 
-<h2><span class="num">2.7</span>Metallic bonding</h2>
+<h3>Metallic bonding</h3>
 <div class="row">
 <div>
 <div class="box def" style="margin-top:2px"><span class="lbl">Definition</span>
