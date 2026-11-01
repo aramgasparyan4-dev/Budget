@@ -1,100 +1,79 @@
 """Shared template for printable IGCSE topic notes.
 
 Each topic is a small Python file that builds its HTML body (text + inline SVG
-diagrams) and calls render(). Output is an A4 PDF styled like neat handwritten
-notes on squared paper.
+diagrams) and calls render(). Output is a clean A4 PDF meant to be printed.
 """
 import math
 import pathlib
 import subprocess
 import sys
 
-
 FONTS = pathlib.Path(__file__).parent / "fonts"
 
 CSS = """
-@font-face { font-family: 'Hand'; src: url('FONTS/PatrickHand-Regular.ttf'); }
-@font-face { font-family: 'HeadHand'; src: url('FONTS/Kalam-Bold.ttf'); font-weight: 700; }
-@font-face { font-family: 'HeadHand'; src: url('FONTS/Kalam-Regular.ttf'); font-weight: 400; }
+@font-face { font-family: 'Body'; src: url('FONTS/SourceSans3-VF.ttf'); font-weight: 200 900; }
+@font-face { font-family: 'Body'; src: url('FONTS/SourceSans3-Italic-VF.ttf');
+             font-weight: 200 900; font-style: italic; }
+@font-face { font-family: 'Hand'; src: url('FONTS/Kalam-Bold.ttf'); }
 
-@page { size: A4; margin: 13mm 13mm 15mm 13mm; }
+@page { size: A4; margin: 13mm 14mm 14mm 14mm; }
 * { box-sizing: border-box; }
-html {
-  -webkit-print-color-adjust: exact; print-color-adjust: exact;
-  background-color: #fffef9;
-  background-image:
-    linear-gradient(rgba(70,110,170,.10) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(70,110,170,.10) 1px, transparent 1px);
-  background-size: 5mm 5mm;
-}
-body {
-  margin: 0; font-family: 'Hand', sans-serif; font-size: 12.6pt; line-height: 1.32;
-  color: #262626;
-}
-h1 { font-family: 'HeadHand'; font-weight: 700; color: #1d3c8c; font-size: 30pt;
-     margin: 0; line-height: 1.1; }
-.meta { color: #555; font-size: 11.5pt; margin: 2px 0 8px; }
-h2 { font-family: 'HeadHand'; font-weight: 700; color: #1d3c8c; font-size: 18pt;
-     margin: 16px 0 4px; break-after: avoid; line-height: 1.15;
-     border-bottom: 2.5px solid #1d3c8c; border-radius: 0 0 60% 5% / 0 0 6px 3px;
-     display: inline-block; padding-right: 10px; }
-h3 { font-family: 'HeadHand'; font-weight: 700; color: #1d3c8c; font-size: 13.5pt;
-     margin: 10px 0 2px; break-after: avoid; }
-p { margin: 3px 0 5px; }
-ul, ol { margin: 2px 0 6px; padding-left: 20px; }
-li { margin: 1px 0; }
-b, strong { font-weight: normal; color: #000; text-decoration: underline;
-            text-decoration-color: rgba(29,60,140,.55); text-decoration-thickness: 1.5px;
-            text-underline-offset: 2px; }
-sub, sup { font-size: 70%; line-height: 0; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font-family: 'Body', sans-serif; font-size: 10.6pt; line-height: 1.38;
+       color: #1f1f1f; }
 
-.hl { background: linear-gradient(100deg, rgba(255,230,40,0) 1%, rgba(255,230,40,.75) 3%,
-       rgba(255,230,40,.55) 50%, rgba(255,230,40,.75) 96%, rgba(255,230,40,0) 99%);
-      padding: 0 .18em; border-radius: .3em .5em; box-decoration-break: clone;
+h1 { font-size: 23pt; font-weight: 800; color: #1d3c8c; margin: 0; line-height: 1.1; }
+.meta { color: #666; font-size: 9.5pt; margin: 3px 0 10px; }
+h2 { font-size: 14.5pt; font-weight: 800; color: #1d3c8c; margin: 15px 0 5px;
+     padding-bottom: 2px; border-bottom: 2px solid #1d3c8c; break-after: avoid; }
+h2 .num { display: inline-block; min-width: 30px; }
+h3 { font-size: 11.4pt; font-weight: 700; color: #1d3c8c; margin: 9px 0 2px; break-after: avoid; }
+p { margin: 2px 0 5px; }
+ul, ol { margin: 2px 0 5px; padding-left: 18px; }
+li { margin: 1px 0; }
+b { font-weight: 700; color: #000; }
+sub, sup { font-size: 68%; line-height: 0; }
+
+.hl { background: linear-gradient(100deg, rgba(255,226,40,0) 1%, rgba(255,226,40,.65) 3%,
+       rgba(255,226,40,.45) 50%, rgba(255,226,40,.65) 96%, rgba(255,226,40,0) 99%);
+      padding: 0 .15em; border-radius: .25em .4em; box-decoration-break: clone;
       -webkit-box-decoration-break: clone; }
 .red { color: #c62828; }
 .green { color: #2e7d32; }
 .blue { color: #1d3c8c; }
-.small { font-size: 10.8pt; color: #444; }
+.small { font-size: 9.4pt; color: #555; }
 
-.tag { font-family: 'HeadHand'; font-weight: 700; font-size: 8.5pt; letter-spacing: .5px;
-       padding: 0 6px; border-radius: 8px 3px 8px 3px; vertical-align: 2px; white-space: nowrap; }
-.tag.ext { color: #fff; background: #7b3fa0; }
-.tag.edx { color: #fff; background: #b26a00; }
-
-.box { border: 2px solid; padding: 5px 11px 6px; margin: 8px 0;
-       border-radius: 255px 14px 225px 14px / 14px 225px 14px 255px; break-inside: avoid; }
-.box .lbl { font-family: 'HeadHand'; font-weight: 700; font-size: 11pt; display: block;
-            margin-bottom: 1px; }
-.box.def { border-color: #1d3c8c; background: rgba(29,60,140,.04); }
+.box { border-left: 4px solid; padding: 4px 10px 5px; margin: 7px 0; break-inside: avoid;
+       border-radius: 0 6px 6px 0; }
+.box .lbl { font-family: 'Hand'; font-size: 10.5pt; display: block; margin-bottom: 0;
+            line-height: 1.3; }
+.box.def { border-color: #1d3c8c; background: #eef2fa; }
 .box.def .lbl { color: #1d3c8c; }
-.box.exam { border-color: #2e7d32; background: rgba(46,125,50,.05); }
+.box.exam { border-color: #2e7d32; background: #eef6ee; }
 .box.exam .lbl { color: #2e7d32; }
-.box.warn { border-color: #c62828; background: rgba(198,40,40,.04); }
+.box.warn { border-color: #c62828; background: #fbeeee; }
 .box.warn .lbl { color: #c62828; }
-.box.ext { border-color: #7b3fa0; border-style: dashed; }
-.box.ext .lbl { color: #7b3fa0; }
+.box ol, .box ul { margin: 0; }
 
-table { border-collapse: collapse; width: 100%; margin: 6px 0 8px; break-inside: avoid;
-        font-size: 11.6pt; line-height: 1.22; }
-th { font-family: 'HeadHand'; font-weight: 700; color: #1d3c8c; text-align: left;
-     border-bottom: 2px solid #1d3c8c; padding: 3px 6px; font-size: 11pt; }
-td { border-bottom: 1px dashed rgba(0,0,0,.25); padding: 3px 6px; vertical-align: top; }
-td:first-child { font-family: 'HeadHand'; font-weight: 700; color: #333; }
-table.plain td:first-child { font-family: 'Hand'; font-weight: normal; }
+table { border-collapse: collapse; width: 100%; margin: 5px 0 8px; break-inside: avoid;
+        font-size: 10pt; line-height: 1.28; }
+th { font-weight: 700; color: #1d3c8c; text-align: left; border-bottom: 1.5px solid #1d3c8c;
+     padding: 2px 6px; }
+td { border-bottom: 1px solid #ddd; padding: 2px 6px; vertical-align: top; }
+td.k, table.k td:first-child { font-weight: 700; }
+table.c td, table.c th { text-align: center; }
 
-figure { margin: 6px 0 8px; text-align: center; break-inside: avoid; }
-figcaption { font-size: 10.8pt; color: #444; margin-top: 0; }
-svg text { font-family: 'Hand'; }
-.row { display: flex; gap: 12px; align-items: flex-start; break-inside: avoid; }
-.row > * { flex: 1; }
-.cols2 { columns: 2; column-gap: 18px; }
+figure { margin: 4px 0 6px; text-align: center; break-inside: avoid; }
+figcaption { font-size: 9.2pt; color: #555; }
+svg text { font-family: 'Body', sans-serif; }
+.row { display: flex; gap: 14px; align-items: flex-start; break-inside: avoid; }
+.row > * { flex: 1; min-width: 0; }
 .keep { break-inside: avoid; }
-.pb { break-before: page; }
-.check li { list-style: none; margin-left: -18px; }
+.check li { list-style: none; margin-left: -16px; }
 .check li::before { content: '\\2610'; font-family: 'DejaVu Sans', sans-serif; margin-right: 6px;
                     color: #1d3c8c; }
 """
+
 
 def render(title, body_html, out_pdf, preview_dir=None):
     out_pdf = pathlib.Path(out_pdf)
@@ -114,15 +93,15 @@ def render(title, body_html, out_pdf, preview_dir=None):
     print(f"wrote {out_pdf}")
 
 
-# ---------- SVG helpers for chemistry diagrams ----------
+# ---------- SVG helpers for chemistry / physics diagrams ----------
 
 INK = "#262626"
-DOT_C = "#1d3c8c"   # dots in blue ink
-CROSS_C = "#c62828"  # crosses in red ink
+DOT_C = "#1d3c8c"    # dots in blue
+CROSS_C = "#c62828"  # crosses in red
 
 
-def dot(x, y, r=3.1):
-    return f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{DOT_C}"/>'
+def dot(x, y, r=3.1, color=DOT_C):
+    return f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{color}"/>'
 
 
 def cross(x, y, s=3.6):
@@ -134,29 +113,50 @@ def electron(kind, x, y):
     return dot(x, y) if kind == "d" else cross(x, y)
 
 
-def shell(cx, cy, r, label=None, size=20):
+def text(x, y, s, size=15, anchor="middle", color=INK, extra=""):
+    return (f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-size="{size}" '
+            f'fill="{color}" {extra}>{s}</text>')
+
+
+def shell(cx, cy, r, label=None, size=19):
     out = f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{INK}" stroke-width="1.6"/>'
     if label:
-        out += (f'<text x="{cx}" y="{cy + size*0.35:.1f}" text-anchor="middle" '
-                f'font-size="{size}" fill="{INK}">{label}</text>')
+        out += text(cx, round(cy + size * 0.35, 1), label, size)
     return out
 
 
 def pair_on_circle(cx, cy, r, angle_deg, kinds, gap=5.5):
-    """Two electrons at a point on a circle, spread along the tangent."""
+    """One or two electrons at a point on a circle, spread along the tangent."""
     a = math.radians(angle_deg)
     px, py = cx + r * math.cos(a), cy + r * math.sin(a)
     tx, ty = -math.sin(a), math.cos(a)
-    out = ""
     offs = [-gap, gap] if len(kinds) == 2 else [0]
-    for k, o in zip(kinds, offs):
-        out += electron(k, px + tx * o, py + ty * o)
+    return "".join(electron(k, px + tx * o, py + ty * o) for k, o in zip(kinds, offs))
+
+
+def atom(cx, cy, config, label="", r0=22, step=17, kind="x"):
+    """Full shell diagram: nucleus + concentric shells with electrons spread round."""
+    out = (f'<circle cx="{cx}" cy="{cy}" r="{r0 - 8}" fill="#f3e5d0" stroke="{INK}" '
+           f'stroke-width="1.3"/>')
+    if label:
+        out += text(cx, cy + 5, label, 13)
+    for i, n in enumerate(config):
+        r = r0 + i * step
+        out += f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{INK}" stroke-width="1.3"/>'
+        # electrons placed in pairs at N/E/S/W like the usual textbook drawing
+        slots = [-90, 0, 90, 180]
+        if n <= 2:
+            angles = [-90, 90][:n] if n == 2 else [-90]
+            for a in angles:
+                out += pair_on_circle(cx, cy, r, a, kind)
+        else:
+            counts = [0, 0, 0, 0]
+            for k in range(n):
+                counts[k % 4] += 1
+            for a, c in zip(slots, counts):
+                if c:
+                    out += pair_on_circle(cx, cy, r, a, kind * c)
     return out
-
-
-def text(x, y, s, size=15, anchor="middle", color=INK, extra=""):
-    return (f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-size="{size}" '
-            f'fill="{color}" {extra}>{s}</text>')
 
 
 def brackets(x1, x2, y1, y2, charge, color=INK):
@@ -181,4 +181,4 @@ def svg(w, h, inner, width_mm=None):
 
 
 if __name__ == "__main__":
-    sys.exit("Run a topic file, e.g. python3 igcse/chemistry/src/02_chemical_bonding.py")
+    sys.exit("Run a topic file, e.g. python3 igcse/chemistry/src/topic02_atoms_elements_compounds.py")
