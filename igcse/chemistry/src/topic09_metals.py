@@ -96,31 +96,31 @@ def fig_blast_furnace():
     s += f'<polygon points="{pts}" fill="#eceff1" stroke="{INK}" stroke-width="2.5"/>'
     s += '<rect x="151" y="262" width="118" height="16" fill="#bcaaa4"/>'
     s += '<rect x="151" y="278" width="118" height="21" fill="#ff8a65"/>'
-    s += text(210, 274, "slag", 11, color="#333")
-    s += text(210, 293, "molten iron", 11, color="#333")
+    s += text(210, 274, "slag", 12, color="#333")
+    s += text(210, 293, "molten iron", 12, color="#333")
     # charge in
     s += ('<path d="M210,8 L210,36" stroke="#262626" stroke-width="1.8" marker-end="url(#ah)"/>')
-    s += text(202, 14, "iron ore (hematite),", 12, anchor="end")
-    s += text(202, 28, "coke, limestone", 12, anchor="end")
+    s += text(202, 14, "iron ore (hematite),", 14, anchor="end")
+    s += text(202, 29, "coke, limestone", 14, anchor="end")
     # waste gases
     s += ('<path d="M262,78 L308,58" stroke="#262626" stroke-width="1.6" marker-end="url(#ah)"/>')
-    s += text(312, 60, "waste gases", 12, anchor="start")
+    s += text(312, 60, "waste gases", 14, anchor="start")
     # hot air
     s += ('<path d="M78,228 L136,228" stroke="#1d3c8c" stroke-width="2" marker-end="url(#ah)"/>')
     s += ('<path d="M342,228 L284,228" stroke="#1d3c8c" stroke-width="2" marker-end="url(#ah)"/>')
-    s += text(76, 224, "hot air", 12, anchor="end", color="#1d3c8c")
-    s += text(344, 224, "hot air", 12, anchor="start", color="#1d3c8c")
+    s += text(76, 224, "hot air", 14, anchor="end", color="#1d3c8c")
+    s += text(344, 224, "hot air", 14, anchor="start", color="#1d3c8c")
     # taps
     s += ('<path d="M150,270 L100,270" stroke="#262626" stroke-width="1.6" marker-end="url(#ah)"/>')
-    s += text(96, 274, "slag out", 12, anchor="end")
+    s += text(96, 274, "slag out", 14, anchor="end")
     s += ('<path d="M270,290 L320,290" stroke="#262626" stroke-width="1.6" marker-end="url(#ah)"/>')
-    s += text(324, 294, "iron out", 12, anchor="start")
+    s += text(324, 294, "iron out", 14, anchor="start")
     # zone hints
-    s += text(210, 225, "1  C + O₂ → CO₂", 11, color="#555")
-    s += text(210, 175, "2  C + CO₂ → 2CO", 11, color="#555")
-    s += text(210, 125, "3  Fe₂O₃ + 3CO →", 11, color="#555")
-    s += text(210, 139, "2Fe + 3CO₂", 11, color="#555")
-    return svg(420, 310, s, width_mm=60)
+    s += text(210, 225, "1  C + O₂ → CO₂", 13, color="#555")
+    s += text(210, 175, "2  C + CO₂ → 2CO", 13, color="#555")
+    s += text(210, 125, "3  Fe₂O₃ + 3CO →", 13, color="#555")
+    s += text(210, 139, "2Fe + 3CO₂", 13, color="#555")
+    return svg(420, 310, s, width_mm=72)
 
 
 def fig_aluminium_cell():
@@ -316,8 +316,16 @@ holds on to the other elements in its compounds more strongly.</p>
 oxidised)</p>
 
 <h3>Extraction of Iron from Hematite</h3>
+<table class="k">
+<tr><th style="width:4%">#</th><th style="width:34%">Equation</th><th>What happens</th></tr>
+<tr><td>1</td><td>C + O<sub>2</sub> &rarr; CO<sub>2</sub></td><td>coke <b>burns</b> in hot air, giving heat (exothermic) and carbon dioxide</td></tr>
+<tr><td>2</td><td>C + CO<sub>2</sub> &rarr; 2CO</td><td>carbon dioxide is <b>reduced</b> to carbon monoxide by more coke</td></tr>
+<tr><td>3</td><td>Fe<sub>2</sub>O<sub>3</sub> + 3CO &rarr; 2Fe + 3CO<sub>2</sub></td><td>iron(III) oxide is <b>reduced</b> to iron by carbon monoxide (the reducing agent)</td></tr>
+<tr><td>4</td><td>CaCO<sub>3</sub> &rarr; CaO + CO<sub>2</sub></td><td><b>thermal decomposition</b> of limestone to calcium oxide</td></tr>
+<tr><td>5</td><td>CaO + SiO<sub>2</sub> &rarr; CaSiO<sub>3</sub></td><td>calcium oxide (basic) reacts with silicon dioxide (acidic) to form <b>slag</b>, calcium silicate</td></tr>
+</table>
 <div class="row">
-<figure style="flex:0 0 62mm; margin-top:0">{fig_blast_furnace()}<figcaption>The blast furnace</figcaption></figure>
+<figure style="flex:0 0 74mm; margin-top:0">{fig_blast_furnace()}<figcaption>The blast furnace</figcaption></figure>
 <div>
 <table class="k">
 <tr><th>Raw material</th><th>Job</th></tr>
@@ -330,14 +338,7 @@ oxidised)</p>
 tapped off separately.</p>
 </div>
 </div>
-<table class="k">
-<tr><th style="width:4%">#</th><th style="width:34%">Equation</th><th>What happens</th></tr>
-<tr><td>1</td><td>C + O<sub>2</sub> &rarr; CO<sub>2</sub></td><td>coke <b>burns</b> in hot air, giving heat (exothermic) and carbon dioxide</td></tr>
-<tr><td>2</td><td>C + CO<sub>2</sub> &rarr; 2CO</td><td>carbon dioxide is <b>reduced</b> to carbon monoxide by more coke</td></tr>
-<tr><td>3</td><td>Fe<sub>2</sub>O<sub>3</sub> + 3CO &rarr; 2Fe + 3CO<sub>2</sub></td><td>iron(III) oxide is <b>reduced</b> to iron by carbon monoxide (the reducing agent)</td></tr>
-<tr><td>4</td><td>CaCO<sub>3</sub> &rarr; CaO + CO<sub>2</sub></td><td><b>thermal decomposition</b> of limestone to calcium oxide</td></tr>
-<tr><td>5</td><td>CaO + SiO<sub>2</sub> &rarr; CaSiO<sub>3</sub></td><td>calcium oxide (basic) reacts with silicon dioxide (acidic) to form <b>slag</b>, calcium silicate</td></tr>
-</table>
+
 
 <h3>Extraction of Aluminium from Bauxite</h3>
 <div class="row">
