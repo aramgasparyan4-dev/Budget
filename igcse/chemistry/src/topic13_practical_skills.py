@@ -93,7 +93,7 @@ def fig_graph():
     s += text(round(ax + 14, 1), round(ay + 24, 1), "anomalous point:", 12, anchor="start", color="#c62828")
     s += text(round(ax + 14, 1), round(ay + 38, 1), "circled, line ignores it", 12, anchor="start",
               color="#c62828")
-    s += text(round(px(48), 1), round(py(36), 1), "smooth curve of best fit,", 12, anchor="start",
+    s += text(round(px(48), 1), round(py(36), 1), "smooth best-fit curve,", 12, anchor="start",
               color="#1d3c8c")
     s += text(round(px(48), 1), round(py(36) + 14, 1), "not dot-to-dot", 12, anchor="start",
               color="#1d3c8c")
@@ -119,26 +119,27 @@ real Paper 6 past papers</div>
 <h2><span class="num">1</span>What Paper 6 asks</h2>
 <p>Paper 6 is a written paper (1 hour, 40 marks) about experiments you could do in a lab. The same few
 question types come up every year:</p>
-<table class="k">
-<tr><th style="width:30%">Question type</th><th>What you do</th></tr>
-<tr><td>Reading apparatus</td><td>read thermometers, burettes, measuring cylinders, gas syringes or stopwatches
-from diagrams and complete a table</td></tr>
-<tr><td>Results and graphs</td><td>complete a results table, plot a graph, draw a line of best fit and read values
-from it</td></tr>
-<tr><td>Conclusions</td><td>describe the pattern in the data and explain it with chemistry you know</td></tr>
-<tr><td>Observations / tests</td><td>describe what you would see, or identify ions and gases from test results</td></tr>
-<tr><td>Evaluation</td><td>spot problems with the method and suggest improvements</td></tr>
-<tr><td>Planning</td><td>write a method for an investigation (usually the last question)</td></tr>
-</table>
+<div class="row" style="gap:18px">
+<ul style="flex:1">
+<li><b>Reading apparatus</b> from diagrams to complete a table</li>
+<li><b>Results and graphs:</b> complete tables, plot, best-fit line, read values</li>
+<li><b>Conclusions:</b> describe the pattern, explain it with theory</li>
+</ul>
+<ul style="flex:1">
+<li><b>Observations / tests:</b> what you&rsquo;d see; identify ions and gases</li>
+<li><b>Evaluation:</b> problems with a method and improvements</li>
+<li><b>Planning:</b> write a method (usually the last question)</li>
+</ul>
+</div>
 <p>The qualitative analysis tests (Topic 12) are printed at the back of the paper &mdash; but you still need to
 know <i>how</i> to describe the observations precisely.</p>
 
 <h2><span class="num">2</span>Variables and planning</h2>
-<div class="box def"><span class="lbl">Definitions</span>
-<b>Independent variable</b> &ndash; the one you deliberately <b>change</b>.<br>
-<b>Dependent variable</b> &ndash; the one you <b>measure</b>.<br>
-<b>Control variables</b> &ndash; everything else you <b>keep the same</b>, so the test is fair.</div>
-
+<table class="c" style="margin-top:2px">
+<tr><th>Independent variable</th><th>Dependent variable</th><th>Control variables</th></tr>
+<tr><td>the one you deliberately <b>change</b></td><td>the one you <b>measure</b></td>
+<td>everything else you <b>keep the same</b>, so the test is fair</td></tr>
+</table>
 <div class="box exam"><span class="lbl">A plan that scores: include all of these</span>
 <ol>
 <li>Numbered steps a classmate could follow, naming <b>apparatus and quantities</b> (&ldquo;use a measuring
@@ -167,7 +168,26 @@ steeper the graph), the faster the rate.</li>
 </ol>
 </div>
 
-<h2><span class="num">3</span>Results tables</h2>
+<h2><span class="num">3</span>Apparatus and reading scales</h2>
+<table class="k">
+<tr><th style="width:36%">Apparatus</th><th>Reading it</th></tr>
+<tr><td>burette</td><td>scale reads <b>downwards</b>; divisions of 0.1 cm<sup>3</sup>; record to 1 decimal place
+(e.g. 0.0, 24.6)</td></tr>
+<tr><td>volumetric pipette</td><td>one fixed volume, e.g. 25.0 cm<sup>3</sup></td></tr>
+<tr><td>measuring cylinder</td><td>read the bottom of the meniscus at eye level</td></tr>
+<tr><td>thermometer</td><td>read at eye level; usually to the nearest 0.5 &deg;C or 1 &deg;C, depending on the scale</td></tr>
+<tr><td>gas syringe</td><td>read where the plunger is</td></tr>
+<tr><td>stopwatch</td><td>convert minutes to seconds: 1 min 25 s = <b>85 s</b></td></tr>
+<tr><td>balance</td><td>record all the digits shown, e.g. 2.45 g</td></tr>
+</table>
+<div class="row" style="align-items:center">
+<div class="box warn"><span class="lbl">Watch out</span>
+Burette: reading <b>upwards</b> by mistake (24.6 read as 23.4) is the classic error &middot; titre = final
+&minus; initial &middot; record every reading in a column to the <b>same</b> number of decimal places.</div>
+<figure style="flex:0 0 56mm">{fig_burette()}<figcaption>Reading a burette</figcaption></figure>
+</div>
+
+<h2><span class="num">4</span>Results tables</h2>
 <div class="row">
 <div>
 <ul>
@@ -184,27 +204,6 @@ steeper the graph), the faster the rate.</li>
 <tr><td>21.5</td><td>32.0</td><td>10.5</td></tr>
 </table>
 </div>
-</div>
-
-<h2><span class="num">4</span>Apparatus and reading scales</h2>
-<div class="row">
-<div>
-<table class="k">
-<tr><th style="width:36%">Apparatus</th><th>Reading it</th></tr>
-<tr><td>burette</td><td>scale reads <b>downwards</b>; divisions of 0.1 cm<sup>3</sup>; record to 1 decimal place
-(e.g. 0.0, 24.6)</td></tr>
-<tr><td>volumetric pipette</td><td>one fixed volume, e.g. 25.0 cm<sup>3</sup></td></tr>
-<tr><td>measuring cylinder</td><td>read the bottom of the meniscus at eye level</td></tr>
-<tr><td>thermometer</td><td>read at eye level; usually to the nearest 0.5 &deg;C or 1 &deg;C, depending on the scale</td></tr>
-<tr><td>gas syringe</td><td>read where the plunger is</td></tr>
-<tr><td>stopwatch</td><td>convert minutes to seconds: 1 min 25 s = <b>85 s</b></td></tr>
-<tr><td>balance</td><td>record all the digits shown, e.g. 2.45 g</td></tr>
-</table>
-<div class="box warn"><span class="lbl">Watch out</span>
-Burette: reading <b>upwards</b> by mistake (24.6 read as 23.4) is the classic error &middot; titre = final
-&minus; initial &middot; record every reading in a column to the <b>same</b> number of decimal places.</div>
-</div>
-<figure style="flex:0 0 56mm">{fig_burette()}<figcaption>Reading a burette</figcaption></figure>
 </div>
 
 <h2><span class="num">5</span>Graphs</h2>
