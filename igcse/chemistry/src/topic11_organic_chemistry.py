@@ -466,11 +466,9 @@ monomers.</span> Plastics are made from polymers.</div>
 <p><b>Addition polymerisation:</b> monomers with a <b>C=C</b> join together; each double bond opens up
 and the polymer is the <b>only product</b>.</p>
 <div class="mols">
-<span class="big"><i>n</i></span>{figmol(ETHENE, "ethene")}{arrow()}{figmol(POLY_ETHENE, "poly(ethene)")}
-&nbsp;&nbsp;&nbsp;
-<span class="big"><i>n</i></span>{figmol(PROPENE, "propene")}{arrow()}{figmol(POLY_PROPENE, "poly(propene)")}
-&nbsp;&nbsp;&nbsp;
-<span class="big"><i>n</i></span>{figmol(CHLOROETHENE, "chloroethene")}{arrow()}{figmol(POLY_CHLOROETHENE, "poly(chloroethene)")}
+<span class="big"><i>n</i></span>{figmol(ETHENE, "ethene", 0.19)}{arrow()}{figmol(POLY_ETHENE, "poly(ethene)", 0.19)}
+<span class="big"><i>n</i></span>{figmol(PROPENE, "propene", 0.19)}{arrow()}{figmol(POLY_PROPENE, "poly(propene)", 0.19)}
+<span class="big"><i>n</i></span>{figmol(CHLOROETHENE, "chloroethene", 0.19)}{arrow()}{figmol(POLY_CHLOROETHENE, "poly(chloroethene)", 0.19)}
 </div>
 <div class="box exam"><span class="lbl">Deducing repeat unit &harr; monomer</span>
 <b>Monomer &rarr; repeat unit:</b> draw the two C=C carbons with their groups, change C=C to C&ndash;C,
@@ -498,7 +496,7 @@ below stand for chains of carbon atoms.</p>
 monomers. They have the same amide linkage as nylon; R is a different group in each amino acid.</p>
 <div class="mols">{figmol(AMINO_ACID, "amino acid, H₂N–CHR–COOH")}</div>
 </div>
-<div class="mols" style="flex:0 0 80mm">{figmol(PROTEIN, "part of a protein chain", 0.26, hl=[(0, 2, 2, 3), (0, 6, 2, 7)])}</div>
+<div class="mols" style="flex:0 0 80mm">{figmol(PROTEIN, "part of a protein chain (amide linkage shaded)", 0.26, hl=[(0, 5, 2, 7)])}</div>
 </div>
 
 <table class="k">
