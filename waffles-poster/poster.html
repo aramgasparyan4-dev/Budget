@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Waffles and Crepes Poster</title>
+<style>
+  @font-face {
+    font-family: 'Bricolage';
+    src: url('../juice-pong-post/fonts/bricolage.woff2') format('woff2');
+    font-weight: 500 800;
+  }
+  @page { size: 8.5in 11in; margin: 0; }
+  :root {
+    --ink: #1D1530;
+    --cream: #FFF6E6;
+    --bg: #FF5C8A;
+    --lemon: #FFD23F;
+    --lime: #5CC74F;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: Inter, 'Noto Color Emoji', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .display { font-family: 'Bricolage', Inter, sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+  .emoji { font-family: 'Noto Color Emoji'; }
+
+  .poster {
+    width: 816px; height: 1056px; position: relative; overflow: hidden;
+    background: var(--bg); color: var(--ink); padding: 48px 56px;
+  }
+  .toprow { display: flex; justify-content: space-between; align-items: center; }
+  .pill {
+    display: inline-block; padding: 9px 18px; border-radius: 999px;
+    font-size: 15px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .pill.ink { background: var(--ink); color: var(--cream); }
+  .pill.line { border: 3px solid var(--ink); }
+
+  .title {
+    display: inline-block; margin-top: 22px; font-size: 140px; line-height: 0.88; color: var(--cream);
+    text-shadow: 8px 8px 0 var(--ink);
+    -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; white-space: nowrap;
+  }
+  .sticker-wrap { margin-top: 22px; }
+  .sticker {
+    display: inline-block; transform: rotate(-4deg);
+    background: var(--lemon); border: 4px solid var(--ink); border-radius: 16px;
+    box-shadow: 6px 6px 0 var(--ink);
+    padding: 8px 20px 13px; font-size: 46px; line-height: 1;
+  }
+
+  .art { position: absolute; right: 26px; top: 446px; width: 404px; overflow: visible; }
+
+  .badge {
+    position: absolute; left: 74px; top: 556px;
+    width: 156px; height: 156px; border-radius: 50%; background: var(--lime);
+    border: 4px solid var(--ink); box-shadow: 6px 6px 0 var(--ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transform: rotate(-10deg); color: var(--cream);
+  }
+  .badge span { font-size: 19px; font-weight: 800; letter-spacing: 0.14em; color: var(--ink); line-height: 1; }
+  .badge b { font-size: 50px; line-height: 0.95; -webkit-text-stroke: 2.5px var(--ink); paint-order: stroke fill; }
+  .badge .emoji { font-size: 24px; margin-top: 2px; }
+
+  .feats {
+    position: absolute; left: 56px; right: 56px; top: 774px; list-style: none; margin: 0; padding: 0;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px;
+  }
+  .feats li {
+    display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700;
+    background: var(--cream); border: 3px solid var(--ink); border-radius: 12px; padding: 5px 12px 5px 6px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .feats li .emoji {
+    width: 30px; height: 30px; flex: none; border-radius: 8px;
+    border: 2px solid var(--ink); display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+
+  .info {
+    position: absolute; left: 56px; right: 56px; top: 882px;
+    display: grid; grid-template-columns: 1.15fr 0.85fr 1.15fr;
+    background: var(--ink); color: var(--cream); border-radius: 20px; overflow: hidden;
+  }
+  .info div { padding: 14px 12px 16px; text-align: center; border-right: 2px solid rgba(255,246,230,0.25); }
+  .info div:last-child { border-right: 0; }
+  .info small { display: block; font-size: 13px; font-weight: 800; letter-spacing: 0.16em; color: var(--lemon); }
+  .info b { font-size: 34px; line-height: 1.1; }
+
+  .note {
+    position: absolute; left: 56px; right: 56px; top: 976px;
+    text-align: center; font-size: 18px; font-weight: 700;
+  }
+  .note b { font-weight: 800; }
+
+  .ribbon {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 52px;
+    background: var(--ink); color: var(--cream);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-size: 17px; font-weight: 700;
+  }
+  .ribbon b { color: var(--lemon); }
+</style>
+</head>
+<body>
+<section class="poster" id="poster">
+  <div class="toprow">
+    <span class="pill ink">Charity Fundraiser</span>
+    <span class="pill line">Cash only</span>
+  </div>
+
+  <div class="title display" id="title">WAFFLES<br>&amp; CREPES</div>
+  <div class="sticker-wrap"><span class="sticker display">milkshakes &amp; wagers</span></div>
+
+  <svg class="art" viewBox="0 10 320 252" aria-label="Waffle, crepe, milkshake, dice and poker chips">
+    <defs>
+      <linearGradient id="glass" x1="0" x2="1">
+        <stop offset="0" stop-color="#FFC2D4"/>
+        <stop offset="0.5" stop-color="#FF9EBB"/>
+        <stop offset="1" stop-color="#F27FA2"/>
+      </linearGradient>
+    </defs>
+    <g stroke="#1D1530" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+
+
+      <!-- waffle -->
+      <g transform="translate(78,128) rotate(-12)">
+        <rect x="-64" y="-64" width="128" height="128" rx="16" fill="#F2A93B"/>
+        <g fill="#D4822A" stroke="none" id="cells"></g>
+        <rect x="-64" y="-64" width="128" height="128" rx="16" fill="none"/>
+        <path d="M-30,-34 C-14,-44 16,-40 22,-20 C28,0 30,30 18,52 C14,60 6,60 6,50 C6,38 2,30 -6,22 C-20,10 -44,-20 -30,-34 Z"
+              fill="#A8531E" opacity="0.92"/>
+        <rect x="-16" y="-30" width="30" height="24" rx="4" fill="#FFE58A" transform="rotate(10)"/>
+      </g>
+
+      <!-- crepe (folded triangle) -->
+      <g>
+        <path d="M262,224 L206,108 Q252,80 312,104 Z" fill="#F6CF8C"/>
+        <g stroke="none" fill="#D99A4E" opacity="0.6">
+          <ellipse cx="248" cy="150" rx="5" ry="3"/>
+          <ellipse cx="270" cy="128" rx="4" ry="2.5"/>
+          <ellipse cx="262" cy="182" rx="4" ry="2.5"/>
+          <ellipse cx="236" cy="128" rx="3.5" ry="2"/>
+          <ellipse cx="284" cy="150" rx="3.5" ry="2"/>
+        </g>
+        <!-- strawberries peeking out -->
+        <path d="M222,104 q12,-24 26,-4" fill="#E8263F"/>
+        <path d="M252,96 q14,-26 30,-2" fill="#E8263F"/>
+        <path d="M284,100 q10,-18 22,0" fill="#E8263F"/>
+        <g stroke="none" fill="#FFE58A">
+          <circle cx="234" cy="96" r="1.6"/><circle cx="240" cy="100" r="1.6"/>
+          <circle cx="264" cy="86" r="1.6"/><circle cx="272" cy="90" r="1.6"/>
+          <circle cx="294" cy="94" r="1.6"/>
+        </g>
+        <path d="M262,224 L206,108 Q252,80 312,104 Z" fill="none"/>
+        <path d="M218,126 L300,112 M226,144 L292,132 M236,164 L284,154" fill="none" stroke="#5A2A12" stroke-width="3.4"/>
+      </g>
+
+      <!-- straw -->
+      <g>
+        <line x1="178" y1="112" x2="214" y2="16" stroke="#1D1530" stroke-width="13"/>
+        <line x1="178" y1="112" x2="214" y2="16" stroke="#FFFFFF" stroke-width="8"/>
+        <line x1="178" y1="112" x2="214" y2="16" stroke="#E8263F" stroke-width="8" stroke-dasharray="7 7" stroke-linecap="butt"/>
+      </g>
+
+      <!-- milkshake glass -->
+      <path d="M122,94 L198,94 L182,198 Q160,210 138,198 Z" fill="url(#glass)"/>
+      <path d="M136,104 L146,192" fill="none" stroke="#FFFFFF" stroke-width="5" opacity="0.6"/>
+      <path d="M152,104 L155,196 M168,104 L165,196 M184,104 L176,192" fill="none" stroke="#E86E93" stroke-width="2" opacity="0.7"/>
+      <rect x="153" y="204" width="14" height="20" fill="#FFF6E6"/>
+      <ellipse cx="160" cy="228" rx="32" ry="7" fill="#FFF6E6"/>
+
+      <!-- whipped cream: stroked circles, then unstroked fills to merge the outline -->
+      <g fill="#FFFDF7">
+        <circle cx="132" cy="92" r="15"/><circle cx="152" cy="84" r="17"/><circle cx="172" cy="86" r="16"/>
+        <circle cx="190" cy="94" r="13"/><circle cx="160" cy="68" r="15"/><circle cx="144" cy="72" r="10"/>
+      </g>
+      <g fill="#FFFDF7" stroke="none">
+        <circle cx="132" cy="92" r="13.7"/><circle cx="152" cy="84" r="15.7"/><circle cx="172" cy="86" r="14.7"/>
+        <circle cx="190" cy="94" r="11.7"/><circle cx="160" cy="68" r="13.7"/><circle cx="144" cy="72" r="8.7"/>
+        <rect x="124" y="88" width="72" height="8"/>
+      </g>
+      <!-- sprinkles -->
+      <g stroke-width="3" fill="none">
+        <path d="M140,84 l5,-3" stroke="#5CC74F"/>
+        <path d="M176,78 l5,3" stroke="#7B4BE0"/>
+        <path d="M158,90 l-4,-4" stroke="#FFD23F"/>
+        <path d="M186,90 l2,-5" stroke="#FF7A1A"/>
+      </g>
+      <!-- cherry -->
+      <path d="M163,46 Q166,30 178,24" fill="none"/>
+      <circle cx="162" cy="54" r="10" fill="#E8263F"/>
+      <circle cx="158" cy="50" r="3" fill="#FFFFFF" stroke="none" opacity="0.8"/>
+
+      <!-- dice -->
+      <g transform="translate(64,222) rotate(-14)">
+        <rect x="-19" y="-19" width="38" height="38" rx="8" fill="#FFFFFF"/>
+        <g fill="#1D1530" stroke="none">
+          <circle cx="-9" cy="-9" r="3.6"/><circle cx="9" cy="-9" r="3.6"/>
+          <circle cx="0" cy="0" r="3.6"/>
+          <circle cx="-9" cy="9" r="3.6"/><circle cx="9" cy="9" r="3.6"/>
+        </g>
+      </g>
+      <g transform="translate(110,232) rotate(12)">
+        <rect x="-19" y="-19" width="38" height="38" rx="8" fill="#FFFFFF"/>
+        <g fill="#1D1530" stroke="none">
+          <circle cx="-9" cy="-9" r="3.6"/><circle cx="0" cy="0" r="3.6"/><circle cx="9" cy="9" r="3.6"/>
+        </g>
+      </g>
+
+      <!-- poker chips -->
+      <g id="chips"></g>
+    </g>
+  </svg>
+
+  <div class="badge display"><span>BRING</span><b>CASH</b><span class="emoji">💵</span></div>
+
+  <ul class="feats">
+    <li><span class="emoji" style="background:var(--lemon)">🧇</span>Fresh hot waffles</li>
+    <li><span class="emoji" style="background:#FFD0DC">🍓</span>Sweet crepes</li>
+    <li><span class="emoji" style="background:#B9F0A8">🥤</span>Thick milkshakes</li>
+    <li><span class="emoji" style="background:#D6C6FF">🎲</span>Place your bets: cards &amp; dice</li>
+  </ul>
+
+  <div class="info">
+    <div><small>WHEN</small><b class="display">FRI NOV 13</b></div>
+    <div><small>TIME</small><b class="display">3–6 PM</b></div>
+    <div><small>WHERE</small><b class="display">OUTSIDE</b></div>
+  </div>
+
+  <div class="note"><b>CASH ONLY</b> · no cards or apps · small bills help us make change!</div>
+
+  <div class="ribbon"><span class="emoji">🧡</span><span><b>100% of profits</b> go to our local food bank. Come hungry, bring cash.</span></div>
+</section>
+
+<script>
+  // waffle grid cells
+  (function () {
+    let s = '';
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+      s += `<rect x="${-50 + c * 26}" y="${-50 + r * 26}" width="22" height="22" rx="4"/>`;
+    }
+    document.getElementById('cells').innerHTML = s;
+  })();
+
+  // stack of poker chips
+  (function () {
+    const colors = ['#1D1530', '#5CC74F', '#E8263F'];
+    const cx = 262, base = 240, rx = 26, ry = 8, t = 8;
+    let s = '';
+    colors.forEach((c, i) => {
+      const y = base - i * t;
+      s += `
+        <path d="M${cx - rx},${y - t} L${cx - rx},${y} A${rx},${ry} 0 0 0 ${cx + rx},${y} L${cx + rx},${y - t} Z" fill="${c}"/>
+        <g stroke="#FFFFFF" stroke-width="3" stroke-linecap="butt">
+          <line x1="${cx - 14}" y1="${y - t + 3 + 5}" x2="${cx - 14}" y2="${y - 1 + 5}"/>
+          <line x1="${cx + 2}" y1="${y - t + 3 + 7}" x2="${cx + 2}" y2="${y - 1 + 7}"/>
+          <line x1="${cx + 17}" y1="${y - t + 3 + 4}" x2="${cx + 17}" y2="${y - 1 + 4}"/>
+        </g>`;
+    });
+    const top = base - colors.length * t;
+    s += `<ellipse cx="${cx}" cy="${top}" rx="${rx}" ry="${ry}" fill="#E8263F"/>
+          <ellipse cx="${cx}" cy="${top}" rx="${rx - 8}" ry="${ry - 3}" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-dasharray="5 4"/>`;
+    document.getElementById('chips').innerHTML = s;
+  })();
+
+  // shrink the title until it fits the poster width
+  (function () {
+    const el = document.getElementById('title');
+    let size = 140;
+    while (el.offsetWidth > 704 && size > 80) { size -= 2; el.style.fontSize = size + 'px'; }
+  })();
+</script>
+</body>
+</html>
