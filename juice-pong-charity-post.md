@@ -1,72 +1,80 @@
-# Juice Pong for Charity — Marketing Plan & Post
+# Juice Pong for a Cause: Charity Post & 4 Ps
 
-> Fill in the parts in [brackets] before posting.
+Instagram carousel images (1080×1350, post them in this order):
+
+1. `juice-pong-post/1-cover.png`
+2. `juice-pong-post/2-product.png`
+3. `juice-pong-post/3-price.png`
+4. `juice-pong-post/4-place.png`
+5. `juice-pong-post/5-promotion.png`
+
+To change any text, edit `juice-pong-post/slides.html` and re-render it.
 
 ---
 
-## The Post (Instagram / school socials)
+## Caption
 
-🏓🧃 **Think you've got the best aim in school? Prove it — for a good cause.**
+🏓🧃 Think you've got the best aim in school? Prove it, for a good cause.
 
-We're hosting a **Juice Pong Tournament** to raise money for **[Charity Name]**!
+We're hosting a JUICE PONG TOURNAMENT and 100% of the profits go to our local food bank. Help stock the shelves before Thanksgiving!
 
 👥 Teams of 2
-🧃 Cups filled with juice — 100% alcohol-free
+🧃 Real juice, zero alcohol
 🏆 Prize for the winning team
-💛 Every dollar of profit goes to [Charity Name]
 
-📅 [Date]
-⏰ [Time]
-📍 [Location — e.g. school gym]
+📅 Friday, Nov 20
+⏰ 3:00–5:00 PM
+📍 School Gym
 💵 $10 per team ($5 per player)
 
-Sign up at the table in [hallway/cafeteria] at lunch, or DM us to save your spot. Spots are limited — grab a partner and get in before the bracket fills up!
+Sign up at our cafeteria table at lunch (Nov 9–19) or DM us your team name. Only 16 spots, so grab a partner now!
 
-Can't play? Come watch, cheer, and buy a juice for $1. It all goes to the cause.
+Can't play? Come watch and cheer. Juice is $1 and it all goes to the cause.
 
-**#JuicePongForCharity #[SchoolName] #PlayForACause #Fundraiser #[CharityName]**
+Swipe → to see the plan 👉
+
+#JuicePongForACause #Fundraiser #PlayForACause #FoodBank #StudentBusiness
 
 ---
 
 ## The 4 Ps
 
 ### 1. Product
-- A juice pong tournament: teams of 2 throw ping pong balls into cups filled with juice.
-- Non-alcoholic and school-friendly, so anyone can play.
-- What people are really buying is the experience: competing with friends, bragging rights, and supporting a charity.
-- Extras: a prize for the winning team, and juice/snacks for players and spectators.
-- Hygiene: the cups on the table are for the game only. Players get a separate clean cup if they want a drink.
+- A juice pong tournament: teams of 2 throw ping pong balls into cups of juice.
+- Alcohol-free, so anyone at school can play.
+- What people are really buying is the experience: competing with friends, bragging rights, and helping a charity.
+- Extras: a prize for the winning team, and juice or snacks for spectators.
+- Hygiene: the cups on the table are only for the game. Players get their own clean cup to drink from.
 
 ### 2. Price
-- **$10 per team** ($5 per player) to enter.
-- **$1** for a juice or snack for spectators.
-- Why this price: it's low enough for students to pay on the spot, and a team price gets people to bring a friend (two customers instead of one).
-- Example budget (update with your real numbers):
+- **$10 per team** ($5 per player).
+- **$1** for a juice or snack.
+- Why: it's low enough for students to pay on the spot, and a team price makes each sign-up bring two people.
 
-| Item | Cost |
+| Costs | |
 |---|---|
 | Plastic cups (100) | $8 |
 | Juice (4 large bottles) | $12 |
 | Ping pong balls (12) | $5 |
-| **Total costs** | **$25** |
+| **Total** | **$25** |
 
-| Income | Amount |
+| Income | |
 |---|---|
 | 16 teams × $10 | $160 |
 | 40 juices/snacks × $1 | $40 |
-| **Total income** | **$200** |
+| **Total** | **$200** |
 
-**Estimated donation to [Charity Name]: $200 − $25 = $175**
+**Goal donated to the local food bank: $200 − $25 = $175**
 
 ### 3. Place
-- **Event location:** [school gym / cafeteria / courtyard] — somewhere with space for 2–4 tables and room for a crowd to watch.
-- **Timing:** [lunch / after school] so students are already there and don't have to make a special trip.
-- **Where to sign up:** a table in [hallway/cafeteria] during lunch the week before, plus DMs on the event's social media.
+- **Event:** School Gym, Friday Nov 20, 3:00–5:00 PM. That's right after school, so students are already there.
+- **Setup:** 4 tables, with room for people to watch.
+- **Sign-ups:** a cafeteria table at lunch from Mon Nov 9 to Thu Nov 19, or DM the account.
 
 ### 4. Promotion
-- **Social media:** this post, plus a countdown story each day the week of the event and live stories of the bracket on the day.
-- **Posters:** in hallways, the cafeteria, and near the gym with the date, price, and charity name.
-- **Announcements:** ask for it to be read during morning announcements.
-- **Word of mouth:** each team that signs up is asked to challenge another team.
-- **Hook:** invite a pair of teachers to play — students will pay to watch (or play against) them.
-- **Charity message:** always say where the money goes. People are more willing to pay when they know it's for a good cause.
+- **Instagram carousel:** the 5 images above, with the caption.
+- **Stories:** a daily countdown the week of the event, and live bracket updates on the day.
+- **Posters:** in the hallways and cafeteria (you can print the cover image as a poster).
+- **Morning announcements:** ask the office to read it out the week before.
+- **Word of mouth:** the post asks people to share it, tag a partner, and challenge another team.
+- **Cause message:** every image says the money goes to the food bank, because people pay more readily for a good cause.

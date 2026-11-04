@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Juice Pong for a Cause</title>
+<style>
+  @font-face {
+    font-family: 'Bricolage';
+    src: url('fonts/bricolage.woff2') format('woff2');
+    font-weight: 500 800;
+  }
+  :root {
+    --ink: #1D1530;
+    --cream: #FFF6E6;
+    --orange: #FF7A1A;
+    --pink: #FF4F7B;
+    --lemon: #FFD23F;
+    --lime: #5CC74F;
+    --grape: #7B4BE0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: #2a2a2a;
+    display: flex; flex-wrap: wrap; gap: 24px;
+    font-family: Inter, 'Noto Color Emoji', sans-serif;
+  }
+  .slide {
+    width: 540px; height: 675px; position: relative; overflow: hidden;
+    padding: 34px 36px; color: var(--ink);
+  }
+  .display { font-family: 'Bricolage', Inter, sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+  .emoji { font-family: 'Noto Color Emoji'; }
+
+  /* shared bits */
+  .toprow { display: flex; justify-content: space-between; align-items: center; }
+  .pill {
+    display: inline-block; padding: 7px 14px; border-radius: 999px;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .pill.ink { background: var(--ink); color: var(--cream); }
+  .pill.line { border: 2.5px solid var(--ink); }
+  .swipe {
+    position: absolute; right: 36px; bottom: 26px;
+    font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--ink); }
+  .dots i.on { background: var(--ink); }
+  .card {
+    background: var(--cream); border: 3px solid var(--ink); border-radius: 18px;
+    box-shadow: 5px 5px 0 var(--ink);
+  }
+
+  /* ---------- slide 1: cover ---------- */
+  .cover { background: var(--orange); }
+  .cover .title {
+    margin-top: 26px; font-size: 128px; line-height: 0.86; color: var(--cream);
+    text-shadow: 6px 6px 0 var(--ink);
+    -webkit-text-stroke: 3px var(--ink);
+    paint-order: stroke fill;
+  }
+  .cover .sticker {
+    display: inline-block; margin-top: 18px; transform: rotate(-4deg);
+    background: var(--lemon); border: 3px solid var(--ink); border-radius: 12px;
+    box-shadow: 4px 4px 0 var(--ink);
+    padding: 6px 16px 10px; font-size: 38px; line-height: 1;
+  }
+  .cover .rack { position: absolute; right: 8px; top: 312px; width: 292px; overflow: visible; }
+  .cover .badge {
+    position: absolute; left: 40px; top: 392px; width: 140px; height: 140px;
+    border-radius: 50%; background: var(--pink); border: 3px solid var(--ink);
+    box-shadow: 5px 5px 0 var(--ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transform: rotate(-10deg); color: var(--cream);
+  }
+  .cover .badge b { font-size: 50px; line-height: 0.95; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; }
+  .cover .badge span { font-size: 13px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); }
+  .cover .info {
+    position: absolute; left: 36px; right: 36px; top: 552px;
+    display: grid; grid-template-columns: 1.1fr 0.9fr 1.1fr;
+    background: var(--ink); color: var(--cream); border-radius: 16px; overflow: hidden;
+  }
+  .cover .info div { padding: 10px 12px; text-align: center; border-right: 2px solid rgba(255,246,230,0.25); }
+  .cover .info div:last-child { border-right: 0; }
+  .cover .info small { display: block; font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: var(--lemon); }
+  .cover .info b { font-size: 21px; }
+  .cover .foot {
+    position: absolute; left: 36px; bottom: 22px; width: 340px;
+    font-size: 13.5px; font-weight: 700; line-height: 1.3; color: var(--ink);
+  }
+  .cover .swipe { color: var(--ink); }
+
+  /* ---------- 4P slides ---------- */
+  .p-head { margin-top: 22px; }
+  .p-head .label { font-size: 14px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+  .p-head h2 { margin: 2px 0 0; font-size: 82px; line-height: 0.92; }
+  .p-head p { margin: 8px 0 0; font-size: 20px; font-weight: 700; }
+
+  /* product */
+  .product { background: var(--pink); }
+  .grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+  .feat { padding: 12px 14px 14px; }
+  .feat .ico {
+    width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; border: 2.5px solid var(--ink);
+  }
+  .feat h3 { margin: 9px 0 4px; font-size: 20px; line-height: 1.05; }
+  .feat p { margin: 0; font-size: 13.5px; line-height: 1.3; font-weight: 500; }
+  .banner {
+    margin-top: 18px; padding: 12px 16px; border-radius: 14px; background: var(--ink); color: var(--cream);
+    font-size: 15px; font-weight: 700; display: flex; gap: 10px; align-items: center;
+  }
+
+  /* price */
+  .price { background: var(--lemon); }
+  .tags { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; margin-top: 18px; }
+  .tag { padding: 14px 12px 14px; text-align: center; }
+  .tag b { display: block; font-size: 48px; line-height: 1; }
+  .tag span { display: block; margin-top: 4px; font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+  .tag.main { background: var(--ink); color: var(--cream); }
+  .tag.main b { color: var(--lemon); font-size: 56px; }
+  .money { margin-top: 18px; padding: 15px 18px 14px; }
+  .money h3 { margin: 0; font-size: 24px; }
+  .money .sub { margin-top: 2px; font-size: 14px; font-weight: 600; }
+  .bar { display: flex; height: 40px; margin-top: 14px; border: 3px solid var(--ink); border-radius: 12px; overflow: hidden; }
+  .bar .a { width: 12.5%; background: #CFC6B8; border-right: 3px solid var(--ink); }
+  .bar .b { flex: 1; background: var(--lime); display: flex; align-items: center; padding-left: 14px; font-weight: 800; font-size: 17px; }
+  .legend { display: flex; justify-content: space-between; margin-top: 10px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .legend b { font-size: 16px; }
+  .math { margin-top: 10px; padding-top: 10px; border-top: 2px dashed rgba(29,21,48,0.35); font-size: 13.5px; font-weight: 600; line-height: 1.5; }
+
+  /* place */
+  .place { background: var(--lime); }
+  .where { display: grid; grid-template-columns: 170px 1fr; gap: 16px; margin-top: 22px; }
+  .cal { overflow: hidden; text-align: center; padding: 0; }
+  .cal .m { background: var(--pink); color: var(--cream); border-bottom: 3px solid var(--ink); padding: 8px 0; font-size: 18px; font-weight: 800; letter-spacing: 0.2em; }
+  .cal .d { font-size: 92px; line-height: 1; padding-top: 8px; }
+  .cal .w { font-size: 15px; font-weight: 800; letter-spacing: 0.16em; padding-bottom: 14px; }
+  .details { display: flex; flex-direction: column; gap: 12px; }
+  .row { padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+  .row .emoji { font-size: 26px; }
+  .row b { display: block; font-size: 21px; line-height: 1.1; }
+  .row span { font-size: 13.5px; font-weight: 600; }
+  .signup { margin-top: 20px; padding: 16px 18px; background: var(--ink); color: var(--cream); border-radius: 18px; }
+  .signup h3 { margin: 0 0 10px; font-size: 22px; color: var(--lemon); }
+  .signup ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  .signup li { display: flex; gap: 10px; font-size: 15px; font-weight: 600; line-height: 1.35; }
+  .signup li i {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--lime); color: var(--ink);
+    font-style: normal; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* promotion */
+  .promo { background: var(--grape); color: var(--cream); }
+  .promo .pill.ink { background: var(--cream); color: var(--grape); }
+  .promo .dots i { border-color: var(--cream); }
+  .promo .dots i.on { background: var(--cream); }
+  .steps { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+  .step { display: flex; align-items: center; gap: 14px; padding: 12px 14px; color: var(--ink); }
+  .step .n {
+    flex: none; width: 42px; height: 42px; border-radius: 50%; background: var(--lemon); border: 2.5px solid var(--ink);
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .step b { display: block; font-size: 19px; line-height: 1.15; }
+  .step span { font-size: 13.5px; font-weight: 600; }
+  .tagline { margin-top: 20px; text-align: center; }
+  .tagline .hash { font-size: 34px; color: var(--lemon); }
+  .tagline .cta { margin-top: 6px; font-size: 15px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- 1. COVER -->
+<section class="slide cover" id="s1">
+  <div class="toprow">
+    <span class="pill ink">Charity Tournament</span>
+    <span class="pill line">16 teams max</span>
+  </div>
+  <div class="title display">JUICE<br>PONG</div>
+  <div class="sticker display">for a cause</div>
+  <svg class="rack" id="rack" viewBox="0 0 300 220"></svg>
+  <div class="badge display"><b>$10</b><span>per team</span></div>
+  <div class="info">
+    <div><small>WHEN</small><b class="display">FRI NOV 20</b></div>
+    <div><small>TIME</small><b class="display">3–5 PM</b></div>
+    <div><small>WHERE</small><b class="display">SCHOOL GYM</b></div>
+  </div>
+  <div class="foot">100% of profits go to our local food bank. Help stock the shelves before Thanksgiving.</div>
+  <div class="swipe">Swipe →</div>
+</section>
+
+<!-- 2. PRODUCT -->
+<section class="slide product" id="s2">
+  <div class="toprow">
+    <span class="pill ink" style="text-transform:none">THE 4 Ps</span>
+    <div class="dots"><i class="on"></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="p-head">
+    <div class="label">P1 · What we're offering</div>
+    <h2 class="display">PRODUCT</h2>
+    <p>A juice pong tournament for a good cause.</p>
+  </div>
+  <div class="grid4">
+    <div class="card feat">
+      <div class="ico emoji" style="background:var(--lemon)">👥</div>
+      <h3 class="display">Teams of 2</h3>
+      <p>Grab a partner and battle your way through the bracket.</p>
+    </div>
+    <div class="card feat">
+      <div class="ico emoji" style="background:#FFB27A">🧃</div>
+      <h3 class="display">100% juice, 0% alcohol</h3>
+      <p>Orange, apple and fruit punch cups.</p>
+    </div>
+    <div class="card feat">
+      <div class="ico emoji" style="background:#B9F0A8">🏆</div>
+      <h3 class="display">Prize for the champs</h3>
+      <p>Plus bragging rights for the rest of the year.</p>
+    </div>
+    <div class="card feat">
+      <div class="ico emoji" style="background:#D6C6FF">🥤</div>
+      <h3 class="display">Clean cups to drink</h3>
+      <p>Game cups stay on the table. Players get their own cup.</p>
+    </div>
+  </div>
+  <div class="banner"><span class="emoji">📣</span> Not playing? Come watch and cheer. Spectators welcome!</div>
+</section>
+
+<!-- 3. PRICE -->
+<section class="slide price" id="s3">
+  <div class="toprow">
+    <span class="pill ink" style="text-transform:none">THE 4 Ps</span>
+    <div class="dots"><i></i><i class="on"></i><i></i><i></i></div>
+  </div>
+  <div class="p-head">
+    <div class="label">P2 · What it costs</div>
+    <h2 class="display">PRICE</h2>
+    <p>Cheap to play. Big for the cause.</p>
+  </div>
+  <div class="tags">
+    <div class="card tag main"><b class="display">$10</b><span>per team</span></div>
+    <div class="card tag"><b class="display">$5</b><span>per player</span></div>
+    <div class="card tag"><b class="display">$1</b><span>juice / snack</span></div>
+  </div>
+  <div class="card money">
+    <h3 class="display">Where your money goes</h3>
+    <div class="sub">Our goal: raise $200</div>
+    <div class="bar"><div class="a"></div><div class="b">$175 → local food bank</div></div>
+    <div class="legend">
+      <div><b>$25</b> supplies<br>cups, juice, balls</div>
+      <div style="text-align:right"><b>$175</b> donated<br>every cent of profit</div>
+    </div>
+    <div class="math">16 teams × $10 = $160 &nbsp;·&nbsp; 40 juices × $1 = $40<br>$200 raised − $25 supplies = <b>$175 donated</b></div>
+  </div>
+</section>
+
+<!-- 4. PLACE -->
+<section class="slide place" id="s4">
+  <div class="toprow">
+    <span class="pill ink" style="text-transform:none">THE 4 Ps</span>
+    <div class="dots"><i></i><i></i><i class="on"></i><i></i></div>
+  </div>
+  <div class="p-head">
+    <div class="label">P3 · Where & when</div>
+    <h2 class="display">PLACE</h2>
+    <p>Right after school, right in the gym.</p>
+  </div>
+  <div class="where">
+    <div class="card cal">
+      <div class="m">NOV</div>
+      <div class="d display">20</div>
+      <div class="w">FRIDAY</div>
+    </div>
+    <div class="details">
+      <div class="card row"><span class="emoji">📍</span><div><b class="display">School Gym</b><span>4 tables, room for a crowd</span></div></div>
+      <div class="card row"><span class="emoji">⏰</span><div><b class="display">3:00 – 5:00 PM</b><span>Starts right after the last bell</span></div></div>
+    </div>
+  </div>
+  <div class="signup">
+    <h3 class="display">How to sign up</h3>
+    <ol>
+      <li><i>1</i><span>Visit our table in the cafeteria at lunch, Mon Nov 9 – Thu Nov 19</span></li>
+      <li><i>2</i><span>Or DM this account with your team name</span></li>
+      <li><i>3</i><span>Pay $10 per team to lock in your spot</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- 5. PROMOTION -->
+<section class="slide promo" id="s5">
+  <div class="toprow">
+    <span class="pill ink" style="text-transform:none">THE 4 Ps</span>
+    <div class="dots"><i></i><i></i><i></i><i class="on"></i></div>
+  </div>
+  <div class="p-head">
+    <div class="label">P4 · Spread the word</div>
+    <h2 class="display">PROMOTION</h2>
+    <p>Help us fill all 16 spots.</p>
+  </div>
+  <div class="steps">
+    <div class="card step"><div class="n display">1</div><div><b class="display">Share this post</b><span>Put it on your story so your friends see it.</span></div></div>
+    <div class="card step"><div class="n display">2</div><div><b class="display">Tag your pong partner</b><span>Drop their @ in the comments below.</span></div></div>
+    <div class="card step"><div class="n display">3</div><div><b class="display">Challenge another team</b><span>Call out your rivals. Settle it at the table.</span></div></div>
+    <div class="card step"><div class="n display">4</div><div><b class="display">Show up and cheer</b><span>Fri Nov 20 · School Gym · juice is $1</span></div></div>
+  </div>
+  <div class="tagline">
+    <div class="hash display">#JuicePongForACause</div>
+    <div class="cta">Every cup you sink helps feed a family. 🧡</div>
+  </div>
+</section>
+
+<script>
+  // Draw the cup rack (front view, point of the triangle toward the viewer)
+  (function () {
+    const svg = document.getElementById('rack');
+    const juice = ['#FF9F1C', '#FF4F7B', '#FFD23F', '#8E5CF0', '#5CC74F'];
+    const rows = [
+      { n: 4, s: 0.80, y: 34 },
+      { n: 3, s: 0.87, y: 66 },
+      { n: 2, s: 0.94, y: 100 },
+      { n: 1, s: 1.00, y: 136 },
+    ];
+    const W = 66;
+    let out = `
+      <defs>
+        <linearGradient id="body" x1="0" x2="1">
+          <stop offset="0" stop-color="#FFFFFF"/>
+          <stop offset="0.55" stop-color="#FFF1DA"/>
+          <stop offset="1" stop-color="#E9D6B8"/>
+        </linearGradient>
+      </defs>`;
+    let k = 0;
+    rows.forEach(r => {
+      const w = W * r.s, h = w * 1.05, gap = w * 1.04;
+      const x0 = 150 - gap * (r.n - 1) / 2;
+      for (let i = 0; i < r.n; i++) {
+        const cx = x0 + i * gap, ty = r.y, c = juice[k++ % juice.length];
+        const bw = w * 0.36, ry = w * 0.17;
+        out += `
+          <path d="M${cx - w/2},${ty} L${cx + w/2},${ty} L${cx + bw},${ty + h}
+                   A${bw},${w*0.08} 0 0 1 ${cx - bw},${ty + h} Z"
+                fill="url(#body)" stroke="#1D1530" stroke-width="2.6" stroke-linejoin="round"/>
+          <path d="M${cx - w*0.455},${ty + h*0.30} L${cx + w*0.455},${ty + h*0.30}
+                   L${cx + w*0.43},${ty + h*0.44} L${cx - w*0.43},${ty + h*0.44} Z"
+                fill="${c}" opacity="0.9"/>
+          <ellipse cx="${cx}" cy="${ty}" rx="${w/2}" ry="${ry}" fill="#FFFFFF" stroke="#1D1530" stroke-width="2.6"/>
+          <ellipse cx="${cx}" cy="${ty + 1.5}" rx="${w/2 - 5}" ry="${ry - 3.6}" fill="${c}"/>
+          <ellipse cx="${cx - w*0.14}" cy="${ty - 0.5}" rx="${w*0.11}" ry="${ry*0.28}" fill="#FFFFFF" opacity="0.6"/>`;
+      }
+    });
+    // ball flight path + ball about to drop into a middle cup
+    out += `
+      <path d="M300,-160 Q246,-130 214,-12" fill="none" stroke="#FFF6E6" stroke-width="5"
+            stroke-linecap="round" stroke-dasharray="0.1 13"/>
+      <ellipse cx="210" cy="68" rx="13" ry="3.5" fill="#1D1530" opacity="0.22"/>
+      <circle cx="211" cy="4" r="13" fill="#FFFFFF" stroke="#1D1530" stroke-width="2.6"/>
+      <path d="M203,9 A9,9 0 0 0 220,6" fill="none" stroke="#E9D6B8" stroke-width="3" stroke-linecap="round"/>`;
+    svg.innerHTML = out;
+  })();
+</script>
+</body>
+</html>
