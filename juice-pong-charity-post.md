@@ -8,7 +8,12 @@ Instagram carousel images (1080×1350, post them in this order):
 4. `juice-pong-post/4-place.png`
 5. `juice-pong-post/5-promotion.png`
 
-To change any text, edit `juice-pong-post/slides.html` and re-render it.
+Printable poster (US Letter, 8.5×11 in):
+
+- `juice-pong-post/poster.pdf` (print this one)
+- `juice-pong-post/poster.png` (high-res image of the same poster)
+
+To change any text, edit `juice-pong-post/slides.html` (post) or `juice-pong-post/poster.html` (poster) and re-render.
 
 ---
 
@@ -74,7 +79,7 @@ Swipe → to see the plan 👉
 ### 4. Promotion
 - **Instagram carousel:** the 5 images above, with the caption.
 - **Stories:** a daily countdown the week of the event, and live bracket updates on the day.
-- **Posters:** in the hallways and cafeteria (you can print the cover image as a poster).
+- **Posters:** print `poster.pdf` and put it up in the hallways, the cafeteria and near the gym.
 - **Morning announcements:** ask the office to read it out the week before.
 - **Word of mouth:** the post asks people to share it, tag a partner, and challenge another team.
 - **Cause message:** every image says the money goes to the food bank, because people pay more readily for a good cause.
