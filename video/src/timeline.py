@@ -18,32 +18,32 @@ SR = 48000
 
 # When each voiceover clip starts (seconds). Scenes in index.html are cut around these.
 SCHEDULE = {
-    "hook": 0.30,
-    "problem": 2.80,
-    "stats": 9.00,
-    "reveal": 14.40,
-    "price_a": 19.40,
-    "price_b": 22.00,
-    "cool_a": 25.20,
-    "cool_b": 29.80,
-    "cool_c": 32.50,
-    "benefit": 36.70,
-    "social": 42.60,
-    "payoff": 47.40,
-    "cta": 51.70,
+    "hook": 0.20,
+    "problem": 2.70,
+    "stats": 9.15,
+    "reveal": 14.70,
+    "price_a": 19.60,
+    "price_b": 22.20,
+    "cool_a": 25.30,
+    "cool_b": 29.90,
+    "cool_c": 32.70,
+    "benefit": 36.85,
+    "social": 42.85,
+    "payoff": 47.65,
+    "cta": 51.85,
 }
 
 SCENES = {
     "hook": [0.0, 2.6],
-    "problem": [2.6, 8.6],
-    "stats": [8.6, 14.0],
-    "reveal": [14.0, 18.9],
-    "price": [18.9, 25.0],
-    "cool": [25.0, 36.4],
-    "benefit": [36.4, 42.3],
-    "social": [42.3, 47.1],
-    "payoff": [47.1, 51.4],
-    "cta": [51.4, DURATION],
+    "problem": [2.6, 9.0],
+    "stats": [9.0, 14.3],
+    "reveal": [14.3, 19.1],
+    "price": [19.1, 25.1],
+    "cool": [25.1, 36.5],
+    "benefit": [36.5, 42.6],
+    "social": [42.6, 47.4],
+    "payoff": [47.4, 51.6],
+    "cta": [51.6, DURATION],
 }
 
 
@@ -117,7 +117,11 @@ def main():
         track[a : a + len(x)] += x
         dur = len(x) / SR
         clips.append({"id": cid, "start": start, "end": round(start + dur, 3)})
-        ph = phrase_times(meta[cid]["text"], dur, pauses(x, sr))
+        # sentence times come straight from vo.py; commas inside a sentence are found from its pauses
+        ph = []
+        for text, s0, s1 in meta[cid]["phrases"]:
+            seg = x[int(s0 * SR) : int(s1 * SR)]
+            ph += [(p, s0 + a, s0 + b) for p, a, b in phrase_times(text, s1 - s0, pauses(seg, sr))]
         phrases[cid] = [[p, round(start + s, 3), round(start + e, 3)] for p, s, e in ph]
         # captions: at most 3 words on screen, never spanning a phrase break
         for p, s, e in ph:

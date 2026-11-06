@@ -1,6 +1,6 @@
 [
   {"id": "hook", "text": "Stop. Don't tap buy now.", "note": "Urgent and punchy, almost a warning. The screen freezes right after."},
-  {"id": "problem", "text": "Late-night scrolling. One-tap checkout. Pay in four. And by the twentieth... your money's gone.", "note": "Deadpan, one beat per notification. Pause after 'twentieth', drop your voice on 'gone'."},
+  {"id": "problem", "text": "Late-night scrolling. One-tap checkout. Pay in four. And by the twentieth... your money's gone.", "note": "Deadpan, one beat per notification. Pause after 'twentieth', drop your voice on 'gone'.", "gaps": [0.25, 0.25, 0.25, 0.4]},
   {"id": "stats", "text": "Six in ten of us impulse-buy because of social media. And most of us regret it.", "note": "Knowing, a little guilty, like 'we've all done it'."},
   {"id": "reveal", "text": "Meet Cooldown. The app that puts a pause between you and the checkout.", "note": "Energy up, smile. 'Cooldown' lands just after the music drop."},
   {"id": "price_a", "text": "Before you pay, it shows you the real price.", "note": "Clear and confident. Stress 'real'."},

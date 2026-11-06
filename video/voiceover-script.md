@@ -18,19 +18,19 @@ Keep the words **exactly as written**, because the captions are rebuilt from thi
 
 | # | Start | Finish by | Line (times in brackets = when the next phrase starts) | How to say it |
 |---|---|---|---|---|
-| 1 | 0:00.3 | 0:02.6 | **Stop.** (0:00.6) **Don't tap buy now.** | Urgent and punchy, almost a warning. The screen freezes right after. |
-| 2 | 0:02.8 | 0:08.8 | **Late-night scrolling.** (0:04.2) **One-tap checkout.** (0:05.3) **Pay in four.** (0:05.7) **And by the twentieth…** (0:07.2) **your money's gone.** | Deadpan, one beat per notification. Pause after "twentieth", drop your voice on "gone". |
-| 3 | 0:09.0 | 0:14.2 | **Six in ten of us impulse-buy because of social media.** (0:12.3) **And most of us regret it.** | Knowing, a little guilty, like "we've all done it". |
-| 4 | 0:14.4 | 0:19.2 | **Meet Cooldown.** (0:15.6) **The app that puts a pause between you and the checkout.** | Energy up, smile. "Cooldown" lands just after the music drop. |
-| 5 | 0:19.4 | 0:21.8 | **Before you pay,** (0:20.3) **it shows you the real price.** | Clear and confident. Stress "real". |
-| 6 | 0:22.0 | 0:25.0 | **Hours of your work,** (0:23.0) **and days added to your goals.** | Each half lands as its row zooms in. |
-| 7 | 0:25.2 | 0:29.6 | **Tap cool down,** (0:26.4) **and it holds the item for twenty-four hours.** | "Tap" hits the on-screen tap. Calm as the item freezes. |
-| 8 | 0:29.8 | 0:32.3 | **Still want it tomorrow?** (0:31.2) **Buy it,** (0:31.6) **guilt-free.** | Light, easy-going: a real question. |
-| 9 | 0:32.5 | 0:36.5 | **Changed your mind?** (0:33.7) **That money goes straight into your savings.** | Rising excitement. Coins fly on "That money". |
-| 10 | 0:36.7 | 0:42.4 | **No spreadsheets.** (0:37.9) **No guilt trips.** (0:39.1) **Just fewer regrets,** (0:39.7) **and goals that actually get closer.** | First two dismissive, last two warm. |
-| 11 | 0:42.6 | 0:47.2 | **It works with your cards and your favourite shops.** (0:45.3) **And you can flex what you didn't buy.** | Playful. Smile on "flex". |
-| 12 | 0:47.4 | 0:51.5 | **Three months later,** (0:48.4) **all that unspent money?** (0:49.7) **It's a flight to Tokyo.** | Warm and proud. Land "Tokyo" with a smile. |
-| 13 | 0:51.7 | 0:58.5 | **Cooldown.** (0:52.4) **Cool down before you check out.** (0:54.0) **Join the free waitlist.** (0:55.5) **Link in bio.** | Slower and confident: the sign-off. |
+| 1 | 0:00.2 | 0:02.5 | **Stop.** (0:01.1) **Don't tap buy now.** | Urgent and punchy, almost a warning. The screen freezes right after. |
+| 2 | 0:02.7 | 0:09.0 | **Late-night scrolling.** (0:04.0) **One-tap checkout.** (0:05.3) **Pay in four.** (0:06.4) **And by the twentieth…** (0:07.9) **your money's gone.** | Deadpan, one beat per notification. Pause after "twentieth", drop your voice on "gone". |
+| 3 | 0:09.2 | 0:14.5 | **Six in ten of us impulse-buy because of social media.** (0:12.6) **And most of us regret it.** | Knowing, a little guilty, like "we've all done it". |
+| 4 | 0:14.7 | 0:19.4 | **Meet Cooldown.** (0:15.9) **The app that puts a pause between you and the checkout.** | Energy up, smile. "Cooldown" lands just after the music drop. |
+| 5 | 0:19.6 | 0:22.0 | **Before you pay,** (0:20.5) **it shows you the real price.** | Clear and confident. Stress "real". |
+| 6 | 0:22.2 | 0:25.1 | **Hours of your work,** (0:23.2) **and days added to your goals.** | Each half lands as its row zooms in. |
+| 7 | 0:25.3 | 0:29.7 | **Tap cool down,** (0:26.5) **and it holds the item for twenty-four hours.** | "Tap" hits the on-screen tap. Calm as the item freezes. |
+| 8 | 0:29.9 | 0:32.5 | **Still want it tomorrow?** (0:31.3) **Buy it,** (0:31.7) **guilt-free.** | Light, easy-going: a real question. |
+| 9 | 0:32.7 | 0:36.6 | **Changed your mind?** (0:33.9) **That money goes straight into your savings.** | Rising excitement. Coins fly on "That money". |
+| 10 | 0:36.9 | 0:42.6 | **No spreadsheets.** (0:38.1) **No guilt trips.** (0:39.4) **Just fewer regrets,** (0:40.6) **and goals that actually get closer.** | First two dismissive, last two warm. |
+| 11 | 0:42.9 | 0:47.4 | **It works with your cards and your favourite shops.** (0:45.5) **And you can flex what you didn't buy.** | Playful. Smile on "flex". |
+| 12 | 0:47.6 | 0:51.6 | **Three months later,** (0:48.6) **all that unspent money?** (0:50.0) **It's a flight to Tokyo.** | Warm and proud. Land "Tokyo" with a smile. |
+| 13 | 0:51.9 | 0:58.5 | **Cooldown.** (0:52.8) **Cool down before you check out.** (0:54.6) **Join the free waitlist.** (0:56.2) **Link in bio.** | Slower and confident: the sign-off. |
 
 Times are video time. The read-along file adds a 3-second count-in before 0:00.
 

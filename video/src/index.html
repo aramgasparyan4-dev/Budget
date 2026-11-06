@@ -701,7 +701,7 @@ function swipe(b, color) {
 
 /* ---------------- S1 HOOK ---------------- */
 scene('#s1', S('hook'));
-const FREEZE = 1.85;
+const FREEZE = Math.min(S('hook')[1] - .45, PE('hook', 1) + .05);   // the screen freezes right after "now"
 gsap.set('#cam1', frame([540, 850], .9, [540, 1040]));
 tl.to('#cam1', { ...frame(POS.buy1, 1.1, [540, 1470]), duration: FREEZE, ease: 'power2.in' }, 0);
 tl.fromTo('#hookA', { autoAlpha: 1, scale: 1.15, rotation: -4 }, { autoAlpha: 1, scale: 1, rotation: 0, duration: .35, ease: 'back.out(3)' }, 0);
