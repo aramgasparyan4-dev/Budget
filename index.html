@@ -7,11 +7,11 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;700&display=swap">
 <style>
-/* Layout: the game canvas fills the screen; menus are a single sheet floating over the live world,
-   two columns (skins | levels) that stack on a phone. One dark look by design: it is a night-city arcade. */
+/* Layout: the game canvas fills the screen; the hub and every between-fight screen is one sheet
+   floating over the live world. One dark look by design: a night-city arcade. */
 :root {
-  --ink: #0b0e22; --sheet: rgba(11, 14, 34, 0.9); --line: rgba(255, 255, 255, 0.14);
-  --text: #f3f5ff; --mute: #a9b0d4; --mint: #7cf0c8; --gold: #ffd75e; --coral: #ff5d73; --lilac: #d69bff;
+  --ink: #0b0e22; --sheet: rgba(11, 14, 34, 0.92); --line: rgba(255, 255, 255, 0.14);
+  --text: #f3f5ff; --mute: #a9b0d4; --mint: #7cf0c8; --gold: #ffd75e; --coral: #ff5d73; --core: #5ee6ff; --clay: #d97757;
   --display: 'Bungee', 'Arial Black', Impact, sans-serif;
   --ui: 'Chakra Petch', 'Trebuchet MS', system-ui, sans-serif;
   color-scheme: dark;
@@ -20,79 +20,88 @@ html, body { height: 100%; }
 body { margin: 0; background: var(--ink); color: var(--text); font-family: var(--ui); font-size: 15px; line-height: 1.4; overflow: hidden; }
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: default; opacity: 0.45; }
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .gut { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+kbd { font: inherit; font-weight: 700; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; background: rgba(255, 255, 255, 0.05); }
 
 #app { position: relative; height: 100%; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
 /* HUD */
-#hud { position: absolute; inset: 0 0 auto 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-block: 10px; pointer-events: none; }
-.pill { display: inline-flex; align-items: center; gap: 7px; background: rgba(8, 10, 26, 0.62); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.pill small { color: var(--mute); font-size: 13px; font-weight: 500; }
-.tok { width: 11px; height: 15px; border-radius: 50%; background: var(--gold); box-shadow: inset 0 0 0 2px #b07a12; }
-#h-mid { font-family: var(--display); font-size: 17px; letter-spacing: 0.03em; min-width: 76px; justify-content: center; }
-.hud-r { display: flex; gap: 6px; pointer-events: auto; }
-.hud-r button { background: rgba(8, 10, 26, 0.62); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 700; }
-#b-mute[aria-pressed="true"] { color: var(--mute); }
+#hud { position: absolute; inset: 0 0 auto 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-block: 10px; pointer-events: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hud-l { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.hpbar { position: relative; width: min(230px, 46vw); height: 20px; background: rgba(8, 10, 26, 0.7); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+#hp-fill { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(#ff7d8d, #e23b55); }
+#hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; text-shadow: 0 1px 2px #000; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(8, 10, 26, 0.66); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 13px; }
+.chip i { width: 9px; height: 9px; display: inline-block; }
+.i-gold { background: var(--gold); }
+.i-core { background: var(--core); transform: rotate(45deg); }
+.i-flask { background: #7cf0a0; border-radius: 2px; }
+#h-floor { font-family: var(--display); font-weight: 400; font-size: 13px; letter-spacing: 0.04em; padding: 5px 12px; white-space: nowrap; }
+.hud-r { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.hud-r .row { pointer-events: auto; justify-content: flex-end; }
+.hud-r button { background: rgba(8, 10, 26, 0.66); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+.slot { display: inline-flex; align-items: center; gap: 6px; background: rgba(8, 10, 26, 0.66); border: 1px solid var(--line); border-radius: 8px; padding: 2px 9px 2px 4px; font-size: 12px; }
+.slot canvas { width: 24px; height: 24px; }
+#boss { position: absolute; inset: auto 0 22px 0; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+#boss b { font-family: var(--display); font-weight: 400; letter-spacing: 0.08em; font-size: 14px; color: var(--coral); text-shadow: 0 2px 0 #000; }
+.bossbar { width: min(520px, 80vw); height: 12px; background: rgba(8, 10, 26, 0.75); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+#boss-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff5d73, #ffd75e); }
 
 /* touch pad */
-#touch { position: absolute; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: flex-end; padding-block: 0 20px; pointer-events: none; }
-#touch button { pointer-events: auto; touch-action: none; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); background: rgba(8, 10, 26, 0.42); color: var(--text); font-weight: 700; }
-#touch .pad { display: flex; gap: 12px; }
-#touch .pad button { width: 70px; height: 70px; font-size: 24px; }
-#t-jump { width: 96px; height: 96px; font-family: var(--display); font-size: 16px; }
+#touch { position: absolute; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: flex-end; padding-block: 0 18px; pointer-events: none; }
+#touch button { pointer-events: auto; touch-action: none; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); background: rgba(8, 10, 26, 0.42); font-weight: 700; font-size: 11px; width: 60px; height: 60px; }
+#touch .pad { display: flex; gap: 10px; }
+#touch .pad button { font-size: 20px; width: 64px; height: 64px; }
+#touch .acts { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; justify-items: center; align-items: end; }
+#touch .acts .sm { width: 46px; height: 46px; font-size: 10px; }
 #touch button.on { background: rgba(124, 240, 200, 0.4); border-color: var(--mint); }
 
 /* overlays */
-.overlay { position: absolute; inset: 0; overflow-y: auto; display: grid; place-items: center; padding-block: 20px; background: rgba(8, 10, 26, 0.58); }
-.sheet { width: 100%; max-width: 880px; background: var(--sheet); border: 1px solid var(--line); border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
-.sheet.small { max-width: 400px; text-align: center; align-items: stretch; }
-h1 { margin: 12px 0 0; font-family: var(--display); font-weight: 400; font-size: clamp(38px, 9vw, 72px); line-height: 0.9; letter-spacing: 0.01em; transform: rotate(-3deg); transform-origin: left center; text-shadow: 4px 4px 0 var(--coral); text-wrap: balance; }
-h1 span { color: var(--mint); }
-.tag { margin: 14px 0 0; color: var(--mute); max-width: 46ch; }
-h2 { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-h2 output { color: var(--text); letter-spacing: 0.04em; text-transform: none; }
-.cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 24px; }
-.skins { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.skin { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px 8px; background: rgba(255, 255, 255, 0.04); border: 2px solid transparent; border-radius: 14px; font-size: 12px; font-weight: 700; min-width: 0; }
-.skin canvas { width: 54px; height: 54px; }
-.skin span { max-width: 100%; overflow-wrap: anywhere; text-align: center; line-height: 1.15; }
-.skin:hover { background: rgba(255, 255, 255, 0.09); }
-.skin[aria-pressed="true"] { border-color: var(--mint); background: rgba(124, 240, 200, 0.13); }
-.levels { display: flex; flex-direction: column; gap: 8px; }
-.lvl { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 14px; }
-.lvl:hover { background: rgba(124, 240, 200, 0.14); border-color: var(--mint); }
-.lvl .num { font-family: var(--display); font-size: 30px; line-height: 1; color: var(--mint); text-align: center; }
-.lvl .txt { display: flex; flex-direction: column; min-width: 0; }
-.lvl b { font-size: 17px; }
-.lvl i { font-style: normal; color: var(--mute); font-size: 13px; }
-.lvl .best { font-size: 13px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.lvl.tower .num { color: var(--lilac); }
-.lvl.tower:hover { background: rgba(214, 155, 255, 0.14); border-color: var(--lilac); }
-.keys { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--mute); font-size: 13px; }
-.keys kbd { font: inherit; font-weight: 700; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; }
-.fine { margin: 0; color: var(--mute); font-size: 11.5px; opacity: 0.85; }
+.overlay { position: absolute; inset: 0; overflow-y: auto; display: grid; place-items: center; padding-block: 18px; background: rgba(8, 10, 26, 0.6); }
+.sheet { width: 100%; max-width: 900px; background: var(--sheet); border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 18px; }
+.sheet.mid { max-width: 620px; }
+.sheet.small { max-width: 400px; text-align: center; }
+.top { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+#hero-cv { width: 116px; height: 116px; flex: none; image-rendering: pixelated; background: rgba(255, 255, 255, 0.04); border-radius: 16px; }
+.top > div { flex: 1; min-width: 220px; }
+h1 { margin: 6px 0 0; font-family: var(--display); font-weight: 400; font-size: clamp(34px, 7vw, 60px); line-height: 0.9; transform: rotate(-3deg); transform-origin: left center; text-shadow: 4px 4px 0 var(--coral); text-wrap: balance; }
+h1 span { color: var(--clay); }
+.tag { margin: 14px 0 0; color: var(--mute); max-width: 52ch; }
+h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+h2 output { color: var(--core); letter-spacing: 0.04em; text-transform: none; }
+.startrow { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.stat { color: var(--mute); font-size: 13px; }
+.stat b { color: var(--text); font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.card { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.card:not(:disabled):hover { background: rgba(124, 240, 200, 0.13); border-color: var(--mint); }
+.card b { font-size: 15px; }
+.card span { color: var(--mute); font-size: 12.5px; }
+.card em { font-style: normal; font-weight: 700; font-size: 12.5px; color: var(--core); font-variant-numeric: tabular-nums; }
+.card em.g { color: var(--gold); }
+.card.big { padding: 16px 14px; gap: 6px; }
+.card.big b { font-size: 17px; }
+.card.big kbd { align-self: flex-start; }
+.keys { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--mute); font-size: 12.5px; }
 .kicker { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
-.big { margin: 0; font-family: var(--display); font-size: clamp(30px, 8vw, 44px); line-height: 1; }
-.stars { font-size: 34px; letter-spacing: 6px; color: var(--gold); line-height: 1; }
-.stats { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.stats div { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 8px 4px; }
+.big-t { margin: 0; font-family: var(--display); font-size: clamp(26px, 6vw, 40px); line-height: 1; }
+.stats { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
+.stats div { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 8px 4px; text-align: center; }
 .stats dt { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
 .stats dd { margin: 2px 0 0; font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
 .note { margin: 0; color: var(--mute); font-size: 13px; }
-.btns { display: flex; flex-direction: column; gap: 8px; }
-.btn { padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); font-weight: 700; letter-spacing: 0.04em; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.sheet.small .btns { flex-direction: column; }
+.btn { padding: 12px 18px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); font-weight: 700; letter-spacing: 0.04em; }
 .btn:hover { background: rgba(255, 255, 255, 0.13); }
 .btn.primary { background: var(--mint); border-color: var(--mint); color: #08241b; }
 .btn.primary:hover { background: #a2f6da; }
-@media (max-width: 640px) {
-  .cols { grid-template-columns: minmax(0, 1fr); }
-  .sheet { padding: 18px; gap: 16px; }
-  .lvl { grid-template-columns: 34px minmax(0, 1fr); }
-  .lvl .best { grid-column: 2; }
-  .lvl .num { font-size: 24px; }
-}
+.btn.go { font-family: var(--display); font-weight: 400; font-size: 18px; padding: 14px 26px; }
+@media (max-width: 640px) { .sheet { padding: 16px; gap: 14px; } #hero-cv { width: 84px; height: 84px; } #h-floor { display: none; } }
 </style>
 </head>
 <body>
@@ -100,82 +109,127 @@ h2 output { color: var(--text); letter-spacing: 0.04em; text-transform: none; }
   <canvas id="cv" aria-label="Neural Kick game view"></canvas>
 
   <div id="hud" class="gut" hidden>
-    <div class="pill"><span class="tok"></span><span><span id="h-coins">0</span><small id="h-total"></small></span></div>
-    <div class="pill" id="h-mid">0:00.0</div>
+    <div class="hud-l">
+      <div class="hpbar" role="img" aria-label="Health"><div id="hp-fill"></div><div id="hp-text"></div></div>
+      <div class="row">
+        <span class="chip" title="Hotfix heals (Q)"><i class="i-flask"></i><span id="h-flask">2</span></span>
+        <span class="chip" title="Gold: spent in the safe room"><i class="i-gold"></i><span id="h-gold">0</span></span>
+        <span class="chip" title="Cores: banked when you clear a floor"><i class="i-core"></i><span id="h-cores">0</span></span>
+      </div>
+    </div>
+    <div class="chip" id="h-floor"></div>
     <div class="hud-r">
-      <button type="button" id="b-mute" aria-pressed="false">Sound on</button>
-      <button type="button" id="b-pause">Pause</button>
+      <div class="row">
+        <button type="button" id="b-mute" aria-pressed="true">Sound off</button>
+        <button type="button" id="b-pause">Pause</button>
+      </div>
+      <div class="row">
+        <span class="slot"><canvas id="w-main" width="48" height="48"></canvas><span id="w-main-name"></span></span>
+        <span class="slot" id="alt-slot"><canvas id="w-alt" width="48" height="48"></canvas><span id="w-alt-name"></span></span>
+      </div>
     </div>
   </div>
+  <div id="boss" hidden><b id="boss-name"></b><div class="bossbar"><div id="boss-fill"></div></div></div>
 
   <div id="touch" class="gut" hidden>
     <div class="pad">
       <button type="button" id="t-left" aria-label="Move left">◀</button>
       <button type="button" id="t-right" aria-label="Move right">▶</button>
     </div>
-    <button type="button" id="t-jump" aria-label="Jump">JUMP</button>
+    <div class="acts">
+      <button type="button" class="sm" id="t-heal">HEAL</button>
+      <button type="button" class="sm" id="t-alt">ALT</button>
+      <button type="button" class="sm" id="t-use">USE</button>
+      <button type="button" id="t-roll">ROLL</button>
+      <button type="button" id="t-atk">HIT</button>
+      <button type="button" id="t-jump">JUMP</button>
+    </div>
   </div>
 
   <section id="menu" class="overlay gut">
     <div class="sheet">
-      <header>
-        <h1>Neural <span>Kick</span></h1>
-        <p class="tag">Run, stomp bugs and kick from wall to wall up the server stack. Pick the model you want to play as.</p>
-      </header>
-      <div class="cols">
+      <div class="top">
+        <canvas id="hero-cv" width="176" height="176" aria-hidden="true"></canvas>
         <div>
-          <h2>Skin <output id="skin-name"></output></h2>
-          <div id="skins" class="skins"></div>
-        </div>
-        <div>
-          <h2>Play</h2>
-          <div id="levels" class="levels"></div>
+          <h1>Neural <span>Kick</span></h1>
+          <p class="tag">Fight down through the stack. Every run is a new set of rooms, you keep nothing but the cores you bank, and death sends you back here.</p>
         </div>
       </div>
-      <footer>
-        <p class="keys">
-          <span><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> move</span>
-          <span><kbd>Space</kbd> jump, hold for height</span>
-          <span>Jump on a wall to kick off it</span>
-          <span><kbd>R</kbd> retry</span>
-          <span><kbd>P</kbd> pause</span>
-        </p>
-      </footer>
-      <p class="fine">Fan-made game. The skins are simplified drawings of logos that belong to their owners; this game is not affiliated with or endorsed by any of them.</p>
+      <div class="startrow">
+        <button type="button" class="btn primary go" id="b-start">Start run</button>
+        <span class="stat">Best floor <b id="m-best">0</b></span>
+        <span class="stat">Runs <b id="m-runs">0</b></span>
+        <span class="stat">Kills <b id="m-kills">0</b></span>
+      </div>
+      <div>
+        <h2>Permanent upgrades <output id="m-cores"></output></h2>
+        <div id="ups" class="grid"></div>
+      </div>
+      <p class="keys">
+        <span><kbd>A</kbd> <kbd>D</kbd> or arrows: move</span>
+        <span><kbd>Space</kbd> jump, wall kick</span>
+        <span><kbd>J</kbd> attack</span>
+        <span><kbd>K</kbd> roll through attacks</span>
+        <span><kbd>L</kbd> second weapon</span>
+        <span><kbd>S</kbd> in the air: dive slam</span>
+        <span><kbd>Q</kbd> heal</span>
+        <span><kbd>E</kbd> pick up, open, enter</span>
+        <span><kbd>P</kbd> pause</span>
+        <span><kbd>M</kbd> sound</span>
+      </p>
     </div>
   </section>
 
   <section id="pause" class="overlay gut" hidden>
     <div class="sheet small">
-      <p class="kicker" id="p-title">Paused</p>
-      <p class="big">Paused</p>
+      <p class="kicker">Paused</p>
+      <p class="big-t" id="p-title"></p>
+      <p class="note" id="p-perks"></p>
       <div class="btns">
         <button type="button" class="btn primary" id="p-resume">Resume</button>
-        <button type="button" class="btn" id="p-restart">Restart level</button>
-        <button type="button" class="btn" id="p-quit">Quit to menu</button>
+        <button type="button" class="btn" id="p-quit">Abandon run</button>
       </div>
     </div>
   </section>
 
-  <section id="result" class="overlay gut" hidden>
+  <section id="chip" class="overlay gut" hidden>
+    <div class="sheet mid">
+      <div><p class="kicker">Upgrade chip</p><p class="big-t">Pick one</p></div>
+      <div id="chip-cards" class="grid"></div>
+    </div>
+  </section>
+
+  <section id="safe" class="overlay gut" hidden>
+    <div class="sheet mid">
+      <div><p class="kicker">Safe room</p><p class="big-t" id="s-title"></p></div>
+      <p class="note" id="s-info"></p>
+      <div>
+        <h2>Shop <output id="s-gold" style="color:var(--gold)"></output></h2>
+        <div id="s-shop" class="grid"></div>
+      </div>
+      <div class="btns"><button type="button" class="btn primary" id="s-next"></button></div>
+    </div>
+  </section>
+
+  <section id="dead" class="overlay gut" hidden>
     <div class="sheet small">
-      <p class="kicker" id="r-kicker"></p>
-      <p class="big" id="r-title"></p>
-      <div class="stars" id="r-stars"></div>
-      <dl class="stats" id="r-stats"></dl>
-      <p class="note" id="r-note"></p>
+      <p class="kicker">Run over</p>
+      <p class="big-t" id="d-title"></p>
+      <dl class="stats" id="d-stats"></dl>
+      <p class="note" id="d-note"></p>
       <div class="btns">
-        <button type="button" class="btn primary" id="r-next">Next level</button>
-        <button type="button" class="btn" id="r-again">Replay</button>
-        <button type="button" class="btn" id="r-menu">Menu</button>
+        <button type="button" class="btn primary" id="d-again">Run again</button>
+        <button type="button" class="btn" id="d-hub">Upgrades</button>
       </div>
     </div>
   </section>
 </div>
 <script src="js/core.js"></script>
+<script src="js/data.js"></script>
 <script src="js/levels.js"></script>
-<script src="js/skins.js"></script>
+<script src="js/sprite.js"></script>
 <script src="js/game.js"></script>
+<script src="js/enemies.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
 </body>
