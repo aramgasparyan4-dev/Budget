@@ -4,7 +4,7 @@
   const SD = g.SD;
   const sfx = (n) => SD.sfx && SD.sfx(n);
   const rand = (a, b) => a + Math.random() * (b - a);
-  const alive = (tag) => SD.G.actors.filter((a) => a.tag === tag && !a.dead);
+  const alive = (tag) => SD.G.actors.filter((a) => a.tag === tag && !a.dead && !a.out);
   const pay = (n, rep, why) => { const sv = SD.save; sv.money += n; sv.rep = Math.max(-100, Math.min(100, sv.rep + (rep || 0))); SD.emit('reward', { money: n, rep, why }); };
 
   SD.MISSIONS = [
@@ -19,7 +19,11 @@
     {
       title: 'Rattler Run', giver: 'sheriff', who: 'Sheriff Ada Whitlock',
       brief: 'The Rattler gang camps in the gulch east of the plains. They rob every wagon that passes. Clear them out. Take your horse: press H to whistle for Biscuit.',
-      start() { SD.gangAt(SD.SPOTS.camp, ['bandit', 'bandit', 'knife', 'bandit', 'rifle', 'bandit'], { tag: 'm1', persist: true }); },
+      start() { SD.gangAt(SD.SPOTS.camp, ['bandit', 'bandit', 'knife', 'bandit', 'rifle', 'bandit'], { tag: 'm1', persist: true }); SD.addAlly('Deputy Walt Greer', SD.SPOTS.sheriff + 50, 100); },
+      intro: [['Sheriff Ada', 'Walt rides with you. Try to bring him back in one piece.'], ['Deputy Walt', 'Whistle up your horse, partner. It is a long way east.']],
+      talk: [[2850, 'Deputy Walt', 'Never rode with a machine before. Do I feed you or oil you?'], [3500, 'Deputy Walt', 'Rattlers hit the noon stage last week. Took the mail and the mule.'],
+        [4200, 'Deputy Walt', 'They keep a rifleman at the back of the camp. Mind him first.'], [4820, 'Deputy Walt', 'This is it. Use the wagon for cover and pick your shots.']],
+      outro: [['Deputy Walt', 'Hell of a thing. I will tell Ada you shoot better than you look.']],
       objective() { const n = alive('m1').length; return 'Clear the Rattler camp in the gulch (' + n + ' left)'; },
       marker() { const a = alive('m1')[0]; return a ? a.x : SD.SPOTS.camp; },
       update() { if (!alive('m1').length) { pay(60, 5, 'Rattler camp cleared'); return true; } },
@@ -73,12 +77,17 @@
       title: "Widow's Mine", giver: 'sheriff', who: 'Sheriff Ada Whitlock',
       brief: 'The last of the gang works for a man they call the Foreman, up at the old mine. He throws dynamite. Bring tonics and plenty of rounds.',
       start() {
+        SD.addAlly('Sheriff Ada Whitlock', SD.SPOTS.sheriff + 40, 90, { hat: '#3a2a20', shirt: '#8a4a3a' }); SD.addAlly('Deputy Walt Greer', SD.SPOTS.sheriff + 90, 170);
         SD.gangAt(8300, ['bandit', 'bandit'], { tag: 'm5', persist: true });
         SD.gangAt(8750, ['rifle', 'bandit', 'knife'], { tag: 'm5', persist: true });
         SD.gangAt(9150, ['bandit', 'rifle'], { tag: 'm5', persist: true });
         SD.spawn('foreman', 9520, { tag: 'm5', name: 'The Foreman', persist: true, hat: '#6b5a2a', shirt: '#4a4a52', boss: true });
         SD.gangAt(9440, ['bandit', 'knife'], { tag: 'm5', persist: true });
       },
+      intro: [['Sheriff Ada', 'I am done sending you alone. Walt and I ride with you this time.']],
+      talk: [[4000, 'Sheriff Ada', 'Twenty years I kept this county quiet. One gang nearly undid it.'], [6700, 'Deputy Walt', 'River is high. Deer everywhere. Shame we are not here to hunt.'],
+        [7900, 'Sheriff Ada', 'Mine road. They will have guns on every bend. Stay sharp.'], [9150, 'The Foreman', 'You brought the law to MY hill? Light the fuses, boys!']],
+      outro: [['Sheriff Ada', 'It is over. Drinks are on the county tonight.']],
       objective() { const f = SD.G.actors.find((a) => a.kind === 'foreman' && !a.dead); return f ? 'Take down the Foreman at Widow\'s Mine' : 'Finish the gang (' + alive('m5').length + ' left)'; },
       marker() { const f = SD.G.actors.find((a) => a.kind === 'foreman' && !a.dead) || alive('m5')[0]; return f ? f.x : SD.SPOTS.mine; },
       update() { if (!alive('m5').length) { pay(250, 10, 'The Rattlers are finished'); SD.emit('ending'); return true; } },
@@ -92,12 +101,14 @@
     if (!m || sv.active) return;
     sv.active = true; sv.stage = null;
     m.start();
-    SD.say('New job: ' + m.title, 2.4); sfx('job');
+    for (const l of m.talk || []) l.done = false;
+    SD.cineTitle('A job from ' + m.who.split(',')[0], m.title); if (m.intro) SD.talk(m.intro); sfx('job');
   };
   SD.resumeMission = function () { const m = SD.missionNow(); if (m && m.title !== 'High Noon') m.start(); else if (m) { SD.save.active = false; } };
   SD.stepMission = function () {
     const sv = SD.save, m = SD.missionNow();
-    if (m && m.update()) { sv.active = false; sv.stage = null; sv.mission++; SD.emit('missionDone', m); }
+    if (m && m.talk) for (const l of m.talk) if (!l.done && SD.G.p.x > l[0]) { l.done = true; SD.talk([[l[1], l[2]]]); }
+    if (m && m.update()) { sv.active = false; sv.stage = null; sv.mission++; if (m.outro) SD.talk(m.outro); SD.dismissAllies(); SD.emit('missionDone', m); }
     stepBounty();
   };
 
@@ -146,8 +157,8 @@
     G.horse.x = 2330; G.horse.y = SD.ground(2330); G.horse.mode = 'idle';
     for (const a of G.actors) if (a.kind === 'folk') a.inside = true; // townsfolk go indoors for the showdown
     const foe = SD.spawn('duelist', x + 170, { tag: 'm3', name: 'Silas Crane', face: -1, persist: true, hat: '#14110f', shirt: '#2b2b30' });
-    G.duel = { stage: 'wait', t: rand(2.2, 4.2), foe, react: 0.6 };
-    SD.say('Steady...', 3);
+    G.duel = { stage: 'wait', t: rand(3.4, 5.4), foe, react: 0.6 };
+    SD.talk([['Silas Crane', 'Nothing personal, tin man.']]);
   };
   SD.stepDuel = function (dt, inp) {
     const G = SD.G, d = G.duel, p = G.p;

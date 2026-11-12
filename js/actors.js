@@ -5,12 +5,13 @@
   const SD = g.SD, TAU = Math.PI * 2;
   const K = (SD.K = {
     G: 1900, RUN: 190, ACC: 1700, FRIC: 2200, JUMP: 600, ROLL: 360, ROLLT: 0.32, ROLLCD: 0.55,
-    TROT: 300, GALLOP: 540, HACC: 900, HJUMP: 640, SADDLE: 30, DT: 1 / 120,
+    TROT: 300, GALLOP: 540, HACC: 900, HJUMP: 640, SADDLE: 33, DT: 1 / 120,
   });
   SD.GUNS = {
     revolver: { name: 'Revolver', dmg: 26, clip: 6, every: 0.26, reload: 1.3, spread: 0.02, speed: 2100, range: 950, ammo: 'pistol', pellets: 1, kick: 2 },
     rifle: { name: 'Repeater', dmg: 58, clip: 8, every: 0.55, reload: 2.1, spread: 0.006, speed: 2700, range: 1500, ammo: 'rifle', pellets: 1, kick: 4 },
     shotgun: { name: 'Scattergun', dmg: 15, clip: 2, every: 0.38, reload: 1.7, spread: 0.16, speed: 1600, range: 380, ammo: 'shells', pellets: 7, kick: 7 },
+    lasso: { name: 'Lasso', dmg: 0, clip: 1, every: 0.4, reload: 0, spread: 0, speed: 0, range: 0, ammo: 'none', pellets: 0, kick: 0 },
   };
   SD.AMMO_NAMES = { pistol: 'pistol rounds', rifle: 'rifle rounds', shells: 'shells' };
 
@@ -22,7 +23,7 @@
   SD.defaultSave = () => ({
     money: 15, rep: 0, hour: 9, day: 1, x: 1560, mission: 0, kills: 0, fine: 0, bounty: null, bountiesDone: 0,
     guns: { revolver: true, rifle: false, shotgun: false }, clip: { revolver: 6, rifle: 8, shotgun: 2 },
-    ammo: { pistol: 36, rifle: 0, shells: 0 }, tonics: 1, pelts: { rabbit: 0, deer: 0, coyote: 0, wolf: 0 },
+    ammo: { pistol: 36, rifle: 0, shells: 0 }, tonics: 1, pelts: { rabbit: 0, deer: 0, coyote: 0, wolf: 0 }, meat: 0, food: 0, robbed: 0,
   });
 
   SD.newGame = function (save) {
@@ -33,7 +34,8 @@
         hp: 100, maxhp: 100, iframes: 0, aim: 0, fireCd: 0, reload: 0, gun: 'revolver', knife: 0, carry: null, dead: false, flash: 0 },
       horse: { x: x - 60, y: SD.ground(x - 60), vx: 0, vy: 0, w: 50, h: 34, face: 1, onGround: true, mode: 'idle', t: 0, stam: 100 },
       actors: [], bullets: [], booms: [], parts: [], nums: [], marks: [], time: 0, oc: 40, ocOn: false, ocFire: 0,
-      wanted: 0, calm: 0, shake: 0, msg: null, near: null, duel: null, scale: 1, muzzle: 0, kick: 0,
+      wanted: 0, calm: 0, shake: 0, msg: null, near: null, duel: null, scale: 1, muzzle: 0, kick: 0, flash: 0, slow: 0,
+      cine: { bars: 0, want: 0, title: null, banner: null, sub: null, queue: [] }, weather: { kind: 'clear', amt: 0, flash: 0, t: 60 }, camp: null, rope: null, loop: null,
     };
     return SD.G;
   };
@@ -98,9 +100,9 @@
       const dx = b.vx * dt, dy = b.vy * dt;
       let best = 1, hit = null, kind = null;
       for (const s of SD.SOLIDS) { const t = segBox(b.x, b.y, dx, dy, s.x, s.y, s.w, s.h); if (t >= 0 && t < best) { best = t; kind = 'wall'; hit = s; } }
-      if (b.team === 'p') {
+      if (b.team !== 'e') {
         for (const a of G.actors) {
-          if (a.dead || a.inside) continue;
+          if (a.dead || a.inside || a.team === 'ally' || a.kind === 'coach') continue;
           const bx = SD.boxOf(a);
           // bullets pass innocent people unless the player aimed right at them
           if ((a.team === 'town' || (a.team === 'law' && !G.wanted)) && !(b.tx > bx[0] - 14 && b.tx < bx[0] + bx[2] + 14 && b.ty > bx[1] - 14 && b.ty < bx[1] + bx[3] + 14)) continue;
@@ -193,7 +195,7 @@
   }
   function startReload() {
     const p = SD.G.p, sv = SD.save, gun = SD.GUNS[p.gun];
-    if (p.reload > 0 || sv.clip[p.gun] >= gun.clip || sv.ammo[gun.ammo] <= 0) return;
+    if (p.gun === 'lasso' || p.reload > 0 || sv.clip[p.gun] >= gun.clip || sv.ammo[gun.ammo] <= 0) return;
     p.reload = gun.reload; sfx('reload');
   }
   function finishReload() {
@@ -208,7 +210,7 @@
     if (p.dead) return;
     p.iframes -= dt; p.rollCd -= dt; p.fireCd -= dt; p.flash -= dt; p.knife -= dt;
     if (p.reload > 0) { p.reload -= dt; if (p.reload <= 0) finishReload(); }
-    if (inp.gun && sv.guns[inp.gun] && inp.gun !== p.gun) { p.gun = inp.gun; p.reload = 0; p.fireCd = 0.2; sfx('equip'); }
+    if (inp.gun && (sv.guns[inp.gun] || inp.gun === 'lasso') && inp.gun !== p.gun) { p.gun = inp.gun; p.reload = 0; p.fireCd = 0.2; sfx('equip'); }
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
     const o = SD.gunOrigin();
     p.aim = Math.atan2(inp.aimY - o.y, inp.aimX - o.x); p.aimX = inp.aimX; p.aimY = inp.aimY;
@@ -221,6 +223,7 @@
       if (dir) { h.face = dir; h.vx += dir * K.HACC * dt; if (Math.abs(h.vx) > top) h.vx -= Math.sign(h.vx) * Math.min(Math.abs(h.vx) - top, 1200 * dt); }
       else { const f = 700 * dt; h.vx = Math.abs(h.vx) <= f ? 0 : h.vx - Math.sign(h.vx) * f; }
       if (inp.jump && h.onGround) { h.vy = -K.HJUMP; h.onGround = false; sfx('neigh'); }
+      else if (h.blocked && h.onGround && dir) { h.vy = -K.HJUMP * 0.86; h.onGround = false; } // Biscuit hops low obstacles on his own
       SD.moveBody(h, dt);
       p.x = h.x; p.y = h.y - K.SADDLE; p.vx = h.vx; p.onGround = true; p.crouch = false;
     } else {
@@ -237,7 +240,8 @@
       SD.moveBody(p, dt);
     }
     if (inp.reload) startReload();
-    if ((inp.fire || inp.fireHeld) && !G.ocOn) tryFire(p.aim);
+    if (p.gun === 'lasso') { if (inp.fire && p.fireCd <= 0 && p.roll <= 0 && !G.ocOn) { SD.throwLasso(p.aim); p.fireCd = 0.4; } }
+    else if ((inp.fire || inp.fireHeld) && !G.ocOn) tryFire(p.aim);
     if (inp.knife && p.knife < -0.2 && !p.mounted) {
       p.knife = 0.25; sfx('swing');
       for (const a of G.actors) {
@@ -247,8 +251,11 @@
       }
     }
     if (inp.tonic) {
-      if (sv.tonics > 0 && p.hp < p.maxhp) { sv.tonics--; const n = Math.min(60, p.maxhp - p.hp); p.hp += n; SD.popup(p.x, p.y - 26, '+' + n, '#8fe388', true); sfx('drink'); }
-      else if (sv.tonics <= 0) SD.say('No tonics left. The store sells them.');
+      const heal = (amt) => { const n = Math.min(amt, p.maxhp - p.hp); p.hp += n; SD.popup(p.x, p.y - 26, '+' + n, '#8fe388', true); sfx('drink'); };
+      if (p.hp >= p.maxhp) { /* nothing to heal */ }
+      else if (sv.food > 0) { sv.food--; heal(35); }
+      else if (sv.tonics > 0) { sv.tonics--; heal(60); }
+      else SD.say('Nothing to eat or drink. Buy tonic or cook meat at a camp.');
     }
     if (inp.call && !p.mounted) {
       if (Math.abs(h.x - p.x) > 1600) { h.x = Math.max(30, Math.min(SD.WORLD_W - 30, p.x - p.face * 700)); h.y = SD.ground(h.x) - 4; }

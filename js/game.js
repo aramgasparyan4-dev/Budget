@@ -42,7 +42,8 @@
       if (a.inside) continue;
       const d = Math.abs(a.x - p.x) + Math.abs(a.y - p.y) * 0.5;
       if (d > 48) continue;
-      if (!a.dead && a.surrender && !p.carry) offer(d - 30, { kind: 'tie', a, label: 'Tie up ' + a.name });
+      if (a.out) continue;
+      if (!a.dead && (a.surrender || a.roped > 0) && !a.victim && !(a.target && p.carry)) offer(d - 30, { kind: 'tie', a, label: a.target ? 'Tie up ' + a.name : 'Hogtie' });
       else if (a.dead && a.target && !p.carry) offer(d - 20, { kind: 'carry', a, label: 'Pick up ' + a.name });
       else if (a.dead && a.loot && a.loot.pelt) offer(d, { kind: 'skin', a, label: 'Skin ' + a.kind });
       else if (a.dead && a.loot && a.human) offer(d, { kind: 'loot', a, label: 'Search body' });
@@ -53,6 +54,7 @@
       if (d < 34) offer(d + 5, { kind: 'door', b, label: (p.carry && b.kind === 'sheriff' ? 'Hand over ' + p.carry.name : 'Enter ' + b.name.toLowerCase()) });
     }
     if (!p.mounted && Math.abs(h.x - p.x) < 50 && Math.abs(h.y - p.y) < 40) offer(Math.abs(h.x - p.x) + 10, { kind: 'mount', label: 'Ride Biscuit' });
+    if (G.camp && !p.mounted && Math.abs(G.camp.x - p.x) < 60) offer(30, { kind: 'camp', label: 'Sit by the fire' });
     if (!best && p.mounted) best = { kind: 'dismount', label: 'Get down' };
     return best;
   }
@@ -61,9 +63,11 @@
     const G = SD.G, p = G.p, sv = SD.save, a = n.a;
     if (n.kind === 'mount') SD.mount();
     else if (n.kind === 'dismount') SD.dismount();
-    else if (n.kind === 'tie') { p.carry = a; a.inside = true; a.surrender = false; a.tied = true; SD.say('Tied up ' + a.name + '. Take them to the sheriff.', 2.6); sfx('rope'); }
+    else if (n.kind === 'tie' && !a.target) { a.out = true; a.roped = 0; a.surrender = false; a.alert = false; G.rope = null; sv.rep = Math.min(100, sv.rep + 1); SD.say('Hogtied and left for the law. Rep +1', 2); sfx('rope'); }
+    else if (n.kind === 'tie') { p.carry = a; a.inside = true; a.surrender = false; a.roped = 0; a.tied = true; G.rope = null; SD.say('Tied up ' + a.name + '. Take them to the sheriff.', 2.6); sfx('rope'); }
+    else if (n.kind === 'camp') SD.on('camp');
     else if (n.kind === 'carry') { p.carry = a; a.inside = true; SD.say('Carrying ' + a.name + '.', 2); sfx('rope'); }
-    else if (n.kind === 'skin') { sv.pelts[a.loot.pelt]++; SD.popup(a.x, a.y - 20, '+1 ' + a.loot.pelt + ' pelt', '#e8c48c'); a.loot = null; a.gone = true; sfx('skin'); }
+    else if (n.kind === 'skin') { const meat = a.loot.pelt === 'deer' ? 2 : 1; sv.pelts[a.loot.pelt]++; sv.meat = (sv.meat || 0) + meat; SD.popup(a.x, a.y - 20, '+1 ' + a.loot.pelt + ' pelt, +' + meat + ' meat', '#e8c48c'); a.loot = null; a.gone = true; sfx('skin'); }
     else if (n.kind === 'loot') {
       const L = a.loot; a.loot = null;
       sv.money += L.money; sv.ammo.pistol += L.ammo;
@@ -81,7 +85,7 @@
     for (const a of G.actors) if (a.kind === 'law') a.gone = true;
     Object.assign(p, { x: SD.SPOTS.respawn, y: 0, vx: 0, vy: 0, hp: p.maxhp, dead: false, mounted: false, iframes: 1.5, roll: 0, reload: 0 });
     G.horse.x = SD.SPOTS.respawn - 70; G.horse.y = 0; G.horse.mode = 'idle';
-    G.bullets = []; G.booms = []; G.marks = []; G.ocOn = false; G.duel = null;
+    G.bullets = []; G.booms = []; G.marks = []; G.ocOn = false; G.duel = null; G.rope = null; G.loop = null; G.slow = 0;
     for (const a of G.actors) if (a.alert && Math.abs(a.x - p.x) < 900 && a.team === 'gang') a.alert = false;
     return lost;
   };
@@ -106,7 +110,8 @@
         G.ocFire = 0.08;
       }
     }
-    G.scale = G.ocOn ? 0.22 : 1;
+    G.scale = G.ocOn ? 0.22 : G.slow > 0 ? 0.28 : 1;
+    if (G.slow > 0) G.slow -= dt;
     const wdt = dt * G.scale;
     G.time += wdt;
 
@@ -116,6 +121,8 @@
     SD.stepActors(wdt);
     SD.stepBullets(wdt);
     SD.populate(wdt);
+    SD.stepExtras(dt, wdt);
+    if (inp.camp) SD.tryCamp();
     if (p.carry) { p.carry.x = p.x; p.carry.y = p.y; }
 
     G.near = findNear();

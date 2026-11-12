@@ -55,7 +55,7 @@
     { kind: 'bank', name: 'BANK', x: 1800, w: 180, h: 150, col: '#6a6470', door: true },
     { kind: 'doctor', name: 'DOCTOR', x: 2020, w: 160, h: 120, col: '#7d7a6a', door: true },
     { kind: 'stable', name: 'STABLE', x: 2220, w: 220, h: 112, col: '#6b4630' },
-    { kind: 'house', name: '', x: 2480, w: 150, h: 98, col: '#7b5e48' },
+    { kind: 'church', name: '', x: 2480, w: 150, h: 112, col: '#d8d2c2' },
     { kind: 'shack', name: '', x: 3560, w: 130, h: 86, col: '#5c4636' },
     { kind: 'minehead', name: "WIDOW'S MINE", x: 9640, w: 230, h: 150, col: '#4a3a33' },
   ];
@@ -83,7 +83,7 @@
   /* Decoration, generated once from a fixed seed so the world is the same every visit. */
   const rnd = SD.rng(1849), P = [];
   const near = (x, d) => SD.SOLIDS.some((b) => x > b.x - d && x < b.x + b.w + d) || SD.BUILDINGS.some((b) => x > b.x - 20 && x < b.x + b.w + 20);
-  for (let x = 2760; x < 6400; x += 120 + rnd() * 220) if (!near(x, 30)) P.push({ k: rnd() < 0.75 ? 'cactus' : 'deadtree', x, s: 0.8 + rnd() * 0.5, v: (rnd() * 3) | 0 });
+  for (let x = 2760; x < 6400; x += 120 + rnd() * 220) if (!near(x, 30)) P.push({ k: rnd() < 0.75 ? 'cactus' : 'deadtree', x, s: 0.85 + rnd() * 0.55, v: (rnd() * 3) | 0 });
   for (let x = 40; x < SD.WORLD_W; x += 70 + rnd() * 160) if (!SD.inTown(x) && (x < SD.BRIDGE.x0 - 20 || x > SD.BRIDGE.x1 + 20)) P.push({ k: 'bush', x, s: 0.6 + rnd() * 0.6, v: (rnd() * 3) | 0 });
   for (let x = 6420; x < 8600; x += 60 + rnd() * 120) if ((x < 6600 || x > 7010) && !near(x, 20)) P.push({ k: 'pine', x, s: 0.8 + rnd() * 0.6, v: (rnd() * 3) | 0 });
   for (let x = 860; x < 2680; x += 262) P.push({ k: 'lamp', x, s: 1, v: 0 });
@@ -94,12 +94,16 @@
   for (let i = 0; i < 5; i++) P.push({ k: 'grave', x: 2700 + i * 26, s: 1, v: i % 2 });
   P.push({ k: 'tent', x: 5330, s: 1, v: 0 }, { k: 'tent', x: 5680, s: 1.1, v: 1 }, { k: 'fire', x: 5520, s: 1, v: 0 });
   P.push({ k: 'post', x: 1468, s: 1, v: 0 }, { k: 'post', x: 2300, s: 1, v: 0 });
+  for (let x = 60; x < SD.WORLD_W - 700; x += 330) if (x < SD.BRIDGE.x0 - 40 || x > SD.BRIDGE.x1 + 40) P.push({ k: 'pole', x, s: 1, v: 0 });
+  for (let x = 2760; x < SD.WORLD_W - 40; x += 26 + rnd() * 70) if ((x < SD.BRIDGE.x0 - 20 || x > SD.BRIDGE.x1 + 20) && (x > 6300 || rnd() < 0.3)) P.push({ k: 'grass', x, s: 0.7 + rnd() * 0.7, v: x < 6300 ? 1 : 0 });
+  for (const x of [3080, 3900, 4640, 5120, 5960]) P.push({ k: 'skull', x, s: 1, v: 0 });
   P.sort((a, b) => a.x - b.x);
   SD.PROPS = P;
 
   /* Light sources at night: lamps, the campfire, the saloon windows. */
   SD.LIGHTS = P.filter((p) => p.k === 'lamp' || p.k === 'fire').map((p) => ({ x: p.x, y: SD.ground(p.x) - (p.k === 'lamp' ? 58 : 10), r: p.k === 'fire' ? 170 : 120 }));
-  SD.LIGHTS.push({ x: 1627, y: -70, r: 160 }, { x: 9755, y: SD.ground(9755) - 40, r: 140 });
+  SD.LIGHTS.push({ x: 1627, y: -70, r: 170 }, { x: 9755, y: SD.ground(9755) - 40, r: 140 });
+  for (const b of SD.BUILDINGS) if (b.door && b.kind !== 'bank') SD.LIGHTS.push({ x: b.x + 26, y: b.gy - 38, r: 70 }, { x: b.x + b.w - 26, y: b.gy - 38, r: 70 });
 
   /* Day/night: one game hour lasts HOUR real seconds. */
   SD.HOUR = 25;

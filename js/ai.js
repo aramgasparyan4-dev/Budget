@@ -232,6 +232,7 @@
       if (a.inside) continue;
       if (a.dead) { a.deadT += dt; a.vx *= 0.9; SD.moveBody(a, dt); continue; }
       if (a.kind === 'bottle') continue;
+      if (SD.extraAI && SD.extraAI(a, dt, p)) continue;
       const dx = p.x - a.x, dist = Math.abs(dx);
       if (G.duel && a.team === 'gang') { a.face = Math.sign(dx) || a.face; a.vx = 0; SD.moveBody(a, dt); continue; }
       if (dist > 1800 && !a.alert) continue;

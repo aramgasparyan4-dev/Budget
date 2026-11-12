@@ -12,54 +12,9 @@
   let coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   const mouse = { x: 0, y: 0, wx: 0, wy: 0, active: false, inside: false, last: -99 };
 
-  /* ---------- sound: synthesized, off until switched on ---------- */
-  let ac = null, noise = null;
-  function wake() {
-    if (muted) return;
-    if (!ac) {
-      try {
-        ac = new (window.AudioContext || window.webkitAudioContext)();
-        const n = ac.sampleRate * 0.6; noise = ac.createBuffer(1, n, ac.sampleRate);
-        const d = noise.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-      } catch (e) { ac = null; }
-    }
-    if (ac && ac.state === 'suspended') ac.resume();
-  }
-  function tone(f0, f1, dur, type, vol, delay) {
-    const t = ac.currentTime + (delay || 0), o = ac.createOscillator(), gn = ac.createGain();
-    o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + dur + 0.03);
-  }
-  function burst(dur, freq, vol, delay) {
-    const t = ac.currentTime + (delay || 0), s = ac.createBufferSource(), f = ac.createBiquadFilter(), gn = ac.createGain();
-    s.buffer = noise; f.type = 'lowpass'; f.frequency.setValueAtTime(freq, t); f.frequency.exponentialRampToValueAtTime(Math.max(80, freq * 0.15), t + dur);
-    gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(gn); gn.connect(ac.destination); s.start(t); s.stop(t + dur + 0.03);
-  }
-  const SFX = {
-    shot_revolver() { burst(0.28, 3200, 0.5); tone(170, 60, 0.12, 'triangle', 0.2); },
-    shot_rifle() { burst(0.42, 4200, 0.55); tone(120, 40, 0.2, 'triangle', 0.25); },
-    shot_shotgun() { burst(0.5, 2000, 0.7); tone(90, 35, 0.25, 'sine', 0.3); },
-    eshot() { burst(0.22, 2200, 0.22); }, eshot2() { burst(0.32, 2600, 0.28); },
-    dry() { tone(1800, 1800, 0.03, 'square', 0.05); },
-    reload() { [0, 0.14, 0.32].forEach((d) => tone(950, 950, 0.03, 'square', 0.05, d)); },
-    hit() { burst(0.06, 900, 0.18); }, hurt() { tone(220, 80, 0.2, 'sawtooth', 0.1); }, ric() { tone(2600, 900, 0.12, 'sine', 0.05); },
-    jump() { tone(330, 520, 0.07, 'square', 0.025); }, roll() { burst(0.16, 700, 0.14); },
-    whistle() { tone(1400, 2100, 0.16, 'sine', 0.08); tone(1500, 2400, 0.26, 'sine', 0.08, 0.22); },
-    neigh() { tone(700, 1100, 0.15, 'sawtooth', 0.035); tone(1100, 480, 0.35, 'sawtooth', 0.035, 0.12); },
-    hoof() { tone(150, 90, 0.05, 'triangle', 0.08); burst(0.03, 500, 0.05); },
-    coin() { tone(1319, 1319, 0.05, 'square', 0.035); tone(1760, 1760, 0.1, 'square', 0.035, 0.05); },
-    glass() { tone(2600, 3400, 0.06, 'triangle', 0.08); burst(0.14, 6000, 0.12); },
-    boom() { burst(0.9, 900, 0.8); tone(80, 30, 0.5, 'sine', 0.4); }, fuse() { burst(0.3, 5000, 0.04); },
-    job() { [523, 659, 784].forEach((f, i) => tone(f, f, 0.16, 'triangle', 0.09, i * 0.1)); },
-    draw() { tone(880, 880, 0.7, 'triangle', 0.16); },
-    ocOn() { tone(200, 70, 0.35, 'sine', 0.28); }, ocOff() { tone(70, 220, 0.2, 'sine', 0.22); }, mark() { tone(1250, 1250, 0.04, 'square', 0.05); },
-    swing() { burst(0.08, 1800, 0.12); }, bite() { burst(0.08, 700, 0.2); }, rope() { burst(0.2, 1200, 0.08); }, skin() { burst(0.15, 900, 0.1); },
-    drink() { tone(400, 700, 0.25, 'sine', 0.08); }, equip() { tone(600, 900, 0.06, 'square', 0.04); },
-  };
-  SD.sfx = (n) => { if (!muted && ac && SFX[n]) SFX[n](); };
-  function setMute(m) { muted = m; store.set('sd-mute', m); $('b-mute').setAttribute('aria-pressed', String(m)); $('b-mute').textContent = m ? 'Sound off' : 'Sound on'; if (!m) wake(); }
+  /* ---------- sound lives in audio.js ---------- */
+  const wake = () => SD.audio.wake();
+  function setMute(m) { muted = m; store.set('sd-mute', m); SD.audio.setMute(m); $('b-mute').setAttribute('aria-pressed', String(m)); $('b-mute').textContent = m ? 'Sound off' : 'Sound on'; }
 
   /* ---------- saving ---------- */
   const saveGame = () => { if (playing && SD.save) store.set('sd-save', SD.save); };
@@ -71,7 +26,7 @@
     const on = id == null;
     for (const h of ['hud-tl', 'hud-tr', 'hud-bl', 'hud-br']) $(h).hidden = !playing || id === 'title';
     $('touch').hidden = !(on && coarse);
-    cv.classList.toggle('menu', !on);
+    cv.classList.toggle('menu', !on); SD.hideHud = id === 'title';
     clearInput();
     if (id) { const f = $(id).querySelector('.btn.primary:not([hidden])'); if (f && !coarse) f.focus({ preventScroll: true }); }
     else if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -155,7 +110,23 @@
       line = line || (G.p.hp < G.p.maxhp ? 'Hold still. This will pinch.' : 'You look fine to me. Mostly bolts.');
       opt('Patch up', 'Restore full health', '$' + price(10), () => buy(price(10), () => { G.p.hp = G.p.maxhp; }), sv.money < price(10) || G.p.hp >= G.p.maxhp);
       opt('Tonic', 'Heals 60. Press T to drink.', '$' + price(8), () => buy(price(8), () => { sv.tonics++; }), sv.money < price(8));
-    } else { who = 'Bank clerk'; line = 'Closed till Monday. Come back with a deposit.'; }
+    } else if (b.kind === 'camp') {
+      who = 'Camp'; $('pl-title').textContent = 'Your camp';
+      $('pl-kicker').textContent = SD.regionAt(G.p.x).name;
+      line = line || 'The fire is going. Biscuit is grazing close by.';
+      const rest = (to, label) => opt(label, 'Heals you fully and saves the game', 'Rest', () => { if (sv.hour >= to) sv.day++; sv.hour = to; G.p.hp = G.p.maxhp; saveGame(); place.line = 'You wake rested. It is ' + clock(to) + '.'; fillPlace(); });
+      rest(7, 'Sleep until morning'); rest(18.5, 'Sleep until evening');
+      opt('Cook meat', 'You have ' + (sv.meat || 0) + ' raw meat. Each piece heals 35 when eaten (T).', sv.meat ? 'Cook all' : 'No meat', () => { sv.food = (sv.food || 0) + sv.meat; sv.meat = 0; SD.sfx('equip'); place.line = 'Smells good. Cooked food is eaten before tonics.'; fillPlace(); }, !sv.meat);
+      opt('Break camp', 'Pack up. You can make camp again anywhere outside town with C.', 'Pack up', () => { G.camp = null; close(); });
+    } else {
+      who = 'Bank clerk';
+      const can = !sv.robbed || sv.day - sv.robbed >= 3;
+      line = line || (can ? 'Deposits only. And keep those little legs off my counter.' : 'We have nothing left. You saw to that.');
+      opt('Rob the vault', 'Big money. Every lawman in the county comes for you, and folks will not forget.', can ? '+$180 or more' : 'Vault is empty', () => {
+        const n = 180 + ((Math.random() * 90) | 0); sv.money += n; sv.robbed = sv.day; sv.rep = Math.max(-100, sv.rep - 20);
+        close(); SD.crime(3, null); toast('+$' + n, 'Bank robbed. Ride!');
+      }, !can);
+    }
     $('pl-who').textContent = who; $('pl-line').textContent = line;
   }
   function close() { place = null; saveGame(); show(null); }
@@ -190,8 +161,8 @@
     const bt = sv.bounty;
     $('bounty-line').hidden = !bt;
     if (bt) put('bounty-line', p.carry && p.carry.tag === 'bounty' ? 'Bounty: take ' + bt.name + ' to the sheriff' : 'Bounty: ' + bt.name + ' near ' + SD.regionAt(bt.x).name);
-    const am = sv.clip[p.gun] + ' <small>/ ' + sv.ammo[gun.ammo] + '</small>'; if (hud.am !== am) { hud.am = am; $('ammo').innerHTML = am; }
-    put('gun', gun.name + (p.reload > 0 ? ' · reloading' : '')); put('tonics', sv.tonics + ' tonic' + (sv.tonics === 1 ? '' : 's'));
+    const am = p.gun === 'lasso' ? '<small>click to throw</small>' : sv.clip[p.gun] + ' <small>/ ' + sv.ammo[gun.ammo] + '</small>'; if (hud.am !== am) { hud.am = am; $('ammo').innerHTML = am; }
+    put('gun', gun.name + (p.reload > 0 ? ' · reloading' : '')); put('tonics', sv.tonics + ' tonic' + (sv.tonics === 1 ? '' : 's') + (sv.food ? ' · ' + sv.food + ' food' : ''));
   }
 
   /* ---------- input ---------- */
@@ -201,7 +172,7 @@
   const MAP = {
     KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', KeyS: 'down', ArrowDown: 'down', KeyW: 'jump', ArrowUp: 'jump', Space: 'jump',
     ShiftLeft: 'sprint', ShiftRight: 'sprint', KeyQ: 'oc', KeyR: 'reload', KeyE: 'use', KeyH: 'call', KeyT: 'tonic', KeyF: 'knife', KeyJ: 'fire', KeyK: 'roll',
-    Digit1: 'g1', Digit2: 'g2', Digit3: 'g3',
+    Digit1: 'g1', Digit2: 'g2', Digit3: 'g3', Digit4: 'g4', KeyC: 'camp',
   };
   function press(k, on) { if (on && !held[k]) edge[k] = 1; if (k in held) held[k] = on ? 1 : 0; }
   window.addEventListener('keydown', (e) => {
@@ -244,12 +215,14 @@
   }
 
   /* ---------- loop ---------- */
-  function fit() { const r = cv.getBoundingClientRect(); dpr = Math.min(2, window.devicePixelRatio || 1); W = Math.max(1, r.width); H = Math.max(1, r.height); cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-  let last = 0, acc = 0, saveT = 0, hoofT = 0;
+  function fit() { const r = cv.getBoundingClientRect(); dpr = Math.min(1.5, window.devicePixelRatio || 1); W = Math.max(1, r.width); H = Math.max(1, r.height); cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  let last = 0, acc = 0, saveT = 0, hoofT = 0, slowN = 0, frameN = 0;
   function frame(ts) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (ts - last) / 1000 || 0); last = ts;
     const G = SD.G;
+    // if this machine cannot keep up, switch to simpler lighting for the rest of the session
+    if (screen == null && playing && !SD.lowFx && !document.hidden) { frameN++; if (dt > 0.036) slowN++; if (frameN >= 150) { if (slowN > 90) SD.lowFx = true; frameN = slowN = 0; } }
     if (screen == null && playing && G) {
       acc += dt;
       while (acc >= K.DT) {
@@ -257,7 +230,7 @@
         SD.step(K.DT, {
           left: held.left, right: held.right, down: held.down, jump: edge.jump, sprint: held.sprint, roll: edge.sprint || edge.roll,
           fire: edge.fire, fireHeld: held.fire, reload: edge.reload, use: edge.use, call: edge.call, tonic: edge.tonic, knife: edge.knife,
-          oc: held.oc, gun: edge.g1 ? 'revolver' : edge.g2 ? 'rifle' : edge.g3 ? 'shotgun' : null, aimX: aim.x, aimY: aim.y,
+          oc: held.oc, gun: edge.g1 ? 'revolver' : edge.g2 ? 'rifle' : edge.g3 ? 'shotgun' : edge.g4 ? 'lasso' : null, camp: edge.camp, aimX: aim.x, aimY: aim.y,
         });
         for (const k in edge) edge[k] = 0;
         acc -= K.DT;
@@ -265,6 +238,7 @@
       }
       saveT += dt; if (saveT > 15) { saveT = 0; saveGame(); }
       const h = G.horse;
+      SD.audio.tick(dt, true);
       if (G.p.mounted && Math.abs(h.vx) > 60 && h.onGround) { hoofT -= dt; if (hoofT <= 0) { SD.sfx('hoof'); hoofT = Math.max(0.12, 0.42 - Math.abs(h.vx) / 1600); } }
       if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').hidden = true; }
     } else if (G) { G.time += dt * 0.3; if (screen === 'title') { SD.cam.x += dt * 22; SD.save.hour = (SD.save.hour + dt * 0.05) % 24; SD.drawHeroPortrait(); } }
@@ -282,6 +256,7 @@
 
   SD.listen((n, d) => {
     if (n === 'door') openPlace(d);
+    else if (n === 'camp') openPlace({ kind: 'camp', name: 'CAMP' });
     else if (n === 'playerDead') setTimeout(() => { const lost = SD.respawn(); $('dead-note').textContent = lost ? 'The doc took $' + lost + ' for his trouble.' : 'The doc did it for free. You were broke.'; show('dead'); }, 1300);
     else if (n === 'reward') toast('+$' + d.money, d.why + (d.rep ? '  ·  Rep ' + (d.rep > 0 ? '+' : '') + d.rep : ''));
     else if (n === 'missionDone') saveGame();

@@ -2,7 +2,7 @@
    game code, to catch crashes and missions that cannot finish. Run: node tools/sim.js */
 'use strict';
 const path = require('path');
-for (const f of ['world', 'actors', 'ai', 'missions', 'game']) require(path.join(__dirname, '../js/' + f + '.js'));
+for (const f of ['world', 'actors', 'ai', 'missions', 'game', 'frontier']) require(path.join(__dirname, '../js/' + f + '.js'));
 const SD = globalThis.SD, DT = SD.K.DT;
 const log = [];
 SD.listen((n, d) => { if (n === 'reward') log.push('reward $' + d.money + ' ' + d.why); if (n === 'playerDead') log.push('player died'); });
