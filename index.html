@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Neural Kick</title>
+<title>Sundown Protocol</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Chakra+Petch:wght@500;700&display=swap">
 <style>
-/* Layout: the game canvas fills the screen; the hub and every between-fight screen is one sheet
-   floating over the live world. One dark look by design: a night-city arcade. */
+/* Layout: the canvas is the whole screen. HUD sits in the four corners; every menu is one
+   "wanted poster" sheet floating over the live world. One warm dusk look, dark by design. */
 :root {
-  --ink: #0b0e22; --sheet: rgba(11, 14, 34, 0.92); --line: rgba(255, 255, 255, 0.14);
-  --text: #f3f5ff; --mute: #a9b0d4; --mint: #7cf0c8; --gold: #ffd75e; --coral: #ff5d73; --core: #5ee6ff; --clay: #d97757;
-  --display: 'Bungee', 'Arial Black', Impact, sans-serif;
+  --ink: #140e0a; --sheet: rgba(30, 21, 15, 0.94); --paper: #efe3c4; --line: rgba(239, 227, 196, 0.16);
+  --text: #f4e9d4; --mute: #bfae8e; --gold: #ffd166; --blood: #e2553f; --sage: #8fc28a; --clay: #d97757; --sky: #7fb8d8;
+  --display: 'Rye', Georgia, 'Times New Roman', serif;
   --ui: 'Chakra Petch', 'Trebuchet MS', system-ui, sans-serif;
   color-scheme: dark;
 }
@@ -20,216 +20,210 @@ html, body { height: 100%; }
 body { margin: 0; background: var(--ink); color: var(--text); font-family: var(--ui); font-size: 15px; line-height: 1.4; overflow: hidden; }
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; cursor: pointer; }
-button:disabled { cursor: default; opacity: 0.45; }
+button:disabled { cursor: default; opacity: 0.42; }
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .gut { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-kbd { font: inherit; font-weight: 700; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; background: rgba(255, 255, 255, 0.05); }
+kbd { font: inherit; font-weight: 700; border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; background: rgba(255, 255, 255, 0.05); }
 
 #app { position: relative; height: 100%; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: none; }
+#cv.menu { cursor: default; }
 
 /* HUD */
-#hud { position: absolute; inset: 0 0 auto 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-block: 10px; pointer-events: none; font-weight: 700; font-variant-numeric: tabular-nums; }
-.hud-l { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.hpbar { position: relative; width: min(230px, 46vw); height: 20px; background: rgba(8, 10, 26, 0.7); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-#hp-fill { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(#ff7d8d, #e23b55); }
-#hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; text-shadow: 0 1px 2px #000; }
-.row { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(8, 10, 26, 0.66); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 13px; }
-.chip i { width: 9px; height: 9px; display: inline-block; }
-.i-gold { background: var(--gold); }
-.i-core { background: var(--core); transform: rotate(45deg); }
-.i-flask { background: #7cf0a0; border-radius: 2px; }
-#h-floor { font-family: var(--display); font-weight: 400; font-size: 13px; letter-spacing: 0.04em; padding: 5px 12px; white-space: nowrap; }
-.hud-r { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.hud-r .row { pointer-events: auto; justify-content: flex-end; }
-.hud-r button { background: rgba(8, 10, 26, 0.66); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
-.slot { display: inline-flex; align-items: center; gap: 6px; background: rgba(8, 10, 26, 0.66); border: 1px solid var(--line); border-radius: 8px; padding: 2px 9px 2px 4px; font-size: 12px; }
-.slot canvas { width: 24px; height: 24px; }
-#boss { position: absolute; inset: auto 0 22px 0; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
-#boss b { font-family: var(--display); font-weight: 400; letter-spacing: 0.08em; font-size: 14px; color: var(--coral); text-shadow: 0 2px 0 #000; }
-.bossbar { width: min(520px, 80vw); height: 12px; background: rgba(8, 10, 26, 0.75); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-#boss-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff5d73, #ffd75e); }
+.hud { position: absolute; pointer-events: none; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 6px; }
+#hud-tl { top: 10px; left: 0; }
+#hud-tr { top: 10px; right: 0; align-items: flex-end; }
+#hud-bl { bottom: 12px; left: 0; max-width: min(440px, 70vw); }
+#hud-br { bottom: 12px; right: 0; align-items: flex-end; }
+.bar { position: relative; width: min(220px, 40vw); height: 16px; background: rgba(20, 14, 10, 0.72); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; width: 100%; }
+.bar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; text-shadow: 0 1px 2px #000; }
+#hp i { background: linear-gradient(#e86f5a, #b8402e); }
+#oc i { background: linear-gradient(#ffd98a, #e09a2e); }
+#oc.on { box-shadow: 0 0 0 2px var(--blood); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(20, 14, 10, 0.72); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
+#money { color: var(--gold); }
+#rep-chip b { font-weight: 700; }
+#stars { color: var(--blood); letter-spacing: 2px; }
+#clock { font-family: var(--display); font-weight: 400; font-size: 14px; }
+.hud-r button { pointer-events: auto; background: rgba(20, 14, 10, 0.72); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+#obj { background: rgba(20, 14, 10, 0.78); border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 6px; padding: 7px 11px; font-size: 13px; }
+#obj b { display: block; font-family: var(--display); font-weight: 400; color: var(--gold); font-size: 13px; letter-spacing: 0.02em; }
+#bounty-line { color: #f2a28f; }
+#gun { font-size: 13px; }
+#ammo { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1; }
+#ammo small { font-family: var(--ui); font-size: 13px; color: var(--mute); }
+#toast { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); pointer-events: none; text-align: center; }
+#toast div { font-family: var(--display); font-size: clamp(20px, 3.4vw, 30px); color: var(--gold); text-shadow: 0 3px 0 #000; }
+#toast p { margin: 2px 0 0; font-weight: 700; text-shadow: 0 2px 2px #000; }
 
 /* touch pad */
-#touch { position: absolute; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: flex-end; padding-block: 0 18px; pointer-events: none; }
-#touch button { pointer-events: auto; touch-action: none; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); background: rgba(8, 10, 26, 0.42); font-weight: 700; font-size: 11px; width: 60px; height: 60px; }
-#touch .pad { display: flex; gap: 10px; }
-#touch .pad button { font-size: 20px; width: 64px; height: 64px; }
-#touch .acts { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; justify-items: center; align-items: end; }
-#touch .acts .sm { width: 46px; height: 46px; font-size: 10px; }
-#touch button.on { background: rgba(124, 240, 200, 0.4); border-color: var(--mint); }
+#touch { position: absolute; inset: auto 0 0 0; display: flex; justify-content: space-between; align-items: flex-end; padding-block: 0 16px; pointer-events: none; }
+#touch button { pointer-events: auto; touch-action: none; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(239, 227, 196, 0.4); background: rgba(20, 14, 10, 0.45); font-weight: 700; font-size: 11px; }
+#touch .pad, #touch .acts { display: flex; gap: 8px; align-items: flex-end; }
+#touch button.on { background: rgba(255, 209, 102, 0.35); border-color: var(--gold); }
+#t-fire { width: 76px; height: 76px; }
 
-/* overlays */
-.overlay { position: absolute; inset: 0; overflow-y: auto; display: grid; place-items: center; padding-block: 18px; background: rgba(8, 10, 26, 0.6); }
-.sheet { width: 100%; max-width: 900px; background: var(--sheet); border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 18px; }
-.sheet.mid { max-width: 620px; }
-.sheet.small { max-width: 400px; text-align: center; }
-.top { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
-#hero-cv { width: 116px; height: 116px; flex: none; image-rendering: pixelated; background: rgba(255, 255, 255, 0.04); border-radius: 16px; }
-.top > div { flex: 1; min-width: 220px; }
-h1 { margin: 6px 0 0; font-family: var(--display); font-weight: 400; font-size: clamp(34px, 7vw, 60px); line-height: 0.9; transform: rotate(-3deg); transform-origin: left center; text-shadow: 4px 4px 0 var(--coral); text-wrap: balance; }
-h1 span { color: var(--clay); }
-.tag { margin: 14px 0 0; color: var(--mute); max-width: 52ch; }
-h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-h2 output { color: var(--core); letter-spacing: 0.04em; text-transform: none; }
-.startrow { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-.stat { color: var(--mute); font-size: 13px; }
-.stat b { color: var(--text); font-variant-numeric: tabular-nums; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
-.card { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
-.card:not(:disabled):hover { background: rgba(124, 240, 200, 0.13); border-color: var(--mint); }
-.card b { font-size: 15px; }
-.card span { color: var(--mute); font-size: 12.5px; }
-.card em { font-style: normal; font-weight: 700; font-size: 12.5px; color: var(--core); font-variant-numeric: tabular-nums; }
-.card em.g { color: var(--gold); }
-.card.big { padding: 16px 14px; gap: 6px; }
-.card.big b { font-size: 17px; }
-.card.big kbd { align-self: flex-start; }
-.keys { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--mute); font-size: 12.5px; }
+/* sheets */
+.overlay { position: absolute; inset: 0; overflow-y: auto; display: grid; place-items: center; padding-block: 18px; background: rgba(12, 8, 6, 0.55); }
+.sheet { width: 100%; max-width: 640px; background: var(--sheet); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+.sheet.wide { max-width: 860px; }
+.sheet.small { max-width: 420px; text-align: center; }
+h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(34px, 7vw, 64px); line-height: 0.95; color: var(--paper); text-shadow: 3px 3px 0 #7a2e22; text-wrap: balance; }
+h1 small { display: block; font-size: 0.36em; color: var(--gold); text-shadow: none; letter-spacing: 0.04em; margin-top: 6px; }
+h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(24px, 4.6vw, 34px); color: var(--paper); line-height: 1.05; }
 .kicker { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
-.big-t { margin: 0; font-family: var(--display); font-size: clamp(26px, 6vw, 40px); line-height: 1; }
-.stats { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
-.stats div { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 8px 4px; text-align: center; }
-.stats dt { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
-.stats dd { margin: 2px 0 0; font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
-.note { margin: 0; color: var(--mute); font-size: 13px; }
+.lead { margin: 0; color: var(--mute); max-width: 60ch; }
+.say { margin: 0; padding: 10px 12px; border-left: 3px solid var(--clay); background: rgba(255, 255, 255, 0.04); border-radius: 0 8px 8px 0; font-style: italic; }
+.say b { font-style: normal; display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--clay); margin-bottom: 2px; }
+.title-row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+#hero-cv { width: 104px; height: 104px; flex: none; image-rendering: pixelated; background: rgba(255, 255, 255, 0.04); border-radius: 12px; }
+.title-row > div { flex: 1; min-width: 220px; }
+.list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.opt { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.opt:not(:disabled):hover { background: rgba(255, 209, 102, 0.12); border-color: var(--gold); }
+.opt b { font-size: 15px; }
+.opt span { color: var(--mute); font-size: 12.5px; }
+.opt em { font-style: normal; font-weight: 700; font-size: 13px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.opt.job { border-color: rgba(255, 209, 102, 0.5); }
 .btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .sheet.small .btns { flex-direction: column; }
-.btn { padding: 12px 18px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); font-weight: 700; letter-spacing: 0.04em; }
-.btn:hover { background: rgba(255, 255, 255, 0.13); }
-.btn.primary { background: var(--mint); border-color: var(--mint); color: #08241b; }
-.btn.primary:hover { background: #a2f6da; }
-.btn.go { font-family: var(--display); font-weight: 400; font-size: 18px; padding: 14px 26px; }
-@media (max-width: 640px) { .sheet { padding: 16px; gap: 14px; } #hero-cv { width: 84px; height: 84px; } #h-floor { display: none; } }
+.btn { padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); font-weight: 700; letter-spacing: 0.04em; }
+.btn:hover { background: rgba(255, 255, 255, 0.12); }
+.btn.primary { background: var(--gold); border-color: var(--gold); color: #2a1a08; }
+.btn.primary:hover { background: #ffe09a; }
+.keys { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 14px; color: var(--mute); font-size: 12.5px; }
+.stats { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.stats div { background: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 8px 4px; text-align: center; }
+.stats dt { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
+.stats dd { margin: 2px 0 0; font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+.note { margin: 0; color: var(--mute); font-size: 12.5px; }
+@media (max-width: 640px) {
+  .sheet { padding: 16px; } #hud-bl { bottom: 86px; } #hud-br { bottom: 86px; } #clock { display: none; }
+  #touch button { width: 44px; height: 44px; font-size: 9px; } #t-fire { width: 58px; height: 58px; } #touch .pad, #touch .acts { gap: 6px; }
+}
 </style>
 </head>
 <body>
 <div id="app">
-  <canvas id="cv" aria-label="Neural Kick game view"></canvas>
+  <canvas id="cv" class="menu" aria-label="Sundown Protocol game view"></canvas>
 
-  <div id="hud" class="gut" hidden>
-    <div class="hud-l">
-      <div class="hpbar" role="img" aria-label="Health"><div id="hp-fill"></div><div id="hp-text"></div></div>
-      <div class="row">
-        <span class="chip" title="Hotfix heals (Q)"><i class="i-flask"></i><span id="h-flask">2</span></span>
-        <span class="chip" title="Gold: spent in the safe room"><i class="i-gold"></i><span id="h-gold">0</span></span>
-        <span class="chip" title="Cores: banked when you clear a floor"><i class="i-core"></i><span id="h-cores">0</span></span>
-      </div>
-    </div>
-    <div class="chip" id="h-floor"></div>
-    <div class="hud-r">
-      <div class="row">
-        <button type="button" id="b-mute" aria-pressed="true">Sound off</button>
-        <button type="button" id="b-pause">Pause</button>
-      </div>
-      <div class="row">
-        <span class="slot"><canvas id="w-main" width="48" height="48"></canvas><span id="w-main-name"></span></span>
-        <span class="slot" id="alt-slot"><canvas id="w-alt" width="48" height="48"></canvas><span id="w-alt-name"></span></span>
-      </div>
+  <div class="hud gut" id="hud-tl" hidden>
+    <div class="bar" id="hp" role="img" aria-label="Health"><i></i><span></span></div>
+    <div class="bar" id="oc" role="img" aria-label="Overclock"><i></i><span>OVERCLOCK</span></div>
+    <div class="row">
+      <span class="chip" id="money">$0</span>
+      <span class="chip" id="rep-chip">Rep <b id="rep">0</b></span>
+      <span class="chip" id="stars-chip" hidden><span id="stars"></span>&nbsp;WANTED</span>
     </div>
   </div>
-  <div id="boss" hidden><b id="boss-name"></b><div class="bossbar"><div id="boss-fill"></div></div></div>
+  <div class="hud hud-r gut" id="hud-tr" hidden>
+    <div class="row">
+      <span class="chip" id="clock"></span>
+      <button type="button" id="b-mute" aria-pressed="true">Sound off</button>
+      <button type="button" id="b-pause">Pause</button>
+    </div>
+    <span class="chip" id="region"></span>
+  </div>
+  <div class="hud gut" id="hud-bl" hidden>
+    <div id="obj"><b id="obj-title"></b><span id="obj-text"></span><div id="bounty-line" hidden></div></div>
+  </div>
+  <div class="hud gut" id="hud-br" hidden>
+    <div id="ammo"></div>
+    <div class="row"><span class="chip" id="gun"></span><span class="chip" id="tonics"></span></div>
+  </div>
+  <div id="toast" hidden><div id="toast-big"></div><p id="toast-small"></p></div>
 
   <div id="touch" class="gut" hidden>
     <div class="pad">
       <button type="button" id="t-left" aria-label="Move left">◀</button>
       <button type="button" id="t-right" aria-label="Move right">▶</button>
+      <button type="button" id="t-jump">JUMP</button>
     </div>
     <div class="acts">
-      <button type="button" class="sm" id="t-heal">HEAL</button>
-      <button type="button" class="sm" id="t-alt">ALT</button>
-      <button type="button" class="sm" id="t-use">USE</button>
+      <button type="button" id="t-use">USE</button>
+      <button type="button" id="t-call">HORSE</button>
       <button type="button" id="t-roll">ROLL</button>
-      <button type="button" id="t-atk">HIT</button>
-      <button type="button" id="t-jump">JUMP</button>
+      <button type="button" id="t-fire">FIRE</button>
     </div>
   </div>
 
-  <section id="menu" class="overlay gut">
-    <div class="sheet">
-      <div class="top">
-        <canvas id="hero-cv" width="176" height="176" aria-hidden="true"></canvas>
+  <section id="title" class="overlay gut">
+    <div class="sheet wide">
+      <div class="title-row">
+        <canvas id="hero-cv" width="160" height="160" aria-hidden="true"></canvas>
         <div>
-          <h1>Neural <span>Kick</span></h1>
-          <p class="tag">Fight down through the stack. Every run is a new set of rooms, you keep nothing but the cores you bank, and death sends you back here.</p>
+          <h1>Sundown Protocol<small>A frontier story about one very small gunslinger</small></h1>
         </div>
       </div>
-      <div class="startrow">
-        <button type="button" class="btn primary go" id="b-start">Start run</button>
-        <span class="stat">Best floor <b id="m-best">0</b></span>
-        <span class="stat">Runs <b id="m-runs">0</b></span>
-        <span class="stat">Kills <b id="m-kills">0</b></span>
+      <p class="lead">The Rattler gang has Copperhead Flats scared stiff. You are a four-legged robot with a revolver and a horse named Biscuit. Take jobs from the sheriff, hunt for the store, collect bounties, and keep your reputation clean.</p>
+      <div class="btns">
+        <button type="button" class="btn primary" id="b-continue" hidden>Continue</button>
+        <button type="button" class="btn" id="b-new">New game</button>
       </div>
-      <div>
-        <h2>Permanent upgrades <output id="m-cores"></output></h2>
-        <div id="ups" class="grid"></div>
-      </div>
-      <p class="keys">
-        <span><kbd>A</kbd> <kbd>D</kbd> or arrows: move</span>
-        <span><kbd>Space</kbd> jump, wall kick</span>
-        <span><kbd>J</kbd> attack</span>
-        <span><kbd>K</kbd> roll through attacks</span>
-        <span><kbd>L</kbd> second weapon</span>
-        <span><kbd>S</kbd> in the air: dive slam</span>
-        <span><kbd>Q</kbd> heal</span>
-        <span><kbd>E</kbd> pick up, open, enter</span>
-        <span><kbd>P</kbd> pause</span>
-        <span><kbd>M</kbd> sound</span>
+      <p class="keys" id="keys">
+        <span><kbd>A</kbd> <kbd>D</kbd> walk, <kbd>Space</kbd> jump</span>
+        <span>Mouse aim, <kbd>Click</kbd> shoot</span>
+        <span>Hold <kbd>Right-click</kbd> or <kbd>Q</kbd>: Overclock</span>
+        <span><kbd>R</kbd> reload, <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> guns</span>
+        <span><kbd>Shift</kbd> roll, or gallop on the horse</span>
+        <span><kbd>S</kbd> crouch behind cover</span>
+        <span><kbd>E</kbd> talk, ride, loot, tie up</span>
+        <span><kbd>H</kbd> whistle for Biscuit</span>
+        <span><kbd>T</kbd> tonic, <kbd>F</kbd> knife</span>
+        <span><kbd>P</kbd> pause, <kbd>M</kbd> sound</span>
       </p>
+      <p class="note">Overclock slows time. While holding it, click on enemies to mark shots, then let go and the bot fires at every mark.</p>
+    </div>
+  </section>
+
+  <section id="place" class="overlay gut" hidden>
+    <div class="sheet">
+      <div><p class="kicker" id="pl-kicker"></p><h2 id="pl-title"></h2></div>
+      <p class="say" id="pl-say"><b id="pl-who"></b><span id="pl-line"></span></p>
+      <div id="pl-opts" class="list"></div>
+      <div class="btns"><button type="button" class="btn primary" id="pl-leave">Leave</button></div>
     </div>
   </section>
 
   <section id="pause" class="overlay gut" hidden>
-    <div class="sheet small">
-      <p class="kicker">Paused</p>
-      <p class="big-t" id="p-title"></p>
-      <p class="note" id="p-perks"></p>
+    <div class="sheet">
+      <div><p class="kicker">Paused · Day <span id="pa-day"></span></p><h2>Journal</h2></div>
+      <dl class="stats" id="pa-stats"></dl>
+      <p class="keys" id="pa-keys"></p>
       <div class="btns">
-        <button type="button" class="btn primary" id="p-resume">Resume</button>
-        <button type="button" class="btn" id="p-quit">Abandon run</button>
+        <button type="button" class="btn primary" id="pa-resume">Resume</button>
+        <button type="button" class="btn" id="pa-title">Save and quit to title</button>
       </div>
-    </div>
-  </section>
-
-  <section id="chip" class="overlay gut" hidden>
-    <div class="sheet mid">
-      <div><p class="kicker">Upgrade chip</p><p class="big-t">Pick one</p></div>
-      <div id="chip-cards" class="grid"></div>
-    </div>
-  </section>
-
-  <section id="safe" class="overlay gut" hidden>
-    <div class="sheet mid">
-      <div><p class="kicker">Safe room</p><p class="big-t" id="s-title"></p></div>
-      <p class="note" id="s-info"></p>
-      <div>
-        <h2>Shop <output id="s-gold" style="color:var(--gold)"></output></h2>
-        <div id="s-shop" class="grid"></div>
-      </div>
-      <div class="btns"><button type="button" class="btn primary" id="s-next"></button></div>
     </div>
   </section>
 
   <section id="dead" class="overlay gut" hidden>
     <div class="sheet small">
-      <p class="kicker">Run over</p>
-      <p class="big-t" id="d-title"></p>
-      <dl class="stats" id="d-stats"></dl>
-      <p class="note" id="d-note"></p>
-      <div class="btns">
-        <button type="button" class="btn primary" id="d-again">Run again</button>
-        <button type="button" class="btn" id="d-hub">Upgrades</button>
-      </div>
+      <p class="kicker">You went down</p>
+      <h2>Patched up by the doc</h2>
+      <p class="note" id="dead-note"></p>
+      <div class="btns"><button type="button" class="btn primary" id="dead-go">Get back up</button></div>
+    </div>
+  </section>
+
+  <section id="ending" class="overlay gut" hidden>
+    <div class="sheet small">
+      <p class="kicker">The Rattlers are finished</p>
+      <h2>Copperhead Flats sleeps easy</h2>
+      <p class="note">The story is done, but the town is not. The sheriff's board keeps posting bounties, the deer still graze by the river, and Biscuit still wants to run.</p>
+      <dl class="stats" id="end-stats"></dl>
+      <div class="btns"><button type="button" class="btn primary" id="end-go">Keep riding</button></div>
     </div>
   </section>
 </div>
-<script src="js/core.js"></script>
-<script src="js/data.js"></script>
-<script src="js/levels.js"></script>
-<script src="js/sprite.js"></script>
+<script src="js/world.js"></script>
+<script src="js/actors.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/missions.js"></script>
 <script src="js/game.js"></script>
-<script src="js/enemies.js"></script>
+<script src="js/art.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
 </body>
