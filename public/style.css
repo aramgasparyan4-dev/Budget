@@ -401,3 +401,8 @@ body[data-state="speaking"] .state { color: var(--red); }
   .mic[aria-pressed="true"] { animation: none; }
   .boot { transition: none; }
 }
+
+/* Very narrow phones: the demo badge takes the place of the name. */
+@media (max-width: 380px) {
+  .brand:has(.demo-badge:not([hidden])) .brand-name { display: none; }
+}
