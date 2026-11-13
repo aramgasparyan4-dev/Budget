@@ -1,0 +1,11 @@
+{
+  "name": "@star/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Star Companion core: data model, quick add parser, mood engine, faces. No UI, no storage, no clock.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./faces.json": "./src/faces.json"
+  }
+}
