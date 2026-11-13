@@ -74,7 +74,10 @@ Parser
 - Day first dates (20.11 is 20 November). A weekday name means the next one,
   never today. A date without a year that has passed means next year.
 - A bare number like 4.2 or 3/4 is only a date at the very start or end of the
-  line, and never after words like ex, page, q, chapter.
+  line. It is never a date after a reference word (ex, page, q, chapter, unit,
+  also joined like chap/unit), after a study verb (study, read, do, revise...),
+  or inside a list of numbers that follows one ("q 3.1 and 3.2"). The user
+  asked for this: "study chap/unit 5.2" must not get a date.
 - Exam words (exam, test, mock, quiz, final...) lose to homework words (hw,
   draft, essay, revise, corrections...).
 

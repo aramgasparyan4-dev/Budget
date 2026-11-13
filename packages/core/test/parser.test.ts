@@ -133,6 +133,31 @@ describe('quick add: numbers that are not dates', () => {
     expect(parseQuickAdd('do q 3.1 and 3.2 for mon', WED)).toMatchObject({ title: 'Do q 3.1 and 3.2', due: '2026-11-16' });
   });
 
+  it('leaves chapter and unit numbers alone', () => {
+    const noDate = [
+      'study chap 5.2',
+      'study unit 5.2',
+      'study chap/unit 5.2',
+      'study chapter/unit 5.2',
+      'study 5.2',
+      'do 3.4',
+      'read chapters 5.1 to 5.3',
+      'do q 3.1 and 3.2',
+      'revise units 2.1, 2.2 and 2.3',
+    ];
+    for (const text of noDate) {
+      const r = parseQuickAdd(text, WED);
+      expect(r.due, text).toBeUndefined();
+      expect(r.title.toLowerCase(), text).toBe(text);
+    }
+  });
+
+  it('still reads a real date after a chapter number', () => {
+    expect(parseQuickAdd('study chap/unit 5.2 fri', WED)).toMatchObject({ title: 'Study chap/unit 5.2', due: '2026-11-13' });
+    expect(parseQuickAdd('study unit 5.2 by 20.11', WED)).toMatchObject({ title: 'Study unit 5.2', due: '2026-11-20' });
+    expect(parseQuickAdd('study unit 5.2 20 nov', WED)).toMatchObject({ title: 'Study unit 5.2', due: '2026-11-20' });
+  });
+
   it('ignores a date that does not exist', () => {
     const r = parseQuickAdd('hw 30.2', WED);
     expect(r.due).toBeUndefined();

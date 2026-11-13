@@ -62,10 +62,18 @@ const STRONG_CONNECTORS = new Set(['due', 'by', 'on', 'until', 'till', 'before']
 /** After one of these, a number like 4.2 or 3/4 is a reference, not a date. */
 const REFERENCE_WORDS = new Set([
   'ex', 'exercise', 'exercises', 'page', 'pages', 'p', 'pg', 'pp', 'q', 'qs',
-  'question', 'questions', 'chapter', 'ch', 'chap', 'unit', 'section', 'sec',
-  'task', 'tasks', 'part', 'no', 'number', 'worksheet', 'ws', 'paper', 'topic',
-  'lesson', 'module', 'problem', 'problems', 'set', 'book', 'vol',
+  'question', 'questions', 'chapter', 'chapters', 'ch', 'chap', 'chaps',
+  'unit', 'units', 'section', 'sections', 'sec', 'task', 'tasks', 'part',
+  'parts', 'no', 'number', 'numbers', 'worksheet', 'worksheets', 'ws',
+  'paper', 'papers', 'topic', 'topics', 'lesson', 'lessons', 'module',
+  'modules', 'problem', 'problems', 'set', 'sets', 'book', 'vol',
+  // "study 5.2" or "do 3.4" means a chapter or exercise, not a day.
+  'study', 'read', 'revise', 'review', 'learn', 'do', 'redo', 'finish',
+  'complete', 'start', 'cover', 'practise', 'practice',
 ]);
+
+/** Words that join a list of numbers: "3.1 and 3.2", "5.1 to 5.3". */
+const NUMBER_JOINERS = new Set(['and', 'or', 'to', '&', '+', '-', '–']);
 
 const EXAM_WORDS = new Set([
   'exam', 'exams', 'examination', 'test', 'mock', 'mocks', 'quiz',
@@ -282,6 +290,14 @@ function findDate(tokens: Token[], today: LocalDate): DateMatch | null {
 
   const before = (m: DateMatch): string | undefined => tokens[m.start - 1]?.w;
   const afterStrong = (m: DateMatch): boolean => STRONG_CONNECTORS.has(before(m) ?? '');
+  // True for "ex 4.2", "chap/unit 5.2" and for every number in a list like
+  // "q 3.1 and 3.2": step back over the other numbers to the word in charge.
+  const isReference = (m: DateMatch): boolean => {
+    let i = m.start - 1;
+    while (i >= 0 && (NUMBER_JOINERS.has(tokens[i]!.w) || /^\d[\d./-]*[a-z]?$/.test(tokens[i]!.w))) i--;
+    const word = tokens[i]?.w;
+    return word !== undefined && word.split(/[/&+,-]/).some((part) => REFERENCE_WORDS.has(part));
+  };
   const hasClearDate = all.some((m) => !m.ambiguous);
 
   const usable = all.filter((m) => {
@@ -290,7 +306,7 @@ function findDate(tokens: Token[], today: LocalDate): DateMatch | null {
     // A bare number only counts as a date at the very start or end of the
     // line, when nothing clearer is there and it is not 'ex 4.2' or 'page 3/4'.
     if (hasClearDate) return false;
-    if (REFERENCE_WORDS.has(before(m) ?? '')) return false;
+    if (isReference(m)) return false;
     return m.start === 0 || m.start + m.len === tokens.length;
   });
 
