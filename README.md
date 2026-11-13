@@ -12,6 +12,8 @@ cp .env.example .env      # then put your key in ANTHROPIC_API_KEY
 npm start
 ```
 
+To look at the interface without a key, run `npm run demo` instead. Replies are a fixed script and nothing is sent to the API.
+
 Open http://localhost:3000 and press **Wake**. Use Chrome or Edge for the full experience: they have both speech recognition and good voices. Safari works too. Firefox has no speech recognition, so there you type and it still talks.
 
 ## Using it

@@ -8,7 +8,8 @@
     "node": ">=20.6"
   },
   "scripts": {
-    "start": "node --env-file-if-exists=.env server.js"
+    "start": "node --env-file-if-exists=.env server.js",
+    "demo": "ULTRON_DEMO=on node server.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0"

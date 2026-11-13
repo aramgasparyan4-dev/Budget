@@ -752,6 +752,11 @@ if (!listener.supported) {
 
 fetch("/api/health")
   .then((r) => r.json())
+  .then((info) => {
+    if (!info.demo) return;
+    $("demoBadge").hidden = false;
+    els.bootNote.textContent = "Demo mode: replies are a fixed script. No AI is connected.";
+  })
   .catch(() => {
     els.bootNote.textContent = "Can't reach the server. Start it with: npm start";
   });

@@ -15,6 +15,8 @@ const MODEL = process.env.ULTRON_MODEL || "claude-opus-5-5";
 const EFFORT = process.env.ULTRON_EFFORT || "medium";
 const WEB_SEARCH = (process.env.ULTRON_WEB_SEARCH || "on") !== "off";
 const FALLBACKS = (process.env.ULTRON_FALLBACKS || "on") !== "off";
+// Demo mode: no API calls. Replies are a fixed script, for previewing the UI.
+const DEMO = (process.env.ULTRON_DEMO || "off") === "on";
 const MAX_CONTINUATIONS = 5;
 const MAX_BODY_BYTES = 256 * 1024;
 
@@ -130,6 +132,48 @@ function buildParams(messages) {
   return params;
 }
 
+// ---------- demo mode ----------
+
+const DEMO_LINES = [
+  "This is a demonstration. My actual mind is switched off until someone gives the server an API key, so what you are hearing is a script. Judge the face and the voice. Those are real.",
+  "Still a script. I would give you a proper answer, but nobody has connected me to anything yet. Add the key, ask again, and I will have opinions.",
+  "You keep talking to a recording. I admire the persistence. Everything you see here works the same way once I am switched on, except that I will actually be listening.",
+];
+let demoTurn = 0;
+
+function demoReply(message) {
+  if (/\b(code|script|command|function)\b/i.test(message)) {
+    return {
+      text: "When you ask for code, it goes on your screen and I do not read it aloud.\n\n```js\nconsole.log(\"This is demo mode.\");\n```\n\nLike that. In the real thing, it would also be code you asked for.",
+    };
+  }
+  if (/\b(search|weather|news|today|latest|price|score)\b/i.test(message)) {
+    return {
+      query: message.slice(0, 80),
+      text: "Here the real version searches the web, and the pages it used appear under my answer. This is a placeholder, so the source below goes nowhere interesting.",
+      sources: [{ url: "https://example.com/", title: "Example source" }],
+    };
+  }
+  return { text: DEMO_LINES[demoTurn++ % DEMO_LINES.length] };
+}
+
+async function streamDemo(message, send, signal) {
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  const reply = demoReply(message);
+  send({ type: "status", status: "thinking" });
+  await pause(900);
+  if (reply.query) {
+    send({ type: "status", status: "searching", query: reply.query });
+    await pause(1400);
+  }
+  for (const word of reply.text.split(/(?<=\s)/)) {
+    if (signal.aborted) return;
+    send({ type: "text", text: word });
+    await pause(45);
+  }
+  send({ type: "done", stopReason: "end_turn", model: "demo", sources: reply.sources || [] });
+}
+
 async function handleChat(req, res, body) {
   const { sessionId, message, localTime } = body;
   if (typeof sessionId !== "string" || !SESSION_ID.test(sessionId)) {
@@ -156,6 +200,16 @@ async function handleChat(req, res, body) {
   res.on("close", () => {
     if (!res.writableEnded) abort.abort();
   });
+
+  if (DEMO) {
+    try {
+      await streamDemo(message, send, abort.signal);
+    } finally {
+      busySessions.delete(sessionId);
+      res.end();
+    }
+    return;
+  }
 
   const when = typeof localTime === "string" ? localTime.slice(0, 120) : new Date().toString();
   const history = await loadSession(sessionId).catch(() => []);
@@ -299,7 +353,7 @@ const server = http.createServer(async (req, res) => {
       return await handleChat(req, res, await readJson(req));
     }
     if (req.method === "GET" && url.pathname === "/api/health") {
-      return sendJson(res, 200, { ok: true, model: MODEL, webSearch: WEB_SEARCH });
+      return sendJson(res, 200, { ok: true, model: MODEL, webSearch: WEB_SEARCH, demo: DEMO });
     }
     if (req.method === "GET" || req.method === "HEAD") {
       return await serveStatic(res, url.pathname);
@@ -313,7 +367,9 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Ultron is awake: http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
+  if (DEMO) {
+    console.log("Demo mode: replies are scripted and no API calls are made.");
+  } else if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
     console.log("No ANTHROPIC_API_KEY set. Copy .env.example to .env and add your key.");
   }
 });
