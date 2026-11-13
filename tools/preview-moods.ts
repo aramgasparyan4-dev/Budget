@@ -1,6 +1,7 @@
-// Draws every mood and saves screenshots to docs/moods/.
+// Draws every mood into docs/moods/index.html, which you can open in a browser.
 //   npm run faces:preview
 // Use it after editing packages/core/src/faces.json to see the result.
+// If Playwright is installed on the machine it also saves PNG screenshots.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -9,10 +10,15 @@ import { fileURLToPath } from 'node:url';
 import { FACES, MOODS, validateFaces } from '@star/core';
 import { renderStarSvg } from '@star/star-view';
 
+// Playwright is optional and not part of this project, so it has no types here.
 const require = createRequire(import.meta.url);
-// Playwright is installed on the machine, not in this project, so it has no types here.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { chromium } = require('playwright') as any;
+let chromium: any = null;
+try {
+  chromium = require('playwright').chromium;
+} catch {
+  // No Playwright: the HTML page is still written.
+}
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'moods');
 mkdirSync(outDir, { recursive: true });
@@ -27,7 +33,7 @@ const page_css = `
   body { margin: 0; background: #2a2d3a; font: 15px system-ui, sans-serif; color: #e8e9ee; }
   .sheet { display: grid; grid-template-columns: repeat(4, 260px); gap: 8px; padding: 16px; width: max-content; }
   .cell { text-align: center; padding-bottom: 10px; }
-  .frames { display: flex; flex-wrap: wrap; gap: 4px; padding: 16px; width: max-content; }
+  .frames { display: grid; grid-template-columns: repeat(6, 178px); gap: 4px; padding: 16px; width: max-content; }
   .name { margin-top: -6px; text-transform: capitalize; }
 `;
 
@@ -43,6 +49,9 @@ for (const mood of MOODS) {
 
 const html = (body: string) => `<!doctype html><meta charset="utf-8"><style>${page_css}</style>${body}`;
 writeFileSync(join(outDir, 'index.html'), html(`<div class="sheet">${sheet}</div><div class="frames">${allFrames}</div>`));
+
+console.log('Wrote docs/moods/index.html');
+if (!chromium) process.exit(0);
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ deviceScaleFactor: 2 });
