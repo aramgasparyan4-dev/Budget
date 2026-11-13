@@ -10,3 +10,5 @@ export * from './streak.ts';
 export * from './actions.ts';
 export * from './revision.ts';
 export * from './faces.ts';
+export * from './serialize.ts';
+export * from './views.ts';

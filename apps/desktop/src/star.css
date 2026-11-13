@@ -1,0 +1,90 @@
+/* The star window. Everything outside the star and its bubble is see-through. */
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  font: 14px/1.35 system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+#stage {
+  position: absolute;
+  left: 50%;
+  top: var(--bubble-h, 130px);
+  width: var(--star, 190px);
+  height: var(--star, 190px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  cursor: pointer;
+}
+
+#stage svg {
+  display: block;
+}
+
+#bubble {
+  position: absolute;
+  left: 50%;
+  max-width: var(--bubble-w, 270px);
+  width: max-content;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--mood, #8ecbff) 55%, transparent);
+  border-radius: 14px;
+  background: #16171d;
+  color: #e8e9ee;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(calc(-50% + var(--shift, 0px))) translateY(4px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+#bubble.show {
+  opacity: 1;
+  transform: translateX(calc(-50% + var(--shift, 0px)));
+}
+
+/* The little tail that points at the star. */
+#bubble::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - var(--shift, 0px));
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border: 1px solid color-mix(in srgb, var(--mood, #8ecbff) 55%, transparent);
+  background: #16171d;
+  transform: rotate(45deg);
+}
+
+#bubble[data-side='above'] {
+  bottom: calc(100% - var(--bubble-h, 130px) - 2px);
+}
+
+#bubble[data-side='above']::after {
+  bottom: -6px;
+  border-top-color: transparent;
+  border-left-color: transparent;
+}
+
+#bubble[data-side='below'] {
+  top: calc(var(--bubble-h, 130px) + var(--star, 190px) - 2px);
+}
+
+#bubble[data-side='below']::after {
+  top: -6px;
+  border-bottom-color: transparent;
+  border-right-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #bubble {
+    transition: none;
+  }
+}

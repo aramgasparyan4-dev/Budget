@@ -14,7 +14,7 @@ describe('faces.json', () => {
   });
 
   it('reports a broken face set', () => {
-    const broken = structuredClone(FACES);
+    const broken = JSON.parse(JSON.stringify(FACES)) as typeof FACES;
     broken.moods.happy.frames[0]!.rows[0] = '#...............';
     broken.moods.grumpy.frames[0]!.rows.pop();
     const problems = validateFaces(broken);
