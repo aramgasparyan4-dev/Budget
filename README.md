@@ -3,21 +3,22 @@
 A study buddy shown as a star with a pixel face. Its mood follows whether you
 are keeping up with homework, exams and goals.
 
-![All eight moods](docs/moods/all-moods.png)
-
 ## What is here so far
 
-Phase 1 of 5: the core. It has no screen of its own yet. It is the part
-every app will share:
+Phases 1 and 2 of 5.
 
-- the data model (tasks, focus sessions, settings)
-- the quick add parser ("maths hw fri" becomes homework due Friday)
-- the mood engine
-- the faces, as 16 by 16 pixel frames in `packages/core/src/faces.json`
+- **Core** (`packages/core`): the data model, the quick add parser ("maths hw
+  fri" becomes homework due Friday), the mood engine, and the faces as 16 by
+  16 pixel frames in `faces.json`.
+- **Desktop app** (`apps/desktop`): the floating star for Windows. See
+  [apps/desktop/README.md](apps/desktop/README.md) for how to install and
+  use it.
 
-Still to come: the desktop star, sync, the phone app, and the robot endpoint.
+![The star in every mood](docs/desktop/all-moods-in-app.png)
 
-## Try it on your PC
+Still to come: sync and login, the phone app, and the robot endpoint.
+
+## Run the tests on your PC (optional)
 
 1. Install Node.js: go to https://nodejs.org, download the LTS version, and
    click through the installer with the default options.

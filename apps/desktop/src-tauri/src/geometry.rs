@@ -117,8 +117,10 @@ pub fn bubble_layout(cx: f64, cy: f64, star: f64, screen: Rect) -> (bool, f64) {
 /// next to the star, kept on the screen.
 pub fn panel_position(cx: f64, cy: f64, star: f64, w: f64, h: f64, screen: Rect) -> (f64, f64) {
     let gap = 6.0;
+    // Far enough out to clear the speech bubble, which is wider than the star.
+    let reach = (star / 2.0).max(BUBBLE_W / 2.0);
     let screen_mid = (screen.left + screen.right) / 2.0;
-    let x = if cx > screen_mid { cx - star / 2.0 - gap - w } else { cx + star / 2.0 + gap };
+    let x = if cx > screen_mid { cx - reach - gap - w } else { cx + reach + gap };
     let y = cy + star / 2.0 - h;
     (
         x.clamp(screen.left, (screen.right - w).max(screen.left)),
@@ -189,8 +191,8 @@ mod tests {
     #[test]
     fn panel_opens_on_the_roomy_side_and_stays_on_screen() {
         // Star at the bottom right: panel to its left, bottom edges level.
-        assert_eq!(panel_position(1800.0, 940.0, 190.0, 400.0, 600.0, SCREEN), (1299.0, 435.0));
+        assert_eq!(panel_position(1800.0, 940.0, 190.0, 400.0, 600.0, SCREEN), (1259.0, 435.0));
         // Star at the top left: panel to its right, pushed down onto the screen.
-        assert_eq!(panel_position(100.0, 100.0, 190.0, 400.0, 600.0, SCREEN), (201.0, 0.0));
+        assert_eq!(panel_position(100.0, 100.0, 190.0, 400.0, 600.0, SCREEN), (241.0, 0.0));
     }
 }

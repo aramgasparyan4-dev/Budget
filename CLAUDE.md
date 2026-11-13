@@ -20,23 +20,32 @@ emojis, and explain setup steps simply.
 
 ## Status
 
-- Phase 1 (core) is done.
-- The old Electron prototype (`star-companion/`, with `companion-data.json`)
-  was never added to this repo. Still owed once the user provides it: the data
-  importer, any parser cases the prototype handled beyond the listed ones, and
-  matching its exact colours and face art.
+- Phase 1 (core) and phase 2 (desktop, local data) are built.
+- The desktop app has only been run on Linux (virtual screen) and in a browser.
+  Nobody has run it on Windows yet: the user has a checklist in
+  `docs/desktop/windows-checklist.md`. Ask for their results before building on
+  top of the Windows-only parts.
+- The user chose to skip the old Electron prototype. There is no data import
+  and the look is our own design. Do not ask for the prototype again.
 
 ## Layout
 
     packages/core        data model, parser, mood engine, faces. Tests in test/.
-    packages/star-view   draws the star as an SVG string (browser and Node)
-    tools/               scripts, for example the mood preview
-    docs/moods/          screenshots of every mood
-    apps/desktop         (phase 2) Tauri 2 app
+    packages/star-view   draws the star (SVG text, and a live DOM version)
+    packages/ui          Preact screens shared by the desktop list and the phone
+    apps/desktop         Tauri 2 app. Rust in src-tauri/, three pages in src/
     apps/phone           (phase 4) PWA
     supabase/            (phase 3, 5) schema and edge functions
+    tools/               scripts, for example the mood preview
+    docs/                screenshots and the Windows checklist
 
-npm workspaces. `npm test` runs Vitest, `npm run typecheck` runs tsc.
+npm workspaces. From the repo root:
+
+    npm test                             core unit tests (Vitest)
+    npm run typecheck                    core without DOM types, then the rest
+    npm run test:e2e -w @star/desktop    32 browser checks, screenshots to docs/desktop
+    cd apps/desktop/src-tauri && cargo test
+    cargo check --target x86_64-pc-windows-msvc    type-checks the Windows-only code
 
 ## Decisions
 
@@ -89,12 +98,43 @@ Faces
 - `frameToHex` packs a frame into 64 hex characters for the robot.
 - Look: dark rounded star, round dot matrix screen, glow in the mood colour.
 
-Desktop (phase 2, planned)
-- Tauri 2, Windows 11 first. Click-through is done by tracking the cursor and
-  switching it on and off, since Tauri has no per-pixel click-through.
-- GitHub Actions builds the Windows installer, so the user installs nothing
-  to get the app. Building locally stays possible (Node and Rust).
+Desktop
+- Tauri 2, not Electron: far less memory for an app that runs all day, and
+  the native calls (full screen detection, cursor position) are plain Rust.
+  The cost is no built-in per-pixel click-through, so we do it ourselves.
+- One star window, larger than the star, with see-through room above and below
+  for the speech bubble. A Rust thread (the watcher) reads the mouse position
+  25 times a second (5 when the mouse is still), switches click-through off
+  only while the mouse is on the star's shape, and sends the eye direction to
+  the page only when it changes. The page itself runs no loops: one timer for
+  the next animation frame, one for `nextCheckAt` (capped at a minute).
+- Windows: showing a hidden window gives it keyboard focus. So the star is
+  built visible with `focused(false)`, and for a full screen app it is parked
+  off screen (`park_for_fullscreen`) instead of hidden. Do not replace that
+  with hide/show.
+- Linux: `set_ignore_cursor_events` panics on a window that was never shown.
+  Call it only after the window is visible.
+- The list and quick add windows are created on first use, on a separate
+  thread (creating a window from a menu or shortcut handler can freeze on
+  Windows), then kept hidden for fast reopening.
+- Data: the Rust side keeps the JSON text and writes `data.json` atomically.
+  Windows read and write it whole and get a `data-changed` event.
+  `Store.apply` re-reads before every change so two windows cannot overwrite
+  each other. This PC's own settings (size, position, sound, hide on full
+  screen) are in `desktop-prefs.json` and are never synced.
+- `apps/desktop/src/platform.ts` is the only file that talks to Tauri. In a
+  plain browser it swaps in a stand-in (localStorage and BroadcastChannel),
+  which is what the test bench and the e2e checks use.
+- `color-scheme: dark` goes on the screens, never on `:root`, or a see-through
+  window can get an opaque background.
+- Adding a task always gets a plain "Added." bubble, even if the mood turns
+  grumpy at the same moment. No bubble when the mood turns sleepy by itself.
+- GitHub Actions (`.github/workflows/desktop.yml`) builds the Windows
+  installer on every push and republishes it as the `desktop-latest`
+  prerelease. Building locally stays possible (Node and Rust).
 
 Phone and backend (planned)
-- PWA for Chrome on Android, sharing core and star-view.
+- PWA for Chrome on Android, sharing core, star-view and ui. `CompanionApp` in
+  packages/ui is the whole list screen; give it a `Store` with a phone
+  `Backend`.
 - Supabase for login, storage, sync, push reminders and the robot endpoint.

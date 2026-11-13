@@ -144,8 +144,11 @@ fn create_star(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .resizable(false)
         .maximizable(false)
         .minimizable(false)
+        // Shown from the start and without taking keyboard focus. On Windows a
+        // window that is shown later always grabs focus, so it is never shown later
+        // unless the user asks (see park_for_fullscreen).
         .focused(false)
-        .visible(false)
+        .visible(!prefs.star_hidden)
         .build()?;
 
     // Put it back where it was left, unless that spot is no longer on a screen
@@ -162,11 +165,22 @@ fn create_star(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     *state.place.lock().unwrap() = StarPlace { x, y, scale: window.scale_factor().unwrap_or(scale) };
 
     // Clicks pass through until the watcher sees the mouse over the star.
-    window.set_ignore_cursor_events(true)?;
+    // (On Linux this only works once the window has been shown.)
+    if !prefs.star_hidden {
+        window.set_ignore_cursor_events(true)?;
+    }
 
     let handle = app.clone();
     window.on_window_event(move |event| {
         let state = handle.state::<AppState>();
+        // While parked off screen for a full screen app, the window's
+        // position is not its real place: do not record it.
+        if state.auto_hidden.load(Ordering::Relaxed) && cfg!(windows) {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+            }
+            return;
+        }
         match event {
             WindowEvent::Moved(position) => {
                 {
@@ -189,15 +203,56 @@ fn create_star(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     Ok(window)
 }
 
-/// Shows or hides the star to match the user's choice and full screen state.
+/// Shows the star window again where it was before it was hidden.
+fn show_in_place(window: &WebviewWindow, place: StarPlace) {
+    let _ = window.show();
+    // Some Linux window managers pick a new spot for a window that is shown
+    // again, so put it back.
+    let _ = window.set_position(PhysicalPosition::new(place.x, place.y));
+    // Clicks pass through until the watcher sees the mouse over the star.
+    let _ = window.set_ignore_cursor_events(true);
+}
+
+/// Shows or hides the star after the user picks "Hide the star" or "Show the star".
 fn refresh_star_visibility(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let hidden = state.prefs().star_hidden || state.auto_hidden.load(Ordering::Relaxed);
+    let hidden = state.prefs().star_hidden;
     if let Some(window) = app.get_webview_window(STAR) {
-        let _ = if hidden { window.hide() } else { window.show() };
+        let visible = window.is_visible().unwrap_or(!hidden);
+        if hidden && visible {
+            let _ = window.hide();
+        } else if !hidden && !visible {
+            show_in_place(&window, state.place());
+        }
     }
     state.touch();
-    let _ = app.emit_to(STAR, "star-visible", !hidden);
+    let _ = app.emit_to(STAR, "star-visible", !hidden && !state.auto_hidden.load(Ordering::Relaxed));
+}
+
+/// Takes the star out of the way while a full screen app is in front, and
+/// brings it back afterwards.
+///
+/// On Windows the window is parked far off the screen instead of hidden.
+/// Showing a hidden window there gives it keyboard focus, which would pull
+/// typing away from the app the user has just gone back to. Moving a window
+/// does not do that.
+fn park_for_fullscreen(app: &AppHandle, parked: bool) {
+    let state = app.state::<AppState>();
+    if let Some(window) = app.get_webview_window(STAR) {
+        if cfg!(windows) {
+            let place = state.place();
+            let (x, y) = if parked { (-20000, -20000) } else { (place.x, place.y) };
+            let _ = window.set_position(PhysicalPosition::new(x, y));
+        } else if !state.prefs().star_hidden {
+            if parked {
+                let _ = window.hide();
+            } else {
+                show_in_place(&window, state.place());
+            }
+        }
+    }
+    state.touch();
+    let _ = app.emit_to(STAR, "star-visible", !parked && !state.prefs().star_hidden);
 }
 
 /// Changes the star's size while keeping its centre where it is.
@@ -448,8 +503,15 @@ fn spawn_watcher(app: AppHandle) {
                     && detector.fullscreen_in_front((center.0.round() as i32, center.1.round() as i32));
                 fullscreen_seen = if on { fullscreen_seen.saturating_add(1) } else { 0 };
                 let hide = fullscreen_seen >= 2;
-                if state.auto_hidden.swap(hide, Ordering::Relaxed) != hide {
-                    refresh_star_visibility(&app);
+                if state.auto_hidden.load(Ordering::Relaxed) != hide {
+                    if hide {
+                        // Flag first, so the move off screen is not recorded as the star's place.
+                        state.auto_hidden.store(true, Ordering::Relaxed);
+                        park_for_fullscreen(&app, true);
+                    } else {
+                        park_for_fullscreen(&app, false);
+                        state.auto_hidden.store(false, Ordering::Relaxed);
+                    }
                 }
 
                 // Remember where the star was dragged to, once it has settled.

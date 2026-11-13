@@ -166,7 +166,9 @@ async function main() {
   stage.addEventListener('mousedown', (event) => {
     if (event.button === 0) press = { x: event.screenX, y: event.screenY };
   });
-  stage.addEventListener('mousemove', (event) => {
+  // Listening on the whole window, not just the star: a fast flick can carry
+  // the mouse off the star before the first move event arrives.
+  window.addEventListener('mousemove', (event) => {
     if (!press || (event.buttons & 1) === 0) return;
     if (Math.hypot(event.screenX - press.x, event.screenY - press.y) > 4) {
       press = null; // a drag, not a click
@@ -174,7 +176,7 @@ async function main() {
       platform.startDrag();
     }
   });
-  stage.addEventListener('mouseup', (event) => {
+  window.addEventListener('mouseup', (event) => {
     if (event.button === 0 && press) platform.togglePanel();
     press = null;
   });
