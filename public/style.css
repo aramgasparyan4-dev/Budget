@@ -390,9 +390,11 @@ body[data-state="speaking"] .state { color: var(--red); }
   .state { display: none; }
   .hint { display: none; }
   .log { max-height: 40vh; }
+  .topbar { padding-left: 12px; padding-right: 12px; gap: 8px; }
+  .brand { gap: 7px; }
   .controls { flex-wrap: nowrap; gap: 4px; }
-  .chip { padding: 8px 6px; font-size: 10px; letter-spacing: 0.04em; }
-  .brand-name { letter-spacing: 0.22em; }
+  .chip { padding: 8px 5px; font-size: 10px; letter-spacing: 0.02em; white-space: nowrap; }
+  .brand-name { letter-spacing: 0.18em; }
 }
 
 @media (prefers-reduced-motion: reduce) {
