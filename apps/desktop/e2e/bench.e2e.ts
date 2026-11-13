@@ -233,6 +233,17 @@ try {
       assert.equal(right.split(' ').length, down.split(' ').length);
     });
 
+    await step('snooze from the menu is announced, even after pointing at the star', async () => {
+      await star.locator('.star-screen').hover();
+      await page.locator('button[data-menu="snooze_60"]').click();
+      await bubble.locator('text=Snoozed until').waitFor();
+      await page.waitForTimeout(900); // longer than the hover-out delay
+      assert.match(await bubble.innerText(), /^Snoozed until \d\d:\d\d\.$/);
+      assert.ok(await star.locator('#bubble.show').isVisible());
+      await page.locator('button[data-menu="snooze_clear"]').click();
+      await star.locator('circle[stroke="#6f7fc4"]').waitFor({ state: 'detached' });
+    });
+
     await step('settings: a snooze puts it to sleep, ending it wakes it', async () => {
       await panel.locator('.tabs button', { hasText: 'Settings' }).click();
       await panel.locator('text=Snooze 1 hour').click();

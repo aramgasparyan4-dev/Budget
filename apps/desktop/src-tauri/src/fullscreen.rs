@@ -83,11 +83,24 @@ mod windows_impl {
                 return false;
             }
 
-            // The desktop itself and the taskbar cover the screen but are not apps.
+            // Parts of Windows itself can cover the whole screen without being
+            // an app: the desktop, the taskbar, the Start menu and search,
+            // and the Alt+Tab and Win+Tab views.
             let mut name = [0u16; 64];
             let len = GetClassNameW(hwnd, &mut name).max(0) as usize;
             let class = String::from_utf16_lossy(&name[..len]);
-            if matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd") {
+            if matches!(
+                class.as_str(),
+                "Progman"
+                    | "WorkerW"
+                    | "Shell_TrayWnd"
+                    | "Shell_SecondaryTrayWnd"
+                    | "Windows.UI.Core.CoreWindow"
+                    | "XamlExplorerHostIslandWindow"
+                    | "MultitaskingViewFrame"
+                    | "TaskSwitcherWnd"
+                    | "ForegroundStaging"
+            ) {
                 return false;
             }
 

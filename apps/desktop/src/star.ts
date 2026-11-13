@@ -80,21 +80,37 @@ async function main() {
 
   let bubbleTimer = 0;
   let hovering = false;
+  /** True while the bubble is showing an announcement rather than the hover text. */
+  let announcing = false;
 
   const hideBubble = () => {
     clearTimeout(bubbleTimer);
+    announcing = false;
     bubble.classList.remove('show');
   };
 
-  /** Shows the bubble. `ms` of 0 keeps it up until hideBubble is called. */
-  const say = async (text: string, ms = BUBBLE_MS) => {
+  const show = async (text: string) => {
     const layout = await platform.bubbleLayout();
     bubble.dataset.side = layout.below ? 'below' : 'above';
     bubble.style.setProperty('--shift', `${layout.shift}px`);
     bubbleText.textContent = text;
     bubble.classList.add('show');
+  };
+
+  /** What the star says when you point at it. Set further down. */
+  let hoverText = (): string => '';
+
+  /** Announces something for a few seconds. */
+  const say = async (text: string) => {
+    announcing = true;
     clearTimeout(bubbleTimer);
-    if (ms > 0 && !hovering) bubbleTimer = window.setTimeout(hideBubble, ms);
+    bubbleTimer = window.setTimeout(() => {
+      announcing = false;
+      // Still pointing at the star: go back to its usual line.
+      if (hovering) void show(hoverText());
+      else hideBubble();
+    }, BUBBLE_MS);
+    await show(text);
   };
 
   // ------------------------------------------------------------ mood
@@ -145,7 +161,7 @@ async function main() {
       void say(`Added. ${describeParsed(parsed, today)}.${extra}`);
     } else if (moodChanged && announce && (result.mood !== 'sleepy' || !previous)) {
       void say(messageOf(result));
-    } else if (bubble.classList.contains('show') && hovering) {
+    } else if (hovering && !announcing) {
       bubbleText.textContent = messageOf(result);
     }
 
@@ -155,6 +171,7 @@ async function main() {
     moodTimer = window.setTimeout(() => check(true), wait);
   };
 
+  hoverText = () => (current ? messageOf(current) : '');
   store.subscribe(() => check(true));
   check(true);
 
@@ -173,6 +190,7 @@ async function main() {
     if (Math.hypot(event.screenX - press.x, event.screenY - press.y) > 4) {
       press = null; // a drag, not a click
       hideBubble();
+      hovering = false;
       platform.startDrag();
     }
   });
@@ -187,13 +205,14 @@ async function main() {
   stage.addEventListener('mouseover', () => {
     clearTimeout(hoverTimer);
     hovering = true;
-    if (current) void say(messageOf(current), 0);
+    if (!announcing) void show(hoverText());
   });
   stage.addEventListener('mouseout', () => {
     clearTimeout(hoverTimer);
     hoverTimer = window.setTimeout(() => {
       hovering = false;
-      hideBubble();
+      // An announcement stays up for its full time even if the mouse leaves.
+      if (!announcing) hideBubble();
     }, 500);
   });
 
