@@ -1,0 +1,9 @@
+{
+  "name": "@star/star-view",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Draws the star and its dot matrix face as an SVG string. Shared by the desktop and phone apps.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@star/core": "*" }
+}
