@@ -62,6 +62,6 @@ http://localhost:1420.
 All study logic (parser, moods, timer rules) is in `packages/core`, and the
 screens are in `packages/ui`, so the phone app can share both.
 
-Tests: `npm run test:e2e -w @star/desktop` runs 32 checks in a browser and
+Tests: `npm run test:e2e -w @star/desktop` runs its checks in a browser and
 saves screenshots to `docs/desktop/`. `cargo test` in `src-tauri` checks the
 maths and the file handling.

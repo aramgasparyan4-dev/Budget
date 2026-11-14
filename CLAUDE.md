@@ -21,7 +21,8 @@ emojis, and explain setup steps simply.
 ## Status
 
 - Phase 1 (core) and phase 2 (desktop, local data) are built.
-- The desktop app has only been run on Linux (virtual screen) and in a browser.
+- The Windows installer builds on GitHub (release `desktop-latest`). The app has
+  only been run on Linux (virtual screen) and in a browser.
   Nobody has run it on Windows yet: the user has a checklist in
   `docs/desktop/windows-checklist.md`. Ask for their results before building on
   top of the Windows-only parts.
@@ -43,7 +44,7 @@ npm workspaces. From the repo root:
 
     npm test                             core unit tests (Vitest)
     npm run typecheck                    core without DOM types, then the rest
-    npm run test:e2e -w @star/desktop    32 browser checks, screenshots to docs/desktop
+    npm run test:e2e -w @star/desktop    browser checks, screenshots to docs/desktop
     cd apps/desktop/src-tauri && cargo test
     cargo check --target x86_64-pc-windows-msvc    type-checks the Windows-only code
 
