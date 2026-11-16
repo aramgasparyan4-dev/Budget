@@ -1,4 +1,4 @@
-import { createFace } from "./face.js";
+import { createFace, DEFAULT_POINTS } from "./face.js";
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -21,12 +21,21 @@ const els = {
   rateOut: $("rateOut"),
   testVoice: $("testVoice"),
   newBtn: $("newBtn"),
+  faceChoose: $("faceChoose"),
+  facePlace: $("facePlace"),
+  faceGlow: $("faceGlow"),
+  faceGlowLabel: $("faceGlowLabel"),
+  faceReset: $("faceReset"),
+  faceFile: $("faceFile"),
+  placer: $("placer"),
+  placerText: $("placerText"),
+  placerCancel: $("placerCancel"),
   boot: $("boot"),
   wake: $("wakeBtn"),
   bootNote: $("bootNote"),
 };
 
-const face = createFace($("face"));
+const face = createFace($("face"), $("head"));
 
 // ---------- persisted state ----------
 
@@ -659,6 +668,7 @@ els.stop.addEventListener("click", stopAll);
 let spaceHeld = false;
 const inControl = (t) => t instanceof HTMLElement && t.closest("input, textarea, select, button, a");
 window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !els.placer.hidden) return placer.stop();
   if (e.key === "Escape") return stopAll();
   if (e.code !== "Space" || e.repeat || inControl(e.target) || state === "offline") return;
   e.preventDefault();
@@ -734,6 +744,155 @@ els.wake.addEventListener("click", () => {
   }
 });
 
+// ---------- custom face ----------
+//
+// The person can swap the built-in head for their own picture, then click
+// the eyes and the corners of the mouth so the glow and the jaw line up.
+
+const MAX_FACE_BYTES = 12 * 1024 * 1024;
+const PLACE_STEPS = [
+  "Click one eye.",
+  "Click the other eye.",
+  "Click one corner of the mouth.",
+  "Click the other corner of the mouth.",
+];
+const portrait = { active: false, points: null };
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("That file could not be read as an image."));
+    img.src = src;
+  });
+}
+
+async function faceRequest(pathname, options) {
+  const r = await fetch(pathname, options);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || `The server said ${r.status}.`);
+  return body;
+}
+
+function reflectFace() {
+  els.facePlace.hidden = !portrait.active;
+  els.faceReset.hidden = !portrait.active;
+  els.faceGlowLabel.hidden = !portrait.active;
+  els.faceChoose.textContent = portrait.active ? "Change image" : "Use my image";
+  els.faceGlow.value = portrait.points?.glow || DEFAULT_POINTS.glow;
+}
+
+async function showPortrait(src, points) {
+  face.setPortrait(await loadImage(src), points);
+  portrait.active = true;
+  portrait.points = points;
+  reflectFace();
+}
+
+async function savePoints(points) {
+  portrait.points = points;
+  face.setPoints(points);
+  await faceRequest("/api/face/points", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(points),
+  });
+}
+
+const placer = {
+  picks: [],
+  start() {
+    this.picks = [];
+    els.settings.hidden = true;
+    els.settingsBtn.setAttribute("aria-expanded", "false");
+    face.setPlacing(true);
+    els.placer.hidden = false;
+    els.placerText.textContent = PLACE_STEPS[0];
+  },
+  stop() {
+    face.setPlacing(false);
+    els.placer.hidden = true;
+    els.placer.querySelectorAll(".placer-dot").forEach((dot) => dot.remove());
+  },
+  async click(e) {
+    if (e.target.closest(".placer-bar")) return;
+    const step = PLACE_STEPS[this.picks.length];
+    const point = face.imagePoint(e.clientX, e.clientY);
+    if (!point) {
+      els.placerText.textContent = `${step} It has to be inside the picture.`;
+      return;
+    }
+    this.picks.push(point);
+    const dot = document.createElement("span");
+    dot.className = "placer-dot";
+    dot.style.left = `${e.clientX}px`;
+    dot.style.top = `${e.clientY}px`;
+    els.placer.append(dot);
+    if (this.picks.length < PLACE_STEPS.length) {
+      els.placerText.textContent = PLACE_STEPS[this.picks.length];
+      return;
+    }
+    // Either eye or corner may be clicked first; sort each pair left to right.
+    const leftFirst = (a, b) => a[0] - b[0];
+    const [eyeL, eyeR] = this.picks.slice(0, 2).sort(leftFirst);
+    const [mouthL, mouthR] = this.picks.slice(2).sort(leftFirst);
+    this.stop();
+    try {
+      await savePoints({ eyeL, eyeR, mouthL, mouthR, glow: els.faceGlow.value });
+      setStatus("Face set. Say something to see the jaw move.");
+    } catch (err) {
+      setStatus(err.message);
+    }
+  },
+};
+
+els.placer.addEventListener("click", (e) => placer.click(e));
+els.placerCancel.addEventListener("click", () => placer.stop());
+window.addEventListener("resize", () => {
+  if (!els.placer.hidden) placer.stop();
+});
+els.facePlace.addEventListener("click", () => placer.start());
+els.faceChoose.addEventListener("click", () => els.faceFile.click());
+
+els.faceFile.addEventListener("change", async () => {
+  const file = els.faceFile.files[0];
+  els.faceFile.value = "";
+  if (!file) return;
+  if (!face.canShowPortrait) {
+    return setStatus("This browser has no WebGL, so a custom face can't be shown.");
+  }
+  if (file.size > MAX_FACE_BYTES) return setStatus("That image is over 12 MB. Use a smaller one.");
+  try {
+    await faceRequest("/api/face/image", { method: "PUT", body: file });
+    const info = await faceRequest("/api/face");
+    await showPortrait(info.image, null);
+    placer.start();
+  } catch (err) {
+    setStatus(err.message);
+  }
+});
+
+els.faceGlow.addEventListener("input", () => {
+  face.setPoints({ ...portrait.points, glow: els.faceGlow.value });
+});
+els.faceGlow.addEventListener("change", () => {
+  savePoints({ ...DEFAULT_POINTS, ...portrait.points, glow: els.faceGlow.value }).catch((err) =>
+    setStatus(err.message),
+  );
+});
+
+els.faceReset.addEventListener("click", async () => {
+  try {
+    await faceRequest("/api/face", { method: "DELETE" });
+    face.setPortrait(null);
+    portrait.active = false;
+    portrait.points = null;
+    reflectFace();
+  } catch (err) {
+    setStatus(err.message);
+  }
+});
+
 // ---------- startup ----------
 
 reflectToggles();
@@ -749,6 +908,16 @@ if (!listener.supported) {
   els.mic.title = "Voice input needs Chrome, Edge, or Safari";
   els.bootNote.textContent = "This browser has no speech recognition, so the microphone is off. Typing works.";
 }
+
+faceRequest("/api/face")
+  .then(async (info) => {
+    if (!info.image || !face.canShowPortrait) return;
+    await showPortrait(info.image, info.points);
+    if (!info.points) setStatus("Custom face loaded. Open Tune and place the eyes and mouth.");
+  })
+  .catch(() => {
+    // No custom face, or the server is down (the health check reports that).
+  });
 
 fetch("/api/health")
   .then((r) => r.json())

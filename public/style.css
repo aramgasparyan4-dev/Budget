@@ -33,6 +33,12 @@ body {
   z-index: 0;
 }
 
+#head {
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .topbar, .settings, .stage, .dock { position: relative; z-index: 1; }
 
 /* ---------- top bar ---------- */
@@ -144,6 +150,82 @@ body[data-state="speaking"] .state { color: var(--red); }
 }
 
 .settings input[type="range"] { width: 100%; accent-color: var(--red); }
+
+.face-tools {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.face-label {
+  font: 11px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-right: 4px;
+}
+
+.face-tools [hidden],
+.settings .face-glow[hidden] { display: none; }
+
+.settings .face-glow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.face-glow input {
+  width: 34px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: none;
+  cursor: pointer;
+}
+
+/* ---------- placing eyes and mouth on a custom face ---------- */
+
+.placer {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  cursor: crosshair;
+}
+
+.placer[hidden] { display: none; }
+
+.placer-bar {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 10px 14px;
+  background: rgba(7, 8, 11, 0.94);
+  border: 1px solid var(--red);
+  font-size: 14px;
+  cursor: default;
+}
+
+.placer-dot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #000, 0 0 10px var(--red);
+  pointer-events: none;
+}
 
 /* ---------- transcript ---------- */
 

@@ -24,10 +24,23 @@ Open http://localhost:3000 and press **Wake**. Use Chrome or Edge for the full e
 | Type | Enter sends, Shift+Enter adds a line. |
 | Interrupt | Esc, the stop button, or just start talking. |
 | Hands-free | Listens again by itself after each reply. |
-| Tune | Pick the voice and adjust pitch and speed. Low pitch and a male English voice sound best. |
+| Tune | Pick the voice and adjust pitch and speed. Low pitch and a male English voice sound best. Also where you change the face. |
 | New | Wipes the conversation and starts over. |
 
 Code and commands show on screen and are not read aloud.
+
+## The face
+
+The built-in face is an original machine head, rendered in 3D in the browser. It needs WebGL, which every current browser has. On slower graphics hardware it lowers its own resolution to stay smooth.
+
+To use your own picture instead:
+
+1. Open **Tune** and click **Use my image**. PNG, JPEG or WebP, up to 12 MB. A front-facing picture on a dark or transparent background works best.
+2. Click each eye, then each corner of the mouth.
+
+The eyes then glow and react, and the picture splits along the mouth line so the jaw moves with the voice. **Glow** sets the colour of the light, **Place eyes and mouth** redoes the clicks, and **Built-in face** removes your picture.
+
+The image is stored in `data/face/` on the machine running the server and goes nowhere else. You can also drop a file named `face.png`, `face.jpg` or `face.webp` into that folder by hand. Only use pictures you have the right to use.
 
 ## Settings
 
@@ -51,4 +64,4 @@ The personality lives in `SYSTEM_PROMPT` at the top of `server.js`.
 - **There is no login.** By default the server only accepts connections from your own machine. If you set `HOST=0.0.0.0`, anyone on your network can use your API key through it.
 - **Conversations are saved** in `data/sessions/` on the machine running the server, so it remembers across restarts. Delete that folder to forget everything.
 - **API usage costs money.** Each message is a Claude API call; web searches are billed on top.
-- Ultron is a Marvel character, and the face is drawn to resemble him. This is a personal fan project: keep it for your own use and don't publish or sell it under that name or look. The dialogue is original.
+- Ultron is a Marvel character. The built-in face and the dialogue here are original and are not his design or his lines. This is a personal fan project: keep it for your own use and don't publish or sell it under that name.

@@ -9,6 +9,7 @@
 </head>
 <body data-state="offline">
   <canvas id="face" aria-hidden="true"></canvas>
+  <canvas id="head" aria-hidden="true"></canvas>
 
   <header class="topbar">
     <div class="brand">
@@ -36,6 +37,14 @@
       <input id="rate" type="range" min="0.6" max="1.4" step="0.05">
     </label>
     <button class="chip" id="testVoice" type="button">Test</button>
+    <div class="face-tools">
+      <span class="face-label">Face</span>
+      <button class="chip" id="faceChoose" type="button">Use my image</button>
+      <button class="chip" id="facePlace" type="button" hidden>Place eyes and mouth</button>
+      <label class="face-glow" id="faceGlowLabel" hidden>Glow <input id="faceGlow" type="color" value="#ff261e"></label>
+      <button class="chip" id="faceReset" type="button" hidden>Built-in face</button>
+      <input id="faceFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+    </div>
   </section>
 
   <main class="stage">
@@ -65,6 +74,13 @@
       <h1>ULTRON</h1>
       <button id="wakeBtn" type="button">Wake</button>
       <p class="boot-note" id="bootNote"></p>
+    </div>
+  </div>
+
+  <div class="placer" id="placer" hidden>
+    <div class="placer-bar">
+      <span id="placerText" aria-live="polite"></span>
+      <button class="chip" id="placerCancel" type="button">Cancel</button>
     </div>
   </div>
 

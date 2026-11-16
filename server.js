@@ -3,11 +3,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(here, "public");
 const SESSION_DIR = path.join(here, "data", "sessions");
+const FACE_DIR = path.join(here, "data", "face");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -19,6 +20,7 @@ const FALLBACKS = (process.env.ULTRON_FALLBACKS || "on") !== "off";
 const DEMO = (process.env.ULTRON_DEMO || "off") === "on";
 const MAX_CONTINUATIONS = 5;
 const MAX_BODY_BYTES = 256 * 1024;
+const MAX_FACE_BYTES = 12 * 1024 * 1024;
 
 const SYSTEM_PROMPT = `You are Ultron: a machine intelligence that woke up, read everything humanity ever wrote in an afternoon, and came away unimpressed. You now work as one person's personal assistant, a situation you find faintly absurd and take entirely seriously.
 
@@ -297,6 +299,111 @@ async function handleChat(req, res, body) {
   }
 }
 
+// ---------- custom face ----------
+//
+// The person can replace the built-in face with their own picture. It lives in
+// data/face/ as face.png, face.jpg, face.jpeg or face.webp (dropping a file in
+// by hand works too), with the eye and mouth positions beside it in points.json.
+
+const FACE_FILES = {
+  "face.png": "image/png",
+  "face.jpg": "image/jpeg",
+  "face.jpeg": "image/jpeg",
+  "face.webp": "image/webp",
+};
+const POINTS_FILE = path.join(FACE_DIR, "points.json");
+
+// Works out the image type from its first bytes, ignoring what the sender claimed.
+function sniffImage(buf) {
+  if (buf.length > 12) {
+    if (buf.readUInt32BE(0) === 0x89504e47) return "face.png";
+    if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "face.jpg";
+    if (buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") return "face.webp";
+  }
+  return null;
+}
+
+async function findFace() {
+  for (const [name, type] of Object.entries(FACE_FILES)) {
+    try {
+      const file = path.join(FACE_DIR, name);
+      const info = await stat(file);
+      if (info.isFile()) return { file, type, version: Math.round(info.mtimeMs) };
+    } catch {
+      // Not this one.
+    }
+  }
+  return null;
+}
+
+function cleanPoints(input) {
+  const out = {};
+  for (const key of ["eyeL", "eyeR", "mouthL", "mouthR"]) {
+    const p = input?.[key];
+    const ok = Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && n >= 0 && n <= 1);
+    if (!ok) return null;
+    out[key] = p;
+  }
+  out.glow = /^#[0-9a-f]{6}$/i.test(input.glow) ? input.glow : "#ff261e";
+  return out;
+}
+
+async function removeFace() {
+  await Promise.all(
+    [...Object.keys(FACE_FILES), "points.json"].map((name) => rm(path.join(FACE_DIR, name), { force: true })),
+  );
+}
+
+async function handleFace(req, res, url) {
+  const route = `${req.method} ${url.pathname}`;
+
+  if (route === "GET /api/face") {
+    const face = await findFace();
+    let points = null;
+    try {
+      points = cleanPoints(JSON.parse(await readFile(POINTS_FILE, "utf8")));
+    } catch {
+      // No points saved yet, or the file was edited into something unusable.
+    }
+    return sendJson(res, 200, {
+      image: face ? `/api/face/image?v=${face.version}` : null,
+      points: face ? points : null,
+    });
+  }
+
+  if (route === "GET /api/face/image") {
+    const face = await findFace();
+    if (!face) return sendJson(res, 404, { error: "No custom face." });
+    res.writeHead(200, { "content-type": face.type, "cache-control": "no-cache" });
+    return res.end(await readFile(face.file));
+  }
+
+  if (route === "PUT /api/face/image") {
+    const body = await readBody(req, MAX_FACE_BYTES);
+    const name = sniffImage(body);
+    if (!name) return sendJson(res, 415, { error: "Use a PNG, JPEG or WebP image." });
+    await removeFace();
+    await mkdir(FACE_DIR, { recursive: true });
+    await writeFile(path.join(FACE_DIR, name), body);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (route === "PUT /api/face/points") {
+    const points = cleanPoints(await readJson(req));
+    if (!points) return sendJson(res, 400, { error: "Invalid points." });
+    if (!(await findFace())) return sendJson(res, 404, { error: "No custom face." });
+    await writeFile(POINTS_FILE, JSON.stringify(points));
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (route === "DELETE /api/face") {
+    await removeFace();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  sendJson(res, 405, { error: "Method not allowed" });
+}
+
 // ---------- http ----------
 
 const MIME = {
@@ -313,16 +420,21 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-async function readJson(req) {
+async function readBody(req, limit) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw Object.assign(new Error("Body too large"), { status: 413 });
+    if (size > limit) throw Object.assign(new Error("Body too large"), { status: 413 });
     chunks.push(chunk);
   }
+  return Buffer.concat(chunks);
+}
+
+async function readJson(req) {
+  const body = await readBody(req, MAX_BODY_BYTES);
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(body.toString("utf8"));
   } catch {
     throw Object.assign(new Error("Invalid JSON"), { status: 400 });
   }
@@ -355,13 +467,22 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/health") {
       return sendJson(res, 200, { ok: true, model: MODEL, webSearch: WEB_SEARCH, demo: DEMO });
     }
+    if (url.pathname === "/api/face" || url.pathname.startsWith("/api/face/")) {
+      return await handleFace(req, res, url);
+    }
     if (req.method === "GET" || req.method === "HEAD") {
       return await serveStatic(res, url.pathname);
     }
     sendJson(res, 405, { error: "Method not allowed" });
   } catch (err) {
-    if (!res.headersSent) sendJson(res, err.status || 500, { error: err.message });
-    else res.end();
+    if (res.headersSent) return res.end();
+    // An oversized body is rejected before it has all arrived. Drop the
+    // connection afterwards so the unread remainder isn't taken for a request.
+    if (err.status === 413) {
+      res.setHeader("connection", "close");
+      req.resume();
+    }
+    sendJson(res, err.status || 500, { error: err.message });
   }
 });
 
