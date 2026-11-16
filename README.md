@@ -51,4 +51,4 @@ The personality lives in `SYSTEM_PROMPT` at the top of `server.js`.
 - **There is no login.** By default the server only accepts connections from your own machine. If you set `HOST=0.0.0.0`, anyone on your network can use your API key through it.
 - **Conversations are saved** in `data/sessions/` on the machine running the server, so it remembers across restarts. Delete that folder to forget everything.
 - **API usage costs money.** Each message is a Claude API call; web searches are billed on top.
-- Ultron is a Marvel character. This is a personal fan project; the face and all dialogue here are original, but don't ship it publicly under that name.
+- Ultron is a Marvel character, and the face is drawn to resemble him. This is a personal fan project: keep it for your own use and don't publish or sell it under that name or look. The dialogue is original.
