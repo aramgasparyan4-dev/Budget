@@ -13,11 +13,11 @@ void main() {
 // The built-in head: a distance field, ray-marched.
 //
 // Layout (y up, the camera looks down -z):
-//   head    a faceted skull with a strip of dark glass across the face and
-//           a ring of light behind it for each eye; vent slots around the
-//           mouth; the lower front is a separate jaw that swings on hubs
-//   neck    a ribbed column with struts
-//   body    collar ring, chest and shoulder shells, a seam of light between
+//   head    a gaunt skull: heavy brow, deep sockets with a slit of light in
+//           each, cheekbones over hollow cheeks, a thin mouth; everything
+//           below the mouth line is a jaw that swings on a hinge
+//   neck    a ribbed spine wrapped in cable bundles
+//   body    chest and shoulder shells
 // ---------------------------------------------------------------------------
 export const HEAD_SHADER = `
 precision highp float;
@@ -53,40 +53,44 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
   vec3 pa = p - a, ba = b - a;
   return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)) - r;
 }
-// Disc with its axis along x.
-float sdDiscX(vec3 p, float r, float halfLen) {
-  vec2 d = vec2(length(p.yz) - r, abs(p.x) - halfLen);
-  return min(max(d.x, d.y), 0.0) + length(max(d, 0.0)) - 0.012;
-}
 // Column with its axis along y.
 float sdColumn(vec3 p, float r, float halfLen) {
   vec2 d = vec2(length(p.xz) - r, abs(p.y) - halfLen);
   return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
-float sdTorus(vec3 p, float major, float minor) {
-  return length(vec2(length(p.xz) - major, p.y)) - minor;
-}
 // 1 on a line of half-width w, falling to 0 beside it. Used to engrave seams.
 float cut(float d, float w) { return smoothstep(w, 0.0, abs(d)); }
 
+// The bare head: a narrow cranium over a long face that tapers to the chin,
+// with a brow ridge, cheekbones and hollows under them.
 float skull(vec3 p) {
   vec3 q = vec3(abs(p.x), p.y, p.z);
-  float cranium = sdEllipsoid(p - vec3(0.0, 0.13, -0.05), vec3(0.40, 0.43, 0.47));
-  float lower = sdRoundBox(p - vec3(0.0, -0.30, 0.05), vec3(0.19, 0.24, 0.20), 0.13);
-  float d = smin(cranium, lower, 0.10);
-  d = smax(d, q.x - 0.355, 0.05);                                           // flat temples
-  d = smax(d, dot(q.xy, vec2(0.5, 0.866)) - 0.515, 0.05);                   // crown facets
-  d = smax(d, p.y - 0.50, 0.05);                                            // flat top
-  d = smax(d, dot(q, normalize(vec3(0.86, -0.28, 0.42))) - 0.355, 0.025);  // cheek facets
-  d = smax(d, dot(q.xy, vec2(0.7071, -0.7071)) - 0.60, 0.03);              // jaw corners
-  d = smax(d, dot(q, normalize(vec3(0.0, -0.55, 0.83))) - 0.47, 0.03);     // under the chin
-  d = smax(d, dot(q, normalize(vec3(0.0, 0.50, 0.87))) - 0.50, 0.04);      // forehead
-  d = smax(d, p.z - 0.41, 0.025);                                           // flat front
+  float cranium = sdEllipsoid(p - vec3(0.0, 0.17, -0.07), vec3(0.36, 0.39, 0.45));
+  float face = sdEllipsoid(p - vec3(0.0, -0.17, 0.07), vec3(0.305, 0.47, 0.31));
+  float d = smin(cranium, face, 0.10);
+  d = smax(d, dot(q.xy, vec2(0.940, -0.340)) - 0.368, 0.04);   // cheeks narrow toward the jaw
+  d = smax(d, dot(q.xy, vec2(0.707, -0.707)) - 0.505, 0.04);   // jaw corners down to the chin
+  d = smax(d, dot(q.xz, vec2(0.375, 0.927)) - 0.345, 0.03);    // the face comes to a ridge
+  d = smax(d, -p.y - 0.60, 0.03);                              // flat under the chin
+  float brow = sdCapsule(q, vec3(0.0, 0.108, 0.335), vec3(0.285, 0.185, 0.19), 0.056);
+  d = smin(d, brow, 0.045);
+  float cheek = sdEllipsoid(q - vec3(0.175, -0.085, 0.215), vec3(0.095, 0.045, 0.11));
+  d = smin(d, cheek, 0.07);
+  float hollow = sdEllipsoid(q - vec3(0.315, -0.26, 0.25), vec3(0.06, 0.13, 0.13));
+  d = smax(d, -hollow, 0.06);
   return d;
 }
 
-// Height above the middle of the visor, which runs level across the face.
-float visorY(vec3 h) { return h.y - 0.05; }
+// Position within an eye: x along the slit (outward), y across it. The slits
+// tilt up toward the temples.
+vec2 eyeAt(vec3 h) {
+  vec2 e = vec2(abs(h.x) - 0.150, h.y - 0.040);
+  e.y -= 0.30 * e.x;
+  return e;
+}
+
+// Height of the mouth line; it turns down toward the corners.
+float mouthY(float x) { return -0.385 - 0.8 * x * x; }
 
 float box2(vec2 p, vec2 b, float r) {
   vec2 d = abs(p) - b;
@@ -94,75 +98,62 @@ float box2(vec2 p, vec2 b, float r) {
 }
 
 // Returns (distance, material).
-// 1 bright plate, 2 dark mechanism, 3 visor glass, 4 body plate, 5 glowing seam.
+// 1 bright plate, 2 dark mechanism, 3 eye glass, 4 body plate.
 vec2 opU(vec2 a, vec2 b) { return a.x < b.x ? a : b; }
-
-// A row of vertical slots through a plate, between heights y0 and y1.
-float slots(vec3 h, float skin, float y0, float y1) {
-  float x = abs(h.x);
-  float cell = mod(x + 0.024, 0.048) - 0.024;
-  float slot = box2(vec2(cell, h.y - 0.5 * (y0 + y1)), vec2(0.008, 0.5 * (y1 - y0) - 0.012), 0.004);
-  slot = max(slot, x - 0.17);
-  return max(slot, -(skin + 0.075));
-}
 
 vec2 map(vec3 p) {
   vec3 h = uHead * (p - PIVOT) + PIVOT;
   vec3 q = vec3(abs(h.x), h.y, h.z);
   float sk = skull(h);
-  float yb = visorY(h);
   float front = smoothstep(-0.05, 0.1, h.z);
 
-  // Upper head: a visor trench across the face, vent slots above the mouth.
-  float up = smax(sk, -(h.y + 0.375), 0.012);
-  float band = box2(vec2(q.x, yb), vec2(0.33, 0.045), 0.012);
-  up = smax(up, -max(band, -(sk + 0.05)), 0.010);
-  up = max(up, -slots(h, sk, -0.365, -0.235));
-  float seams = cut(q.x - 0.13, 0.010) * step(0.12, h.y)
-    + cut(yb - 0.14, 0.010)
-    + cut(h.y + 0.20, 0.009) * step(0.19, q.x);
-  up += 0.007 * min(seams, 1.0) * front;
+  // Upper head: everything above the mouth line, with a socket for each eye.
+  vec2 e = eyeAt(h);
+  float socket = sdEllipsoid(vec3(e, h.z - 0.33), vec3(0.098, 0.042, 0.14));
+  float up = smax(sk, mouthY(h.x) - h.y, 0.012);
+  up = smax(up, -socket, 0.018);
+  float seams = cut(q.x - 0.15 - 0.22 * (h.y - 0.25), 0.008) * step(0.23, h.y)
+    + cut(h.y - 0.235 - 0.25 * q.x, 0.008) * step(q.x, 0.33)
+    + cut(length(vec2(h.y + 0.04, h.z + 0.05)) - 0.115, 0.008) * step(0.2, q.x);
+  up += 0.006 * min(seams, 1.0);
   vec2 res = vec2(up, 1.0);
 
-  // Dark glass set into the trench. The eyes are lit rings behind it.
-  float glass = max(sk + 0.022, box2(vec2(q.x, yb), vec2(0.335, 0.05), 0.012));
-  res = opU(res, vec2(glass, 3.0));
+  // Dark glass at the back of each socket. The eye is a slit of light on it.
+  res = opU(res, vec2(max(sk + 0.050, socket), 3.0));
 
-  // The mechanism under the plates, seen through the slots and the mouth.
+  // The mechanism under the plates, seen through the mouth.
   res = opU(res, vec2(max(sk + 0.065, -(h.y + 0.66)), 2.0));
 
   // Jaw, swinging on the hinge.
   vec3 j = h - HINGE;
   j.yz = vec2(uJaw.x * j.y + uJaw.y * j.z, -uJaw.y * j.y + uJaw.x * j.z);
   j += HINGE;
-  float jsk = skull(j);
-  float jaw = smax(jsk, j.y + 0.405, 0.012);
+  float jaw = smax(skull(j), j.y - mouthY(j.x) + 0.010, 0.012);
   jaw = smax(jaw, -(j.z + 0.07), 0.03);
-  jaw = max(jaw, -slots(j, jsk, -0.50, -0.415));
-  jaw += 0.007 * cut(j.y + 0.535, 0.009) * front;
+  jaw += 0.006 * cut(j.y + 0.515 + 0.5 * abs(j.x), 0.008) * front;
   res = opU(res, vec2(jaw, 1.0));
-
-  // Hinge hubs.
-  vec3 hub = vec3(q.x - 0.335, h.y + 0.12, h.z + 0.05);
-  float hubD = sdDiscX(hub, 0.10, 0.05) + 0.006 * cut(length(hub.yz) - 0.06, 0.010);
-  res = opU(res, vec2(hubD, 1.0));
 
   // Neck and body do not turn with the head; they breathe a little.
   p.y -= uBreath;
   vec3 a = vec3(abs(p.x), p.y, p.z);
-  float neck = sdColumn(p - vec3(0.0, -0.80, -0.09), 0.225 + 0.012 * cos(p.y * 58.0), 0.44);
-  res = opU(res, vec2(neck, 2.0));
-  res = opU(res, vec2(sdCapsule(a, vec3(0.265, -0.50, -0.10), vec3(0.325, -1.16, -0.08), 0.034), 1.0));
-  res = opU(res, vec2(sdCapsule(a, vec3(0.085, -0.56, 0.135), vec3(0.11, -1.14, 0.17), 0.028), 1.0));
+  float spine = sdColumn(p - vec3(0.0, -0.82, -0.11), 0.185 + 0.010 * cos(p.y * 64.0), 0.46);
+  res = opU(res, vec2(spine, 2.0));
+  // Cable bundles from behind the jaw down to the collar.
+  float ribs = 0.004 * smoothstep(0.55, 1.0, sin(p.y * 52.0));
+  float cords = sdCapsule(a, vec3(0.225, -0.36, -0.13), vec3(0.075, -1.06, 0.09), 0.058) + ribs;
 
-  float torso = sdRoundBox(p - vec3(0.0, -1.97, -0.14), vec3(0.64, 0.62, 0.20), 0.20);
-  torso = smax(torso, dot(a.xy, vec2(0.44, 0.897)) + 0.90, 0.05);   // sloping shoulders
-  float pad = sdEllipsoid(a - vec3(1.0, -1.45, -0.14), vec3(0.34, 0.21, 0.36));
+  // The body sits high, so the neck is short.
+  vec3 t = vec3(a.x, p.y - 0.12, p.z);
+  float torso = sdRoundBox(t - vec3(0.0, -1.97, -0.14), vec3(0.66, 0.62, 0.20), 0.20);
+  torso = smax(torso, dot(t.xy, vec2(0.44, 0.897)) + 0.90, 0.05);   // sloping shoulders
+  // Shells that rise from the shoulders to the back of the neck.
+  float yoke = sdEllipsoid(t - vec3(0.27, -1.13, -0.21), vec3(0.36, 0.20, 0.16));
+  torso = smin(torso, yoke, 0.12);
+  float pad = sdEllipsoid(t - vec3(1.0, -1.45, -0.14), vec3(0.34, 0.21, 0.36));
   float body = min(torso, pad);
-  body += 0.008 * (cut(length(a.xy - vec2(0.0, -1.12)) - 0.60, 0.012)
-    + cut(length(a.xy - vec2(1.0, -1.42)) - 0.20, 0.011));
-  res = opU(res, vec2(body, 4.0));
-  res = opU(res, vec2(sdTorus(p - vec3(0.0, -1.155, -0.09), 0.30, 0.012), 5.0));
+  body += 0.008 * (cut(t.x - 0.10 + 0.45 * (t.y + 1.2), 0.011) * step(t.y, -1.2)
+    + cut(length(t.xy - vec2(1.0, -1.42)) - 0.20, 0.011));
+  res = opU(res, vec2(min(body, cords), 4.0));
   return res;
 }
 
@@ -199,12 +190,12 @@ float occlusion(vec3 p, vec3 n) {
 vec3 studio(vec3 d) {
   vec3 c = vec3(0.010, 0.013, 0.018);
   float az = atan(d.x, d.z);
-  c += vec3(0.95, 0.97, 1.0) * 1.5 * smoothstep(0.84, 0.97, dot(d, normalize(KEY)));          // key softbox
-  c += vec3(0.30, 0.45, 0.70) * 1.3 * exp(-pow((az - 1.2) * 4.5, 2.0)) * smoothstep(-0.6, 0.1, d.y) * smoothstep(0.95, 0.5, d.y);  // strip, right
+  c += vec3(0.95, 0.97, 1.0) * 1.2 * smoothstep(0.90, 0.985, dot(d, normalize(KEY)));          // key softbox
+  c += vec3(0.30, 0.45, 0.70) * 1.25 * exp(-pow((az - 1.2) * 4.2, 2.0)) * smoothstep(-0.6, 0.1, d.y) * smoothstep(0.95, 0.5, d.y);  // strip, right
   c += vec3(0.42, 0.47, 0.55) * 0.5 * exp(-pow((az + 1.7) * 3.5, 2.0)) * smoothstep(-0.4, 0.2, d.y);   // strip, far left
   c += vec3(0.45, 0.50, 0.58) * 0.35 * smoothstep(0.6, 1.0, d.y);                               // overhead
   c += vec3(0.05, 0.065, 0.09) * exp(-abs(d.y) * 4.0);                                          // horizon
-  c += RED * 0.32 * uPower * smoothstep(-0.2, -0.9, d.y);                                       // floor glow
+  c += RED * 0.14 * uPower * smoothstep(-0.2, -0.9, d.y);                                       // floor glow
   return c;
 }
 
@@ -212,15 +203,11 @@ vec3 shade(vec3 pos, vec3 rd, float m) {
   vec3 n = normalAt(pos);
   float facing = max(dot(n, -rd), 0.0);
 
-  if (m > 4.5) {
-    return RED * (0.15 + 1.3 * uGlow * (0.55 + 0.45 * uVoice));
-  }
-
   vec3 h = uHead * (pos - PIVOT) + PIVOT;
   vec3 nh = uHead * n;
-  vec3 f0 = vec3(0.50, 0.52, 0.57);
-  vec3 base = vec3(0.10, 0.108, 0.125);
-  if (m > 3.5) { f0 = vec3(0.34, 0.355, 0.40); base = vec3(0.06, 0.065, 0.078); }
+  vec3 f0 = vec3(0.36, 0.375, 0.42);
+  vec3 base = vec3(0.075, 0.08, 0.095);
+  if (m > 3.5) { f0 = vec3(0.26, 0.27, 0.31); base = vec3(0.05, 0.054, 0.066); }
   else if (m > 2.5) { f0 = vec3(0.05); base = vec3(0.004, 0.004, 0.006); }
   else if (m > 1.5) { f0 = vec3(0.09, 0.095, 0.11); base = vec3(0.035, 0.037, 0.045); }
 
@@ -235,31 +222,33 @@ vec3 shade(vec3 pos, vec3 rd, float m) {
   col += fresnel * 1.2 * sun * pow(max(dot(r, key), 0.0), 60.0);
   col *= mix(0.22, 1.0, uPower);
 
-  // Eyes: a ring and a pupil of light on each side, behind the glass.
-  // Thinking breaks the ring into segments that spin.
+  // Eyes: a tapered slit of light on the glass, hottest in the middle.
+  // Thinking narrows it and sends a bright point back and forth along it.
   if (m > 2.5 && m < 3.5) {
-    vec2 e = vec2(abs(h.x) - 0.155, h.y - 0.05);
-    float r = length(e);
-    float turn = atan(e.y, e.x) * 3.0 + uTime * 6.0;
-    float ring = cut(r - 0.034, 0.0075) * mix(1.0, smoothstep(-0.3, 0.3, sin(turn)), uFocus);
-    float pupil = smoothstep(0.014, 0.007, r) * (1.0 - 0.5 * uFocus);
-    float lines = 0.75 + 0.25 * sin(h.y * 900.0);
-    col += RED * uGlow * lines * (2.6 * ring + 2.2 * pupil + 0.22 * exp(-r * r * 260.0));
-    col += vec3(1.0, 0.7, 0.55) * uGlow * uGlow * (0.9 * ring + 1.2 * pupil);
+    vec2 e = eyeAt(h);
+    float along = e.x / 0.070;
+    float thick = (0.0115 - 0.005 * uFocus) * (1.0 - along * along);
+    float slit = smoothstep(-0.003, 0.004, thick - abs(e.y));
+    float core = exp(-dot(e, e) * 2600.0);
+    float scan = exp(-pow((e.x - 0.05 * sin(uTime * 5.0)) * 60.0, 2.0)) * uFocus;
+    float lines = 0.8 + 0.2 * sin(h.y * 1100.0);
+    col += RED * uGlow * lines * slit * (2.4 + 2.0 * scan);
+    col += vec3(1.0, 0.72, 0.55) * uGlow * uGlow * slit * (0.9 * core + 1.2 * scan);
+    col += RED * uGlow * 0.10 * exp(-dot(e, e) * 300.0);
   }
 
   // Light the eyes throw on the plates around them, and the throat's when speaking.
-  vec3 toEye = vec3(sign(h.x) * 0.155, 0.05, 0.40) - h;
-  float eyeLight = max(dot(nh, normalize(toEye)), 0.0) / (1.0 + 70.0 * dot(toEye, toEye));
-  col += RED * uGlow * eyeLight * (base * 6.0 + f0 * 1.2);
+  vec3 toEye = vec3(sign(h.x) * 0.150, 0.040, 0.34) - h;
+  float eyeLight = max(dot(nh, normalize(toEye)), 0.0) / (1.0 + 160.0 * dot(toEye, toEye));
+  col += RED * uGlow * eyeLight * (base * 4.0 + f0 * 0.8);
 
   if (m > 1.5 && m < 2.5 && h.y < -0.30 && h.y > -0.62 && h.z > 0.12) {
-    float vanes = 0.35 + 0.65 * smoothstep(-0.2, 0.6, sin(h.x * 110.0));
+    float vanes = 0.35 + 0.65 * smoothstep(-0.2, 0.6, sin(h.x * 120.0));
     float pulse = 0.75 + 0.25 * sin(uTime * 19.0 + h.x * 40.0);
-    col += RED * uGlow * (0.10 + 1.7 * uVoice * pulse) * vanes;
+    col += RED * uGlow * (0.16 + 1.7 * uVoice * pulse) * vanes;
     col += vec3(1.0, 0.6, 0.45) * uGlow * uVoice * uVoice * 0.3 * vanes;
   }
-  vec3 toMouth = vec3(0.0, -0.42, 0.34) - h;
+  vec3 toMouth = vec3(0.0, -0.42, 0.32) - h;
   col += RED * uGlow * uVoice * 0.5 * base * 5.0 / (1.0 + 40.0 * dot(toMouth, toMouth));
 
   // Thinking: a band of light sweeps the head.
@@ -307,11 +296,11 @@ void main() {
   // Haze around the eyes and the seam, added on top of everything.
   vec3 haze = vec3(0.0);
   for (int s = 0; s < 2; s++) {
-    vec2 eye = onScreen(vec3(s == 0 ? -0.155 : 0.155, 0.05, 0.38));
+    vec2 eye = onScreen(vec3(s == 0 ? -0.150 : 0.150, 0.040, 0.30));
     float d = length(vUv - eye);
-    haze += RED * uGlow * (0.30 * exp(-d * d * 700.0) + 0.16 * exp(-d * 10.0));
+    haze += RED * uGlow * (0.22 * exp(-d * d * 700.0) + 0.12 * exp(-d * 10.0));
   }
-  vec2 mouth = onScreen(vec3(0.0, -0.42, 0.36));
+  vec2 mouth = onScreen(vec3(0.0, -0.42, 0.32));
   float md = length((vUv - mouth) * vec2(1.0, 1.8));
   haze += RED * uGlow * uVoice * 0.30 * exp(-md * 9.0);
 
