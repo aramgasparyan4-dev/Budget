@@ -60,8 +60,8 @@ export function TodayView({ store, data, now }: { store: Store; data: AppData; n
   return (
     <div class="view">
       <FocusCard store={store} data={data} now={now} />
-      <Suggestions store={store} data={data} today={today} />
       <Group title="Overdue" tasks={g.overdue} store={store} today={today} tone="late" />
+      <Suggestions store={store} data={data} today={today} />
       <Group title="Today" tasks={g.today} store={store} today={today} />
       <Group title="Tomorrow" tasks={g.tomorrow} store={store} today={today} />
       <Group title="Next 7 days" tasks={g.week} store={store} today={today} />

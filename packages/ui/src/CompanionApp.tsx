@@ -1,9 +1,10 @@
-import { evaluateMood, liveTasks } from '@star/core';
+import { liveTasks } from '@star/core';
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { ExamsView } from './ExamsView.tsx';
 import { GoalsView } from './GoalsView.tsx';
-import { useData, useNow } from './hooks.ts';
+import { useData, useMood } from './hooks.ts';
+import { LiveStar } from './LiveStar.tsx';
 import { QuickAdd } from './QuickAdd.tsx';
 import { SettingsView } from './SettingsView.tsx';
 import { StarFace } from './StarFace.tsx';
@@ -22,33 +23,53 @@ export const WELCOME = 'Hi. Tell me what homework and exams you have, and I will
 
 interface Props {
   store: Store;
+  /**
+   * 'panel' is the small list window on the desktop. 'phone' fills the
+   * screen, with a big moving face at the top.
+   */
+  variant?: 'panel' | 'phone';
+  /** Put the cursor in the quick add box straight away. */
+  autoFocusAdd?: boolean;
   /** Bumping this number puts the cursor back in the quick add box. */
   focusKey?: number;
   onClose?: () => void;
+  /** Log finished focus sessions here (see useMood). The phone turns this on. */
+  closeFocus?: boolean;
+  onFocusEnd?: () => void;
   /** Extra settings that only one app has. */
   settingsExtra?: ComponentChildren;
 }
 
 /** The whole list screen: face and message, quick add, and the four tabs. */
-export function CompanionApp({ store, focusKey, onClose, settingsExtra }: Props) {
+export function CompanionApp({
+  store,
+  variant = 'panel',
+  autoFocusAdd = true,
+  focusKey,
+  onClose,
+  closeFocus = false,
+  onFocusEnd,
+  settingsExtra,
+}: Props) {
   const data = useData(store);
-  const now = useNow(20_000);
+  const { mood, now } = useMood(store, { closeFocus, ...(onFocusEnd ? { onFocusEnd } : {}) });
   const [tab, setTab] = useState<Tab>('today');
-  const mood = evaluateMood(data.tasks, data.sessions, data.settings, now);
   const isNew = liveTasks(data.tasks).length === 0;
 
   return (
-    <div class="companion">
+    <div class={`companion ${variant}`}>
       <header class="top">
-        <StarFace mood={mood.mood} size={64} id="head" />
-        <p class="message">{isNew ? WELCOME : mood.message}</p>
+        {variant === 'phone' ? <LiveStar mood={mood.mood} size={148} /> : <StarFace mood={mood.mood} size={64} id="head" />}
+        <p class="message" aria-live="polite">
+          {isNew ? WELCOME : mood.message}
+        </p>
         {onClose && (
           <button type="button" class="close" aria-label="Close" title="Close (Esc)" onClick={onClose}>
             ×
           </button>
         )}
       </header>
-      <QuickAdd store={store} autoFocus resetKey={focusKey} onEscape={onClose} />
+      <QuickAdd store={store} autoFocus={autoFocusAdd} resetKey={focusKey} onEscape={onClose} />
       <nav class="tabs" role="tablist">
         {TABS.map(([id, label]) => (
           <button type="button" role="tab" aria-selected={tab === id} class={tab === id ? 'on' : ''} onClick={() => setTab(id)}>

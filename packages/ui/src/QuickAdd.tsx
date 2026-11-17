@@ -47,6 +47,8 @@ export function QuickAdd({ store, autoFocus, large, resetKey, onAdded, onEscape 
         placeholder="Add: maths hw fri, chem exam 20 nov, goal read more..."
         aria-label="Quick add"
         autocomplete="off"
+        autocapitalize="off"
+        enterkeyhint="done"
         spellcheck={false}
         onInput={(e) => setText((e.target as HTMLInputElement).value)}
         onKeyDown={(e) => {

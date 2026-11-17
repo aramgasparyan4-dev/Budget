@@ -5,6 +5,7 @@ export * from './hooks.ts';
 export { CompanionApp, WELCOME } from './CompanionApp.tsx';
 export { QuickAdd, describeParsed } from './QuickAdd.tsx';
 export { StarFace } from './StarFace.tsx';
+export { LiveStar } from './LiveStar.tsx';
 export { TodayView } from './TodayView.tsx';
 export { ExamsView } from './ExamsView.tsx';
 export { GoalsView } from './GoalsView.tsx';

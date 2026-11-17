@@ -5,18 +5,19 @@ are keeping up with homework, exams and goals.
 
 ## What is here so far
 
-Phases 1 and 2 of 5.
-
 - **Core** (`packages/core`): the data model, the quick add parser ("maths hw
   fri" becomes homework due Friday), the mood engine, and the faces as 16 by
   16 pixel frames in `faces.json`.
 - **Desktop app** (`apps/desktop`): the floating star for Windows. See
   [apps/desktop/README.md](apps/desktop/README.md) for how to install and
   use it.
+- **Phone app** (`apps/phone`): the same lists with the star on top, for
+  Chrome on Android. See [apps/phone/README.md](apps/phone/README.md).
 
 ![The star in every mood](docs/desktop/all-moods-in-app.png)
 
-Still to come: sync and login, the phone app, and the robot endpoint.
+Still to come: sync between the PC and the phone, reminders, and the robot
+endpoint.
 
 ## Run the tests on your PC (optional)
 

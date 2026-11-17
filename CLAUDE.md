@@ -20,12 +20,17 @@ emojis, and explain setup steps simply.
 
 ## Status
 
-- Phase 1 (core) and phase 2 (desktop, local data) are built.
-- The Windows installer builds on GitHub (release `desktop-latest`). The app has
-  only been run on Linux (virtual screen) and in a browser.
-  Nobody has run it on Windows yet: the user has a checklist in
-  `docs/desktop/windows-checklist.md`. Ask for their results before building on
-  top of the Windows-only parts.
+- Built: phase 1 (core), phase 2 (desktop, local data), and the phone app
+  with local data (the first half of phase 4, done early because the user
+  asked for Android next).
+- Not built: phase 3 (Supabase sync and login), phone reminders (they need
+  the backend), phase 5 (robot endpoint).
+- Desktop: the user installed it on Windows 11 and said "it works well". They
+  did not go through `docs/desktop/windows-checklist.md` item by item.
+- Phone: tested in Chromium with Pixel 7 emulation only. Not yet on a real
+  phone. It goes live once the user turns on GitHub Pages for the `gh-pages`
+  branch (steps in `apps/phone/README.md`).
+- Next: the user creates a Supabase project, then sync for both apps.
 - The user chose to skip the old Electron prototype. There is no data import
   and the look is our own design. Do not ask for the prototype again.
 
@@ -35,7 +40,7 @@ emojis, and explain setup steps simply.
     packages/star-view   draws the star (SVG text, and a live DOM version)
     packages/ui          Preact screens shared by the desktop list and the phone
     apps/desktop         Tauri 2 app. Rust in src-tauri/, three pages in src/
-    apps/phone           (phase 4) PWA
+    apps/phone           installable web app (PWA) for Android
     supabase/            (phase 3, 5) schema and edge functions
     tools/               scripts, for example the mood preview
     docs/                screenshots and the Windows checklist
@@ -45,6 +50,7 @@ npm workspaces. From the repo root:
     npm test                             core unit tests (Vitest)
     npm run typecheck                    core without DOM types, then the rest
     npm run test:e2e -w @star/desktop    browser checks, screenshots to docs/desktop
+    npm run test:e2e -w @star/phone      browser checks as a Pixel 7, screenshots to docs/phone
     cd apps/desktop/src-tauri && cargo test
     cargo check --target x86_64-pc-windows-msvc    type-checks the Windows-only code
 
@@ -134,8 +140,24 @@ Desktop
   installer on every push and republishes it as the `desktop-latest`
   prerelease. Building locally stays possible (Node and Rust).
 
-Phone and backend (planned)
-- PWA for Chrome on Android, sharing core, star-view and ui. `CompanionApp` in
-  packages/ui is the whole list screen; give it a `Store` with a phone
-  `Backend`.
+Phone
+- A PWA for Chrome on Android. `apps/phone/src/main.tsx` renders the shared
+  `CompanionApp` with `variant="phone"` and a localStorage `Backend`.
+- Exactly one place per app logs finished focus sessions: the star window on
+  the desktop, `CompanionApp closeFocus` on the phone (`useMood` in
+  packages/ui does it).
+- No keyboard on a normal start. `?add=1` (the home screen "Quick add"
+  shortcut) starts with the cursor in the box.
+- Offline: `vite.config.ts` writes `sw.js` with the list of built files.
+  Hidden files are left out of that list, navigation is answered from `./`,
+  and cache lookups use `ignoreVary` (GitHub Pages varies on headers).
+- All addresses are relative (`base: './'`), because the site lives under
+  `/Budget/`. The e2e check serves it from a sub-folder to prove that.
+- Hosting: `.github/workflows/phone.yml` force-pushes the build to the
+  `gh-pages` branch on every push. The user turns Pages on for that branch.
+- Inputs are 16px or larger on the phone, or Chrome zooms in on tap.
+
+Backend (planned)
 - Supabase for login, storage, sync, push reminders and the robot endpoint.
+- Reminders cannot be done on the phone alone: a web app cannot schedule a
+  notification while it is closed. They need a scheduled function and Web Push.
