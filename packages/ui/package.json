@@ -1,0 +1,16 @@
+{
+  "name": "@star/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared screens and widgets (Preact) for the desktop panel and the phone app.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./style.css": "./src/style.css"
+  },
+  "dependencies": {
+    "@star/core": "*",
+    "@star/star-view": "*",
+    "preact": "^10.26.0"
+  }
+}

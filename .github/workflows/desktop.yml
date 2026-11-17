@@ -1,0 +1,79 @@
+# Builds the Windows installer for the desktop app.
+#
+# Runs on every push that touches the app. The installer is attached to the
+# run as an artifact, and also published on the repo's Releases page as
+# "Star Companion for Windows (latest build)" so it is one click to download.
+
+name: Desktop app (Windows)
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install JavaScript packages
+        run: npm ci
+
+      - name: Core tests
+        run: npm test
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Rust tests
+        working-directory: apps/desktop/src-tauri
+        run: cargo test
+
+      - name: Build the installer
+        working-directory: apps/desktop
+        run: npx tauri build --bundles nsis
+
+      - name: Attach the installer to this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: star-companion-windows
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+      - name: Publish on the Releases page
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete desktop-latest --cleanup-tag --yes || true
+          gh release create desktop-latest apps/desktop/src-tauri/target/release/bundle/nsis/*.exe \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Star Companion for Windows (latest build)" \
+            --notes "Built automatically from commit $GITHUB_SHA. Download the .exe below and run it. Windows will warn that it does not know the publisher: click More info, then Run anyway."

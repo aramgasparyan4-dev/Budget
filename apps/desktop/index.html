@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Star Companion test bench</title>
+    <style>
+      body { margin: 0; padding: 16px; background: #3a4660; font: 14px system-ui, sans-serif; color: #e8e9ee; }
+      .bench { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+      iframe { border: 1px dashed #ffffff40; background: transparent; }
+      #panel, #quickadd { display: none; }
+      #panel.open, #quickadd.open { display: block; }
+      .bar { margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      button { font: inherit; }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <strong>Test bench.</strong> The real app shows these as three separate windows.
+      <button data-menu="quick_add">Quick add</button>
+      <button data-menu="snooze_60">Snooze 1 hour</button>
+      <button data-menu="snooze_clear">End snooze</button>
+      <button data-menu="day_off">Day off</button>
+      <button data-menu="size">Small / normal</button>
+      <button data-menu="reset">Erase test data</button>
+    </div>
+    <div class="bench">
+      <iframe id="star" src="/star.html" width="440" height="450" title="Star window"></iframe>
+      <iframe id="panel" src="/panel.html" width="400" height="620" title="List window"></iframe>
+      <iframe id="quickadd" src="/quickadd.html" width="640" height="200" title="Quick add window"></iframe>
+    </div>
+    <script type="module" src="/src/bench.ts"></script>
+  </body>
+</html>

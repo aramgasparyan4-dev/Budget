@@ -1,0 +1,484 @@
+/* Shared look for the list screens. Dark, like the star. */
+
+:root {
+  --bg: #16171d;
+  --bg-raised: #1e2028;
+  --bg-input: #101116;
+  --line: #2c2f3a;
+  --text: #e8e9ee;
+  --dim: #9a9db0;
+  --accent: #ffd84d;
+  --accent-ink: #1b1600;
+  --warn: #ff7a6e;
+  --ok: #4de0b0;
+  --radius: 12px;
+}
+
+/* Dark date pickers, drop-downs and scrollbars. Set on the screens rather
+   than the whole page, so a see-through desktop window stays see-through. */
+.companion,
+.quick-add {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  font: 14px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+.companion {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------- header */
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px 0 6px;
+}
+
+.star-face {
+  display: inline-block;
+  flex: none;
+}
+
+.star-face svg {
+  display: block;
+}
+
+.top .message {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+}
+
+.close {
+  flex: none;
+  align-self: flex-start;
+  width: 28px;
+  height: 28px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dim);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+/* ------------------------------------------------------- quick add */
+
+.quick-add {
+  padding: 6px 12px 8px;
+}
+
+.quick-add input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-input);
+  outline: none;
+}
+
+.quick-add input:focus {
+  border-color: var(--accent);
+}
+
+.quick-add-preview {
+  min-height: 18px;
+  margin-top: 5px;
+  padding: 0 2px;
+  color: var(--dim);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-add.large input {
+  padding: 13px 16px;
+  font-size: 18px;
+}
+
+.quick-add.large .quick-add-preview {
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+/* ------------------------------------------------------------ tabs */
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs button {
+  flex: 1;
+  padding: 7px 0 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  color: var(--text);
+}
+
+.tabs button.on {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+main {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.view {
+  padding: 10px 12px 16px;
+}
+
+/* ---------------------------------------------------------- groups */
+
+.group {
+  margin-bottom: 14px;
+}
+
+.group h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.group.late h2,
+.group.exam.near h2 {
+  color: var(--warn);
+}
+
+.h2-note {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--dim);
+}
+
+.group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.task + .task {
+  border-top: 1px solid var(--line);
+}
+
+.task-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+}
+
+.task input[type='checkbox'] {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--ok);
+  cursor: pointer;
+}
+
+.task-main {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-main.static {
+  cursor: default;
+}
+
+.task-title,
+.task-meta {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-meta {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.task.late .task-meta {
+  color: var(--warn);
+}
+
+.task.done .task-title {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+/* ------------------------------------------------- buttons, inputs */
+
+.chip {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip:hover {
+  border-color: var(--dim);
+}
+
+.chip.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.chip.warn {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.chip.danger:hover {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+input[type='text'],
+input[type='date'],
+input[type='time'],
+input[type='number'],
+select {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-input);
+  outline: none;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--accent);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+.grow {
+  flex: 1;
+}
+
+.task-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 10px 10px;
+}
+
+.task-editor label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.task-editor label input,
+.task-editor label select {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.log-minutes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.group > .log-minutes,
+.group > .note {
+  margin: 6px 2px 0;
+}
+
+.note {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.empty {
+  margin: 24px 8px;
+  text-align: center;
+  color: var(--dim);
+}
+
+/* ------------------------------------------------------ focus card */
+
+.focus-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.focus-card select {
+  flex: 1;
+  min-width: 0;
+}
+
+.focus-card .minutes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--dim);
+  font-size: 12.5px;
+}
+
+.focus-card .minutes input {
+  width: 54px;
+  color: var(--text);
+}
+
+.focus-card.running {
+  justify-content: space-between;
+  border: 1px solid var(--ok);
+}
+
+.focus-label {
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.focus-clock {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+}
+
+/* -------------------------------------------------------- settings */
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.field input[type='number'] {
+  width: 64px;
+}
+
+.field input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+}
+
+.quiet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.quiet input[type='text'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.day {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.day.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}

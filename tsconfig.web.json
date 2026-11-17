@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": ["packages/star-view/src", "packages/ui/src", "apps/*/src", "apps/*/e2e", "apps/*/*.ts", "tools"],
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "types": ["node", "vite/client"]
+  }
+}

@@ -1,0 +1,151 @@
+/* Phone layout: full screen, bigger text and buttons for fingers. */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.companion.phone {
+  height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  font-size: 16px;
+}
+
+/* Face on top, what it says underneath. */
+.companion.phone .top {
+  flex-direction: column;
+  gap: 0;
+  padding: 2px 20px 6px;
+  text-align: center;
+}
+
+.companion.phone .top .message {
+  flex: none;
+  min-height: 2.8em;
+  font-size: 16px;
+}
+
+.companion.phone .quick-add {
+  padding: 6px 14px 10px;
+}
+
+/* 16px or more, or Chrome zooms the page in when the box is tapped. */
+.companion.phone input,
+.companion.phone select {
+  font-size: 16px;
+}
+
+.companion.phone .quick-add input {
+  padding: 13px 14px;
+  border-radius: 12px;
+}
+
+.companion.phone .quick-add-preview {
+  font-size: 13.5px;
+}
+
+.companion.phone .tabs button {
+  padding: 12px 0;
+  font-size: 15px;
+}
+
+.companion.phone .view {
+  padding: 12px 14px calc(24px + env(safe-area-inset-bottom));
+}
+
+.companion.phone .task-line {
+  gap: 10px;
+  padding: 11px 12px;
+}
+
+.companion.phone .task input[type='checkbox'] {
+  width: 24px;
+  height: 24px;
+}
+
+.companion.phone .task-meta {
+  font-size: 13.5px;
+}
+
+.companion.phone .chip {
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.companion.phone .group h2 {
+  font-size: 12.5px;
+}
+
+.companion.phone .note,
+.companion.phone .log-minutes {
+  font-size: 14px;
+}
+
+.companion.phone .focus-card {
+  flex-wrap: wrap;
+  padding: 10px 12px;
+}
+
+.companion.phone .focus-card select {
+  flex: 1 1 100%;
+  padding: 9px 10px;
+}
+
+.companion.phone .focus-card .minutes {
+  flex: 1;
+  font-size: 14px;
+}
+
+.companion.phone .focus-card .minutes input {
+  width: 72px;
+  padding: 8px 10px;
+}
+
+.companion.phone .focus-clock {
+  font-size: 34px;
+}
+
+.companion.phone .day {
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
+}
+
+.companion.phone .field {
+  padding: 8px 0;
+}
+
+.companion.phone .field input[type='number'] {
+  width: 76px;
+}
+
+.companion.phone .task-editor {
+  padding: 4px 12px 12px;
+}
+
+.companion.phone .task-editor label input,
+.companion.phone .task-editor label select,
+.companion.phone .task-editor > input {
+  padding: 9px 10px;
+}
+
+/* An overdue row has two buttons. On a narrow screen they go on their own
+   line, so the task's name is not squeezed out. */
+.companion.phone .task.late .task-line {
+  flex-wrap: wrap;
+}
+
+.companion.phone .task.late .task-main {
+  flex-basis: calc(100% - 40px);
+}
+
+.companion.phone .task.late .task-line > .chip.warn {
+  margin-left: 34px;
+}

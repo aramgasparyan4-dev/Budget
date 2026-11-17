@@ -1,0 +1,62 @@
+# Builds the phone app and puts it on the web, so it can be opened and
+# installed from Chrome on Android.
+#
+# The built files go to a branch called gh-pages, which GitHub Pages serves
+# at https://<user>.github.io/<repo>/. One-time setup, in the repo on GitHub:
+# Settings -> Pages -> Source "Deploy from a branch" -> gh-pages, / (root).
+
+name: Phone app (website)
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'apps/phone/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/phone.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: phone-website
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JavaScript packages
+        run: npm ci
+
+      - name: Core tests
+        run: npm test
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build the phone app
+        run: npm run build -w @star/phone
+
+      - name: Publish to the gh-pages branch
+        working-directory: apps/phone/dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Phone app built from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
